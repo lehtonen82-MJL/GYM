@@ -1,0 +1,133 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import SetRow from "./SetRow";
+import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
+import { getPreviousResults } from "@/lib/actions";
+
+type ExerciseCardProps = {
+  entry: WorkoutExerciseEntry;
+  sets: SetEntry[];
+  onSetsChange: (sets: SetEntry[]) => void;
+  suggestedWeight: number | null;
+  isActive: boolean;
+  onToggle: () => void;
+};
+
+export default function ExerciseCard({
+  entry,
+  sets,
+  onSetsChange,
+  suggestedWeight,
+  isActive,
+  onToggle,
+}: ExerciseCardProps) {
+  const [prevResults, setPrevResults] = useState<
+    { weight_kg: number; reps: number }[]
+  >([]);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getPreviousResults(entry.exercise_id).then(setPrevResults);
+  }, [entry.exercise_id]);
+
+  // Scroll this card into view when it becomes active
+  useEffect(() => {
+    if (isActive && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [isActive]);
+
+  function updateSet(setId: string, changes: Partial<SetEntry>) {
+    onSetsChange(sets.map((s) => (s.id === setId ? { ...s, ...changes } : s)));
+  }
+
+  function handleWeightChange(setId: string, weight: number) {
+    updateSet(setId, { weight_kg: weight });
+  }
+
+  function handleRepsChange(setId: string, reps: number) {
+    updateSet(setId, { reps });
+  }
+
+  function handleToggleComplete(setId: string) {
+    const set = sets.find((s) => s.id === setId);
+    if (set) updateSet(setId, { completed: !set.completed });
+  }
+
+  const completedCount = sets.filter((s) => s.completed).length;
+  const targetSets = entry.workout_day_exercise?.target_sets ?? sets.length;
+  const targetReps = entry.workout_day_exercise?.target_reps ?? 5;
+  const allDone = completedCount === targetSets && targetSets > 0;
+
+  return (
+    <div
+      ref={cardRef}
+      className={`rounded-2xl border overflow-hidden transition-colors ${
+        allDone && !isActive
+          ? "bg-zinc-900 border-zinc-800 opacity-60"
+          : "bg-card border-border"
+      }`}
+    >
+      {/* Header */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 active:bg-card-hover"
+      >
+        <div className="text-left">
+          <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
+            {entry.exercise?.name}
+          </h3>
+          {(!allDone || isActive) && (
+            <p className="text-muted text-sm">
+              {targetSets}×{targetReps}
+              {suggestedWeight !== null && (
+                <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {allDone ? (
+            <span className="text-success text-lg">✓</span>
+          ) : (
+            <span className="text-muted text-sm font-medium">
+              {completedCount}/{targetSets}
+            </span>
+          )}
+          <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {/* Previous results */}
+      {isActive && prevResults.length > 0 && (
+        <div className="px-4 pb-2">
+          <p className="text-xs text-muted">
+            Last:{" "}
+            {prevResults.map((r) => `${r.weight_kg}kg×${r.reps}`).join(", ")}
+          </p>
+        </div>
+      )}
+
+      {/* Sets */}
+      {isActive && (
+        <div className="px-3 pb-3 space-y-2">
+          {sets.map((set) => (
+            <SetRow
+              key={set.id}
+              setNumber={set.set_number}
+              weightKg={set.weight_kg}
+              reps={set.reps}
+              targetReps={targetReps}
+              completed={set.completed}
+              onWeightChange={(w) => handleWeightChange(set.id, w)}
+              onRepsChange={(r) => handleRepsChange(set.id, r)}
+              onToggleComplete={() => handleToggleComplete(set.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
