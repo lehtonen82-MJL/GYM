@@ -4,11 +4,72 @@ export type Profile = {
   created_at: string;
 };
 
+// ── Program Builder Types ──────────────────────
+
+export type ProgramMode = "weekday" | "session";
+
 export type Program = {
   id: string;
   user_id: string;
   name: string;
+  description?: string;
+  mode: ProgramMode;
+  is_active: boolean;
   created_at: string;
+  updated_at?: string;
+};
+
+export type ProgramDay = {
+  id: string;
+  program_id: string;
+  user_id: string;
+  name: string; // e.g. "Oly", "Back", "Legs", "Chest"
+  day_order: number;
+  kind: "weekday" | "session"; // "weekday" for program builder, "legacy" for old data
+  day_of_week?: number; // 0=Sun, 1=Mon, 2=Tue, etc. (if weekday mode)
+  day_label?: string; // "TI", "TO", "LA", "SU" (if weekday mode)
+  weekday_label?: string; // e.g., "Monday"
+  session_label?: string; // e.g., "Workout 1"
+  created_at: string;
+  updated_at?: string;
+};
+
+export type ProgramExercise = {
+  id: string;
+  program_id: string;
+  workout_day_id: string;
+  user_id: string;
+  exercise_id?: string;
+  exercise_name_snapshot: string; // name as it appears in the program
+  scheme_text?: string; // e.g. "4x2", "1x5 + 2x5"
+  target_sets?: number;
+  target_reps_text?: string; // e.g. "5", "5,5,5", "8-10"
+  notes?: string;
+  sort_order: number;
+  created_at: string;
+  updated_at?: string;
+  exercise?: Exercise;
+};
+
+export type ParsedProgramPreview = {
+  name: string;
+  mode: ProgramMode;
+  days: Array<{
+    name: string;
+    label?: string;
+    exercises: Array<{
+      name: string;
+      schemeText?: string;
+      targetSets?: number;
+      targetRepsText?: string;
+      notes?: string;
+    }>;
+  }>;
+  warnings: Array<{
+    line?: number;
+    type: "unknown_exercise" | "malformed_line" | "empty_day" | "duplicate_day";
+    message: string;
+  }>;
 };
 
 export type WorkoutDay = {
@@ -19,13 +80,18 @@ export type WorkoutDay = {
   day_of_week: number; // 0=Sun, 1=Mon, 2=Tue, etc.
   day_label: string; // "TI", "TO", "LA", "SU"
   created_at: string;
+  kind?: "legacy"; // for backward compatibility
 };
 
 export type Exercise = {
   id: string;
   user_id: string;
   name: string;
+  normalized_name?: string;
+  category?: string;
+  is_main_lift?: boolean;
   created_at: string;
+  updated_at?: string;
 };
 
 export type WorkoutDayExercise = {
@@ -72,4 +138,56 @@ export type SetEntry = {
   reps: number | null;
   completed: boolean;
   created_at: string;
+};
+
+// ── Program Input Types (for mutations) ─────
+
+export type CreateProgramInput = {
+  name: string;
+  description?: string;
+  mode: ProgramMode;
+};
+
+export type UpdateProgramInput = {
+  name?: string;
+  description?: string;
+  is_active?: boolean;
+};
+
+export type CreateProgramDayInput = {
+  program_id: string;
+  name: string;
+  day_order: number;
+  kind: "weekday" | "session";
+  day_of_week?: number;
+  day_label?: string;
+  weekday_label?: string;
+  session_label?: string;
+};
+
+export type CreateProgramExerciseInput = {
+  program_id: string;
+  program_day_id: string;
+  exercise_id?: string;
+  exercise_name_snapshot: string;
+  scheme_text?: string;
+  target_sets?: number;
+  target_reps_text?: string;
+  notes?: string;
+  sort_order: number;
+};
+
+// ── Denormalized Types (for API responses) ─
+
+export type ProgramWithDaysAndExercises = Program & {
+  days: Array<
+    ProgramDay & {
+      exercises: ProgramExercise[];
+    }
+  >;
+};
+
+export type ProgramListItem = Program & {
+  days_count: number;
+  exercises_count: number;
 };

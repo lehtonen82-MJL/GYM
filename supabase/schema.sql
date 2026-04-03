@@ -34,11 +34,16 @@ create table if not exists programs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
-  created_at timestamptz default now()
+  description text,
+  mode text default 'weekday' check (mode in ('weekday', 'session')),
+  is_active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 alter table programs enable row level security;
 create policy "Users can manage own programs" on programs for all using (auth.uid() = user_id);
+create index if not exists idx_programs_user_active on programs(user_id, is_active);
 
 -- Workout Days
 create table if not exists workout_days (
@@ -46,24 +51,35 @@ create table if not exists workout_days (
   program_id uuid not null references programs(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
-  day_of_week int not null, -- 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-  day_label text not null,  -- "TI", "TO", "LA", "SU"
-  created_at timestamptz default now()
+  day_of_week int, -- 0=Sun, 1=Mon, 2=Tue, etc. (if weekday mode)
+  day_label text, -- "TI", "TO", "LA", "SU" (if weekday mode)
+  kind text default 'legacy' check (kind in ('weekday', 'session', 'legacy')),
+  day_order int,
+  weekday_label text, -- e.g., "Monday"
+  session_label text, -- e.g., "Workout 1"
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 alter table workout_days enable row level security;
 create policy "Users can manage own workout_days" on workout_days for all using (auth.uid() = user_id);
+create index if not exists idx_workout_days_program on workout_days(program_id);
 
--- Exercises
+-- Exercises (with Phase 1 enhancements)
 create table if not exists exercises (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
-  created_at timestamptz default now()
+  normalized_name text,
+  category text,
+  is_main_lift boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 alter table exercises enable row level security;
 create policy "Users can manage own exercises" on exercises for all using (auth.uid() = user_id);
+create index if not exists idx_exercises_user_normalized on exercises(user_id, normalized_name);
 
 -- Workout Day Exercises (which exercises belong to which day)
 create table if not exists workout_day_exercises (
@@ -128,3 +144,64 @@ create index if not exists idx_workouts_started on workouts(user_id, started_at 
 create index if not exists idx_workout_exercise_entries_workout on workout_exercise_entries(workout_id);
 create index if not exists idx_set_entries_entry on set_entries(workout_exercise_entry_id);
 create index if not exists idx_workout_day_exercises_day on workout_day_exercises(workout_day_id);
+
+-- Program Exercises (Phase 1 feature for program builder)
+create table if not exists program_exercises (
+  id uuid primary key default gen_random_uuid(),
+  program_id uuid not null references programs(id) on delete cascade,
+  program_day_id uuid not null references workout_days(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  exercise_id uuid references exercises(id) on delete set null,
+  exercise_name_snapshot text not null,
+  scheme_text text,
+  target_sets int,
+  target_reps_text text,
+  notes text,
+  sort_order int not null default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table program_exercises enable row level security;
+create policy "Users can view own program_exercises" on program_exercises for select using (auth.uid() = user_id);
+create policy "Users can manage own program_exercises" on program_exercises for all using (auth.uid() = user_id);
+create index if not exists idx_program_exercises_program on program_exercises(program_id);
+create index if not exists idx_program_exercises_day on program_exercises(program_day_id);
+
+-- ============================================
+-- Triggers for updated_at timestamps
+-- ============================================
+
+create or replace function public.update_updated_at_timestamp()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger if not exists update_programs_updated_at before update on programs
+  for each row execute procedure public.update_updated_at_timestamp();
+
+create trigger if not exists update_exercises_updated_at before update on exercises
+  for each row execute procedure public.update_updated_at_timestamp();
+
+create trigger if not exists update_workout_days_updated_at before update on workout_days
+  for each row execute procedure public.update_updated_at_timestamp();
+
+create trigger if not exists update_program_exercises_updated_at before update on program_exercises
+  for each row execute procedure public.update_updated_at_timestamp();
+
+-- ============================================
+-- Active program helper function
+-- Used by setActiveProgram() to atomically deactivate all programs
+-- and activate one. Also safe to call directly from SQL Editor.
+-- ============================================
+
+create or replace function public.set_active_program(p_program_id uuid, p_user_id uuid)
+returns void as $$
+begin
+  update public.programs set is_active = false where user_id = p_user_id;
+  update public.programs set is_active = true  where id = p_program_id and user_id = p_user_id;
+end;
+$$ language plpgsql security definer;

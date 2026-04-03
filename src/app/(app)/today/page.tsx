@@ -1,5 +1,6 @@
 import { getTodayWorkoutDay, getWorkoutDaysForProgram } from "@/lib/actions";
 import StartWorkoutButton from "./StartWorkoutButton";
+import ManualWorkoutSelector from "./ManualWorkoutSelector";
 
 export default async function TodayPage() {
   const [todayDay, allDays] = await Promise.all([
@@ -26,8 +27,13 @@ export default async function TodayPage() {
           <StartWorkoutButton workoutDayId={todayDay.id} />
         </div>
       ) : (
-        <div className="bg-card rounded-2xl border border-border p-5">
-          <p className="text-muted text-center">Rest day 🧘</p>
+        <div className="space-y-3">
+          <div className="bg-card rounded-2xl border border-border p-5">
+            <p className="text-muted text-center">Rest day 🧘</p>
+          </div>
+          {allDays.length > 0 && (
+            <ManualWorkoutSelector days={allDays} />
+          )}
         </div>
       )}
 

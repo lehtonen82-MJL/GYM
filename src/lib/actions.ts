@@ -31,10 +31,10 @@ async function getUserId(): Promise<string> {
 // ── Mock data (demo mode only) ──────────────────────────
 
 const MOCK_DAYS: WorkoutDay[] = [
-  { id: "day-0", program_id: "prog-1", user_id: "mock-user", name: "Chest", day_of_week: 0, day_label: "SU", created_at: "" },
-  { id: "day-2", program_id: "prog-1", user_id: "mock-user", name: "Oly",   day_of_week: 2, day_label: "TI", created_at: "" },
-  { id: "day-4", program_id: "prog-1", user_id: "mock-user", name: "Back",  day_of_week: 4, day_label: "TO", created_at: "" },
-  { id: "day-6", program_id: "prog-1", user_id: "mock-user", name: "Legs",  day_of_week: 6, day_label: "LA", created_at: "" },
+  { id: "day-0", program_id: "prog-demo-1", user_id: "mock-user", name: "Chest", day_of_week: 0, day_label: "SU", created_at: "" },
+  { id: "day-2", program_id: "prog-demo-1", user_id: "mock-user", name: "Oly",   day_of_week: 2, day_label: "TI", created_at: "" },
+  { id: "day-4", program_id: "prog-demo-1", user_id: "mock-user", name: "Back",  day_of_week: 4, day_label: "TO", created_at: "" },
+  { id: "day-6", program_id: "prog-demo-1", user_id: "mock-user", name: "Legs",  day_of_week: 6, day_label: "LA", created_at: "" },
 ];
 
 const MOCK_EXERCISES: Record<
@@ -90,18 +90,25 @@ function uid() { return `mock-${globalThis.__nid!++}`; }
 
 export async function getTodayWorkoutDay(): Promise<WorkoutDay | null> {
   if (DEMO_MODE) {
+    const activeProgram = MOCK_PROGRAMS.find((p) => p.is_active);
+    if (!activeProgram) return null;
     const dow = new Date().getDay();
-    return MOCK_DAYS.find((d) => d.day_of_week === dow) ?? null;
+    return MOCK_DAYS.find((d) => d.program_id === activeProgram.id && d.day_of_week === dow) ?? null;
   }
 
   const supabase = await db();
   const userId = await getUserId();
   const dow = new Date().getDay();
 
+  // Get active program first
+  const activeProgram = await getActiveProgram();
+  if (!activeProgram) return null;
+
   const { data } = await supabase
     .from("workout_days")
     .select("*")
     .eq("user_id", userId)
+    .eq("program_id", activeProgram.id)
     .eq("day_of_week", dow)
     .limit(1)
     .single();
@@ -110,15 +117,24 @@ export async function getTodayWorkoutDay(): Promise<WorkoutDay | null> {
 }
 
 export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
-  if (DEMO_MODE) return MOCK_DAYS;
+  if (DEMO_MODE) {
+    const activeProgram = MOCK_PROGRAMS.find((p) => p.is_active);
+    if (!activeProgram) return [];
+    return MOCK_DAYS.filter((d) => d.program_id === activeProgram.id);
+  }
 
   const supabase = await db();
   const userId = await getUserId();
+
+  // Get active program first
+  const activeProgram = await getActiveProgram();
+  if (!activeProgram) return [];
 
   const { data } = await supabase
     .from("workout_days")
     .select("*")
     .eq("user_id", userId)
+    .eq("program_id", activeProgram.id)
     .order("day_of_week");
 
   return data ?? [];
@@ -161,21 +177,96 @@ export async function startWorkout(
   if (wErr || !workout) return null;
   workout.workout_day = day;
 
-  // 3. Get exercises for this day
-  const { data: wdes } = await supabase
+  // 3. Get exercises — try legacy workout_day_exercises first, fall back to program_exercises.
+  // This handles both old data (wde table) and programs built/imported via the program builder
+  // (which stores exercises in program_exercises, not workout_day_exercises).
+  type WdeRow = { id: string; exercise_id: string; target_sets: number; exercise: unknown };
+  let resolvedWdes: WdeRow[] = [];
+
+  const { data: legacyWdes } = await supabase
     .from("workout_day_exercises")
     .select("*, exercise:exercises(*)")
     .eq("workout_day_id", workoutDayId)
     .eq("user_id", userId)
     .order("order_index");
 
-  if (!wdes || wdes.length === 0) return null;
+  if (legacyWdes && legacyWdes.length > 0) {
+    resolvedWdes = legacyWdes as WdeRow[];
+  } else {
+    // Fall back: materialise program_exercises → workout_day_exercises on-demand
+    const { data: pes } = await supabase
+      .from("program_exercises")
+      .select("*")
+      .eq("program_day_id", workoutDayId)
+      .eq("user_id", userId)
+      .order("sort_order");
+
+    if (!pes || pes.length === 0) return null;
+
+    for (const pe of pes) {
+      let exerciseId: string | null = (pe.exercise_id as string | null) ?? null;
+
+      // If program exercise has no linked exercise record, find or create one by name
+      if (!exerciseId) {
+        const normalized = (pe.exercise_name_snapshot as string).toLowerCase().trim();
+        const { data: existing } = await supabase
+          .from("exercises")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("normalized_name", normalized)
+          .limit(1)
+          .maybeSingle();
+        if (existing) {
+          exerciseId = existing.id as string;
+        } else {
+          const { data: created } = await supabase
+            .from("exercises")
+            .insert({ user_id: userId, name: pe.exercise_name_snapshot, normalized_name: normalized })
+            .select("id")
+            .single();
+          exerciseId = created?.id ?? null;
+        }
+      }
+
+      if (!exerciseId) continue;
+
+      // Find or create a workout_day_exercises row for this (day, exercise) pair
+      const { data: existingWde } = await supabase
+        .from("workout_day_exercises")
+        .select("*, exercise:exercises(*)")
+        .eq("workout_day_id", workoutDayId)
+        .eq("exercise_id", exerciseId)
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingWde) {
+        resolvedWdes.push(existingWde as WdeRow);
+      } else {
+        const { data: newWde } = await supabase
+          .from("workout_day_exercises")
+          .insert({
+            workout_day_id: workoutDayId,
+            exercise_id: exerciseId,
+            user_id: userId,
+            order_index: pe.sort_order ?? 0,
+            target_sets: (pe.target_sets as number | null) ?? 3,
+            target_reps: 5,
+          })
+          .select("*, exercise:exercises(*)")
+          .single();
+        if (newWde) resolvedWdes.push(newWde as WdeRow);
+      }
+    }
+  }
+
+  if (resolvedWdes.length === 0) return null;
 
   // 4. Create exercise entries + empty sets
   const entries: WorkoutExerciseEntry[] = [];
   const suggestions: Record<string, number | null> = {};
 
-  for (const wde of wdes) {
+  for (const wde of resolvedWdes) {
     const { data: entry } = await supabase
       .from("workout_exercise_entries")
       .insert({
@@ -206,8 +297,8 @@ export async function startWorkout(
 
     entries.push({
       ...entry,
-      exercise: wde.exercise,
-      workout_day_exercise: wde,
+      exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
+      workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
       set_entries: sets ?? [],
     });
 
@@ -580,4 +671,708 @@ function getExerciseProgressMock(exerciseId: string) {
     ],
   };
   return MOCK_PROGRESS[exerciseId] ?? [];
+}
+
+// ════════════════════════════════════════════════════════
+// PROGRAM BUILDER
+// ════════════════════════════════════════════════════════
+
+import type { Program, ProgramDay, ProgramExercise, ProgramMode } from "@/lib/types";
+
+// Mock programs for demo mode
+const MOCK_PROGRAMS: Program[] = [
+  {
+    id: "prog-demo-1",
+    user_id: "demo-user",
+    name: "Strength A/B",
+    description: "Classic strength split",
+    mode: "weekday",
+    is_active: true,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "prog-demo-2",
+    user_id: "demo-user",
+    name: "Powerlifting",
+    description: "Linear periodization",
+    mode: "weekday",
+    is_active: false,
+    created_at: new Date().toISOString(),
+  },
+];
+
+export async function getPrograms(): Promise<Program[]> {
+  if (DEMO_MODE) return MOCK_PROGRAMS;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("user_id", userId)
+    .order("is_active", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  return data ?? [];
+}
+
+export async function getProgramsList() {
+  const programs = await getPrograms();
+  
+  if (DEMO_MODE) {
+    // For demo, return mock list with counts
+    return programs.map((prog) => ({
+      ...prog,
+      days_count: prog.id === "prog-demo-1" ? 4 : 0,
+      exercises_count: prog.id === "prog-demo-1" ? 18 : 0,
+    }));
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Fetch day and exercise counts for each program
+  const result = await Promise.all(
+    programs.map(async (prog) => {
+      const [dayRes, exerciseRes] = await Promise.all([
+        supabase
+          .from("workout_days")
+          .select("id", { count: "exact", head: true })
+          .eq("program_id", prog.id)
+          .eq("user_id", userId),
+        supabase
+          .from("program_exercises")
+          .select("id", { count: "exact", head: true })
+          .eq("program_id", prog.id)
+          .eq("user_id", userId),
+      ]);
+
+      return {
+        ...prog,
+        days_count: dayRes.count ?? 0,
+        exercises_count: exerciseRes.count ?? 0,
+      };
+    })
+  );
+
+  return result;
+}
+
+export async function getProgramById(id: string): Promise<Program | null> {
+  if (DEMO_MODE) return MOCK_PROGRAMS.find((p) => p.id === id) ?? null;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+
+  return data ?? null;
+}
+
+export async function createProgram(
+  name: string,
+  description: string | null,
+  mode: ProgramMode
+): Promise<Program> {
+  if (DEMO_MODE) {
+    const prog: Program = {
+      id: `prog-${Date.now()}`,
+      user_id: "demo-user",
+      name,
+      description: description || undefined,
+      mode,
+      is_active: false,
+      created_at: new Date().toISOString(),
+    };
+    MOCK_PROGRAMS.push(prog);
+    return prog;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("programs")
+    .insert({
+      user_id: userId,
+      name,
+      description,
+      mode,
+      is_active: false,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create program: ${error.message}`);
+  return data;
+}
+
+export async function updateProgram(
+  id: string,
+  updates: Partial<Program>
+): Promise<Program> {
+  if (DEMO_MODE) {
+    const prog = MOCK_PROGRAMS.find((p) => p.id === id);
+    if (!prog) throw new Error("Program not found");
+    Object.assign(prog, updates);
+    return prog;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("programs")
+    .update(updates)
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to update program: ${error.message}`);
+  return data;
+}
+
+export async function setActiveProgram(id: string): Promise<void> {
+  if (DEMO_MODE) {
+    for (const p of MOCK_PROGRAMS) {
+      p.is_active = p.id === id;
+    }
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Deactivate all programs for this user, then activate the selected one.
+  // (Replaces the missing set_active_program RPC with direct SQL updates.)
+  await supabase
+    .from("programs")
+    .update({ is_active: false })
+    .eq("user_id", userId);
+
+  await supabase
+    .from("programs")
+    .update({ is_active: true })
+    .eq("id", id)
+    .eq("user_id", userId);
+}
+
+export async function getActiveProgram(): Promise<Program | null> {
+  const programs = await getPrograms();
+  return programs.find((p) => p.is_active) ?? null;
+}
+
+export async function deleteProgram(id: string): Promise<void> {
+  if (DEMO_MODE) {
+    const idx = MOCK_PROGRAMS.findIndex((p) => p.id === id);
+    if (idx >= 0) MOCK_PROGRAMS.splice(idx, 1);
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase.from("programs").delete().eq("id", id).eq("user_id", userId);
+}
+
+// ────────────────────────────────────────────
+// PROGRAM DAYS
+// ────────────────────────────────────────────
+
+export async function getProgramDays(programId: string): Promise<ProgramDay[]> {
+  if (DEMO_MODE) {
+    // Return mock days for the demo program
+    if (programId === "prog-demo-1") {
+      return [
+        {
+          id: "day-1",
+          program_id: programId,
+          user_id: "demo-user",
+          name: "Strength A",
+          day_order: 0,
+          kind: "weekday",
+          weekday_label: "Monday",
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: "day-2",
+          program_id: programId,
+          user_id: "demo-user",
+          name: "Strength B",
+          day_order: 1,
+          kind: "weekday",
+          weekday_label: "Wednesday",
+          created_at: new Date().toISOString(),
+        },
+      ];
+    }
+    return [];
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("workout_days")
+    .select("*")
+    .eq("program_id", programId)
+    .eq("user_id", userId)
+    .order("day_order");
+
+  return (data ?? []) as ProgramDay[];
+}
+
+export async function createProgramDay(
+  programId: string,
+  name: string,
+  dayOrder: number,
+  weekdayLabel?: string,
+  sessionLabel?: string
+): Promise<ProgramDay> {
+  if (DEMO_MODE) {
+    const day: ProgramDay = {
+      id: `day-${Date.now()}`,
+      program_id: programId,
+      user_id: "demo-user",
+      name,
+      day_order: dayOrder,
+      kind: "weekday",
+      weekday_label: weekdayLabel,
+      session_label: sessionLabel,
+      created_at: new Date().toISOString(),
+    };
+    return day;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("workout_days")
+    .insert({
+      program_id: programId,
+      user_id: userId,
+      name,
+      day_order: dayOrder,
+      kind: "weekday",
+      weekday_label: weekdayLabel,
+      session_label: sessionLabel,
+      day_of_week: 0, // Legacy field, set to 0
+      day_label: "", // Legacy field
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create day: ${error.message}`);
+  return data as ProgramDay;
+}
+
+export async function updateProgramDay(
+  dayId: string,
+  updates: Partial<ProgramDay>
+): Promise<ProgramDay> {
+  if (DEMO_MODE) {
+    throw new Error("Demo mode does not support updates");
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("workout_days")
+    .update(updates)
+    .eq("id", dayId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to update day: ${error.message}`);
+  return data as ProgramDay;
+}
+
+export async function deleteProgramDay(dayId: string): Promise<void> {
+  if (DEMO_MODE) {
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase
+    .from("workout_days")
+    .delete()
+    .eq("id", dayId)
+    .eq("user_id", userId);
+}
+
+export async function reorderProgramDays(
+  programId: string,
+  dayOrders: Array<{ id: string; day_order: number }>
+): Promise<void> {
+  if (DEMO_MODE) {
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  for (const { id, day_order } of dayOrders) {
+    await supabase
+      .from("workout_days")
+      .update({ day_order, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", userId);
+  }
+}
+
+// ────────────────────────────────────────────
+// PROGRAM EXERCISES
+// ────────────────────────────────────────────
+
+export async function getProgramExercises(dayId: string): Promise<ProgramExercise[]> {
+  if (DEMO_MODE) {
+    return [];
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("program_exercises")
+    .select("*")
+    .eq("program_day_id", dayId)
+    .eq("user_id", userId)
+    .order("sort_order");
+
+  return (data ?? []) as ProgramExercise[];
+}
+
+export async function createProgramExercise(
+  dayId: string,
+  programId: string,
+  exerciseName: string,
+  schemeText?: string,
+  targetSets?: number,
+  targetRepsText?: string,
+  notes?: string
+): Promise<ProgramExercise> {
+  if (DEMO_MODE) {
+    const ex: ProgramExercise = {
+      id: `ex-${Date.now()}`,
+      program_id: programId,
+      workout_day_id: dayId,
+      user_id: "demo-user",
+      exercise_name_snapshot: exerciseName,
+      scheme_text: schemeText,
+      target_sets: targetSets,
+      target_reps_text: targetRepsText,
+      notes,
+      sort_order: 0,
+      created_at: new Date().toISOString(),
+    };
+    return ex;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Get max sort_order for this day
+  const { data: existing } = await supabase
+    .from("program_exercises")
+    .select("sort_order")
+    .eq("program_day_id", dayId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const maxSort = (existing?.[0]?.sort_order ?? -1) + 1;
+
+  const { data, error } = await supabase
+    .from("program_exercises")
+    .insert({
+      program_id: programId,
+      program_day_id: dayId,
+      user_id: userId,
+      exercise_name_snapshot: exerciseName,
+      scheme_text: schemeText,
+      target_sets: targetSets,
+      target_reps_text: targetRepsText,
+      notes,
+      sort_order: maxSort,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create exercise: ${error.message}`);
+  return data as ProgramExercise;
+}
+
+export async function updateProgramExercise(
+  exerciseId: string,
+  updates: Partial<ProgramExercise>
+): Promise<ProgramExercise> {
+  if (DEMO_MODE) {
+    throw new Error("Demo mode does not support updates");
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("program_exercises")
+    .update(updates)
+    .eq("id", exerciseId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to update exercise: ${error.message}`);
+  return data as ProgramExercise;
+}
+
+export async function deleteProgramExercise(exerciseId: string): Promise<void> {
+  if (DEMO_MODE) {
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase
+    .from("program_exercises")
+    .delete()
+    .eq("id", exerciseId)
+    .eq("user_id", userId);
+}
+
+export async function reorderProgramExercises(
+  dayId: string,
+  exerciseOrders: Array<{ id: string; sort_order: number }>
+): Promise<void> {
+  if (DEMO_MODE) {
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  for (const { id, sort_order } of exerciseOrders) {
+    await supabase
+      .from("program_exercises")
+      .update({ sort_order, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", userId);
+  }
+}
+
+// ────────────────────────────────────────────
+// DUPLICATE PROGRAM
+// ────────────────────────────────────────────
+
+export async function duplicateProgram(
+  sourceId: string,
+  newName: string
+): Promise<Program> {
+  if (DEMO_MODE) {
+    const source = MOCK_PROGRAMS.find((p) => p.id === sourceId);
+    if (!source) throw new Error("Program not found");
+    const dup: Program = {
+      ...source,
+      id: `prog-${Date.now()}`,
+      name: newName,
+      is_active: false,
+      created_at: new Date().toISOString(),
+    };
+    MOCK_PROGRAMS.push(dup);
+    return dup;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Get source program
+  const { data: source, error: sourceError } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("id", sourceId)
+    .eq("user_id", userId)
+    .single();
+
+  if (sourceError || !source)
+    throw new Error("Source program not found");
+
+  // Create new program
+  const { data: newProg, error: createError } = await supabase
+    .from("programs")
+    .insert({
+      user_id: userId,
+      name: newName,
+      description: source.description,
+      mode: source.mode,
+      is_active: false,
+    })
+    .select()
+    .single();
+
+  if (createError || !newProg) throw new Error("Failed to create duplicate");
+
+  // Get source days
+  const { data: sourceDays } = await supabase
+    .from("workout_days")
+    .select("*")
+    .eq("program_id", sourceId)
+    .eq("user_id", userId)
+    .order("day_order");
+
+  // Duplicate days and exercises
+  if (sourceDays && sourceDays.length > 0) {
+    for (const sourceDay of sourceDays) {
+      // Create new day
+      const { data: newDay, error: dayError } = await supabase
+        .from("workout_days")
+        .insert({
+          program_id: newProg.id,
+          user_id: userId,
+          name: sourceDay.name,
+          day_order: sourceDay.day_order,
+          kind: sourceDay.kind,
+          day_of_week: sourceDay.day_of_week,
+          day_label: sourceDay.day_label,
+          weekday_label: sourceDay.weekday_label,
+          session_label: sourceDay.session_label,
+        })
+        .select()
+        .single();
+
+      if (dayError || !newDay) continue;
+
+      // Get source exercises for this day
+      const { data: sourceExercises } = await supabase
+        .from("program_exercises")
+        .select("*")
+        .eq("program_day_id", sourceDay.id)
+        .order("sort_order");
+
+      // Duplicate exercises
+      if (sourceExercises && sourceExercises.length > 0) {
+        for (const sourceEx of sourceExercises) {
+          await supabase.from("program_exercises").insert({
+            program_id: newProg.id,
+            program_day_id: newDay.id,
+            user_id: userId,
+            exercise_id: sourceEx.exercise_id,
+            exercise_name_snapshot: sourceEx.exercise_name_snapshot,
+            scheme_text: sourceEx.scheme_text,
+            target_sets: sourceEx.target_sets,
+            target_reps_text: sourceEx.target_reps_text,
+            notes: sourceEx.notes,
+            sort_order: sourceEx.sort_order,
+          });
+        }
+      }
+    }
+  }
+
+  return newProg as Program;
+}
+
+// ────────────────────────────────────────────
+// SAVE IMPORTED PROGRAM
+// ────────────────────────────────────────────
+
+export async function saveImportedProgram(
+  name: string,
+  description: string | null,
+  mode: ProgramMode,
+  days: Array<{
+    name: string;
+    label?: string;
+    exercises: Array<{
+      name: string;
+      schemeText?: string;
+      targetSets?: number;
+      targetRepsText?: string;
+      notes?: string;
+    }>;
+  }>
+): Promise<Program> {
+  if (DEMO_MODE) {
+    const prog: Program = {
+      id: `prog-${Date.now()}`,
+      user_id: "demo-user",
+      name,
+      description: description || undefined,
+      mode,
+      is_active: false,
+      created_at: new Date().toISOString(),
+    };
+    MOCK_PROGRAMS.push(prog);
+    return prog;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Create program
+  const { data: newProg, error: progError } = await supabase
+    .from("programs")
+    .insert({
+      user_id: userId,
+      name,
+      description,
+      mode,
+      is_active: false,
+    })
+    .select()
+    .single();
+
+  if (progError || !newProg) throw new Error("Failed to create program");
+
+  // Create days and exercises
+  for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
+    const sourceDay = days[dayIdx];
+
+    const { data: newDay, error: dayError } = await supabase
+      .from("workout_days")
+      .insert({
+        program_id: newProg.id,
+        user_id: userId,
+        name: sourceDay.name,
+        day_order: dayIdx,
+        kind: mode,
+        day_of_week: 0, // Legacy field
+        day_label: "", // Legacy field
+        weekday_label: sourceDay.label,
+        session_label: sourceDay.label,
+      })
+      .select()
+      .single();
+
+    if (dayError || !newDay) continue;
+
+    // Create exercises for this day
+    for (let exIdx = 0; exIdx < sourceDay.exercises.length; exIdx++) {
+      const ex = sourceDay.exercises[exIdx];
+
+      await supabase.from("program_exercises").insert({
+        program_id: newProg.id,
+        program_day_id: newDay.id,
+        user_id: userId,
+        exercise_name_snapshot: ex.name,
+        scheme_text: ex.schemeText,
+        target_sets: ex.targetSets,
+        target_reps_text: ex.targetRepsText,
+        notes: ex.notes,
+        sort_order: exIdx,
+      });
+    }
+  }
+
+  return newProg as Program;
 }
