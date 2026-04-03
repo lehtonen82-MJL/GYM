@@ -1,6 +1,10 @@
 "use server";
 
 import type {
+  Program,
+  ProgramDay,
+  ProgramExercise,
+  ProgramMode,
   Workout,
   WorkoutDay,
   WorkoutExerciseEntry,
@@ -78,7 +82,11 @@ const MOCK_PREV: Record<string, { weight_kg: number; reps: number }[]> = {
 };
 
 type MockStore = { workout: Workout; entries: WorkoutExerciseEntry[] };
-declare const globalThis: typeof global & { __ws?: Map<string, MockStore>; __nid?: number };
+declare const globalThis: typeof global & {
+  __ws?: Map<string, MockStore>;
+  __nid?: number;
+  __mockPrograms?: Program[];
+};
 if (!globalThis.__ws) globalThis.__ws = new Map();
 if (!globalThis.__nid) globalThis.__nid = 1;
 const mockStore = globalThis.__ws;
@@ -677,10 +685,9 @@ function getExerciseProgressMock(exerciseId: string) {
 // PROGRAM BUILDER
 // ════════════════════════════════════════════════════════
 
-import type { Program, ProgramDay, ProgramExercise, ProgramMode } from "@/lib/types";
 
 // Mock programs for demo mode
-const MOCK_PROGRAMS: Program[] = [
+const INITIAL_MOCK_PROGRAMS: Program[] = [
   {
     id: "prog-demo-1",
     user_id: "demo-user",
@@ -700,6 +707,11 @@ const MOCK_PROGRAMS: Program[] = [
     created_at: new Date().toISOString(),
   },
 ];
+
+if (!globalThis.__mockPrograms) {
+  globalThis.__mockPrograms = INITIAL_MOCK_PROGRAMS.map((program) => ({ ...program }));
+}
+const MOCK_PROGRAMS = globalThis.__mockPrograms!;
 
 export async function getPrograms(): Promise<Program[]> {
   if (DEMO_MODE) return MOCK_PROGRAMS;
@@ -1375,4 +1387,135 @@ export async function saveImportedProgram(
   }
 
   return newProg as Program;
+}
+
+export type ValidationWarning = {
+  type:
+    | "missing_program"
+    | "missing_days"
+    | "missing_exercises"
+    | "count_mismatch"
+    | "missing_target_sets"
+    | "duplicate_day"
+    | "duplicate_exercise"
+    | "mismatch_exercise_name";
+  message: string;
+  dayName?: string;
+  exerciseName?: string;
+};
+
+/**
+ * Validate a program was materialized correctly.
+ * If `expectedDays` is provided (parser output), validate counts and names against it.
+ */
+export async function validateProgram(
+  programId: string,
+  expectedDays?: Array<{
+    name: string;
+    label?: string;
+    exercises: Array<{
+      name: string;
+      schemeText?: string;
+      targetSets?: number;
+      targetRepsText?: string;
+      notes?: string;
+    }>;
+  }>
+): Promise<{ valid: boolean; warnings: ValidationWarning[] }> {
+  if (DEMO_MODE) {
+    const warnings: ValidationWarning[] = [];
+    const prog = MOCK_PROGRAMS.find((p) => p.id === programId);
+    if (!prog) {
+      warnings.push({ type: "missing_program", message: "Program not found (demo mode)" });
+      return { valid: warnings.length === 0, warnings };
+    }
+
+    // In demo mode we can't validate days/exercises reliably; return success
+    return { valid: true, warnings };
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data: program } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("id", programId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const warnings: ValidationWarning[] = [];
+  if (!program) {
+    warnings.push({ type: "missing_program", message: "Program not found or not owned by user" });
+    return { valid: false, warnings };
+  }
+
+  const { data: days } = await supabase
+    .from("workout_days")
+    .select("*")
+    .eq("program_id", programId)
+    .eq("user_id", userId)
+    .order("day_order");
+
+  if (!days || days.length === 0) {
+    warnings.push({ type: "missing_days", message: "Program has no days" });
+    return { valid: false, warnings };
+  }
+
+  if (expectedDays && expectedDays.length !== days.length) {
+    warnings.push({ type: "count_mismatch", message: `Expected ${expectedDays.length} days but found ${days.length}` });
+  }
+
+  // Check duplicate day names
+  const seenDays = new Set<string>();
+  for (const d of days) {
+    const lower = (d.name || "").toLowerCase();
+    if (seenDays.has(lower)) {
+      warnings.push({ type: "duplicate_day", message: `Duplicate day name: ${d.name}`, dayName: d.name });
+    }
+    seenDays.add(lower);
+  }
+
+  // For each day, validate exercises
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    const { data: exercises } = await supabase
+      .from("program_exercises")
+      .select("*")
+      .eq("program_day_id", day.id)
+      .eq("user_id", userId)
+      .order("sort_order");
+
+    const expectedDay = expectedDays ? expectedDays[i] : undefined;
+    if ((!exercises || exercises.length === 0) && expectedDay && expectedDay.exercises.length > 0) {
+      warnings.push({ type: "missing_exercises", message: `Day '${day.name}' has no exercises`, dayName: day.name });
+      continue;
+    }
+
+    if (expectedDay && exercises && exercises.length !== expectedDay.exercises.length) {
+      warnings.push({ type: "count_mismatch", message: `Day '${day.name}': expected ${expectedDay.exercises.length} exercises but found ${exercises.length}`, dayName: day.name });
+    }
+
+    // Check duplicate exercise names within day and some field validations
+    const seenEx = new Set<string>();
+    for (let j = 0; exercises && j < exercises.length; j++) {
+      const ex = exercises[j] as any;
+      const lower = (ex.exercise_name_snapshot || "").toLowerCase();
+      if (seenEx.has(lower)) {
+        warnings.push({ type: "duplicate_exercise", message: `Duplicate exercise '${ex.exercise_name_snapshot}' in day '${day.name}'`, dayName: day.name, exerciseName: ex.exercise_name_snapshot });
+      }
+      seenEx.add(lower);
+
+      const expectedEx = expectedDay?.exercises?.[j];
+      if (expectedEx && lower !== (expectedEx.name || "").toLowerCase()) {
+        warnings.push({ type: "mismatch_exercise_name", message: `Exercise name mismatch in day '${day.name}': expected '${expectedEx.name}' but got '${ex.exercise_name_snapshot}'`, dayName: day.name, exerciseName: ex.exercise_name_snapshot });
+      }
+
+      if ((expectedEx?.targetSets ?? null) !== null && (ex.target_sets === null || ex.target_sets === undefined)) {
+        warnings.push({ type: "missing_target_sets", message: `Exercise '${ex.exercise_name_snapshot}' in day '${day.name}' missing target sets`, dayName: day.name, exerciseName: ex.exercise_name_snapshot });
+      }
+    }
+  }
+
+  return { valid: warnings.length === 0, warnings };
 }

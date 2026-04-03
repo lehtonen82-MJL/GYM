@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProgramDayCard } from "@/components/ProgramDayCard";
 import { ProgramExerciseRow } from "@/components/ProgramExerciseRow";
@@ -23,12 +23,12 @@ import {
 import type { Program, ProgramDay, ProgramExercise } from "@/lib/types";
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default function ProgramEditorPage({ params }: PageProps) {
   const router = useRouter();
-  const programId = params.id;
+  const { id: programId } = use(params);
 
   const [program, setProgram] = useState<Program | null>(null);
   const [days, setDays] = useState<ProgramDay[]>([]);
@@ -280,8 +280,16 @@ export default function ProgramEditorPage({ params }: PageProps) {
 
   if (!program) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Program not found</div>
+      <div className="min-h-screen bg-gray-50 px-4 py-10">
+        <div className="mx-auto max-w-lg rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+          <p className="font-semibold">{error || "Program not found"}</p>
+          <button
+            onClick={() => router.push("/programs")}
+            className="mt-3 text-sm underline"
+          >
+            Back to programs
+          </button>
+        </div>
       </div>
     );
   }

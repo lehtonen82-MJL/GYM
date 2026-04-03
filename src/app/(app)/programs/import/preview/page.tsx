@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WarningBadge, ImportPreviewCard } from "@/components/ImportPreviewCard";
-import { saveImportedProgram, setActiveProgram } from "@/lib/actions";
+import { saveImportedProgram, setActiveProgram, validateProgram } from "@/lib/actions";
 import type { ParsedDay, ParserWarning } from "@/lib/programParser";
 import type { ProgramMode } from "@/lib/types";
 
@@ -20,6 +20,8 @@ export default function ImportPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<any[] | null>(null);
+  const [createdProgramId, setCreatedProgramId] = useState<string | null>(null);
   const [programName, setProgramName] = useState("");
   const [setAsActive, setSetAsActive] = useState(false);
 
@@ -56,6 +58,23 @@ export default function ImportPreviewPage() {
         preview.detectedMode,
         preview.days
       );
+      setCreatedProgramId(prog.id);
+
+      // Validate the created program against the preview we just used
+      try {
+        const res = await validateProgram(prog.id, preview.days as any);
+        if (res.warnings && res.warnings.length > 0) {
+          setValidationWarnings(res.warnings);
+          // Keep saving state false so user can decide
+          setIsSaving(false);
+          return;
+        }
+      } catch (vErr) {
+        // Non-fatal: show validation error and allow proceed
+        setValidationWarnings([{ message: vErr instanceof Error ? vErr.message : String(vErr) }]);
+        setIsSaving(false);
+        return;
+      }
 
       if (setAsActive) {
         await setActiveProgram(prog.id);
@@ -68,6 +87,26 @@ export default function ImportPreviewPage() {
       router.push("/programs");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save program");
+      setIsSaving(false);
+    }
+  };
+
+  const handleProceedAnyway = async () => {
+    setIsSaving(true);
+    try {
+      const progId = createdProgramId;
+      if (!progId) {
+        setError("No created program found to proceed with");
+        setIsSaving(false);
+        return;
+      }
+      if (setAsActive) {
+        await setActiveProgram(progId);
+      }
+      sessionStorage.removeItem("__import_preview");
+      router.push("/programs");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to proceed");
       setIsSaving(false);
     }
   };
@@ -142,6 +181,36 @@ export default function ImportPreviewPage() {
               {preview.warnings.map((w, idx) => (
                 <WarningBadge key={idx} type={w.type} message={w.message} />
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Validation results from server */}
+        {validationWarnings && (
+          <div className="mb-6">
+            <h3 className="font-semibold text-red-900 mb-2">Validation Warnings ({validationWarnings.length})</h3>
+            <div className="space-y-2 mb-4">
+              {validationWarnings.map((w: any, idx: number) => (
+                <div key={idx} className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
+                  <div className="font-medium text-yellow-900">{w.type ?? "Warning"}</div>
+                  <div className="text-xs text-yellow-800 mt-1">{w.message}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setValidationWarnings(null); router.push('/programs/import'); }}
+                className="flex-1 bg-gray-500 text-white font-medium py-3 rounded-lg hover:bg-gray-600 active:bg-gray-700 text-base"
+              >
+                Fix Import
+              </button>
+              <button
+                onClick={handleProceedAnyway}
+                disabled={isSaving}
+                className="flex-1 bg-orange-500 text-white font-medium py-3 rounded-lg hover:bg-orange-600 active:bg-orange-700 text-base"
+              >
+                {isSaving ? 'Proceeding...' : 'Proceed Anyway'}
+              </button>
             </div>
           </div>
         )}
