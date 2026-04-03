@@ -43,6 +43,14 @@ Dips`,
     expectedDays: 1,
     expectedExercises: [3],
   },
+  {
+    name: "Inline session mode with workout headings and weighted sets",
+    input:
+      "Sessions Mode - Program name: 4-day program (kevennetty) Workout 1 - Oly - Snatch | 42x2, 42x2, 42x2, 42x2 - Clean & Jerk | 45x2, 45x2, 45x2, 45x2 - Calves | 3x12 Workout 2 - Back - Pull-up | 3x8 - Row | 3x8 - Face Pull | 3x15 - Romanian Deadlift | 80x8, 80x8, 80x8 Workout 3 - Legs - Back Squat | 100x5, 92.5x5, 92.5x5 - Front Squat | 62.5x5, 62.5x5, 62.5x5 - Leg Curl | 3x12 - Calves | 3x15 Workout 4 - Chest - Bench Press | 87.5x5, 87.5x5, 87.5x5, 87.5x5 - Incline Bench Press | 3x8 - Dips | 3x8 - Fly | 2x12 - Triceps | 2x12 - Light Row | 2x12",
+    expectedMode: "session",
+    expectedDays: 4,
+    expectedExercises: [3, 4, 4, 6],
+  },
 ];
 
 export function runTests() {

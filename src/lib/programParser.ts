@@ -89,6 +89,9 @@ export function parseProgram(text: string): {
     return parseBracketFormat(lines);
   }
 
+  const inlineSessionResult = parseInlineSessionFormat(normalized);
+  if (inlineSessionResult.days.length > 0) return inlineSessionResult;
+
   const inlineWeekdayResult = parseInlineWeekdayFormat(normalized);
   if (inlineWeekdayResult.days.length > 0) return inlineWeekdayResult;
 
@@ -269,6 +272,85 @@ function parseInlineWeekdayFormat(text: string): {
     days,
     warnings,
     detectedMode: days.length > 0 ? "weekday" : "session",
+  };
+}
+
+function parseInlineSessionFormat(text: string): {
+  days: ParsedDay[];
+  warnings: ParserWarning[];
+  detectedMode: "weekday" | "session";
+} {
+  const warnings: ParserWarning[] = [];
+  const days: ParsedDay[] = [];
+  const workoutMatches = [...text.matchAll(/workout\s*\d+/gi)];
+
+  if (workoutMatches.length === 0) {
+    return { days: [], warnings, detectedMode: "session" };
+  }
+
+  for (let i = 0; i < workoutMatches.length; i++) {
+    const current = workoutMatches[i];
+    const next = workoutMatches[i + 1];
+    const start = current.index ?? 0;
+    const end = next?.index ?? text.length;
+
+    let segment = text.slice(start, end).trim();
+    segment = segment.replace(/^workout\s*\d+\s*[-:|]?\s*/i, "");
+
+    const tokens = segment
+      .split(/\s+-\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) continue;
+
+    const workoutLabel = cleanLeadingJunk(current[0] || `Workout ${i + 1}`);
+    let dayName = workoutLabel;
+    let firstExerciseIndex = 0;
+    const first = tokens[0];
+
+    if (first && !first.includes("|") && tokens.length > 1) {
+      dayName = cleanLeadingJunk(first) || workoutLabel;
+      firstExerciseIndex = 1;
+    }
+
+    const exercises: ParsedExercise[] = [];
+    for (
+      let tokenIndex = firstExerciseIndex;
+      tokenIndex < tokens.length;
+      tokenIndex++
+    ) {
+      const parsed = parseExerciseToken(tokens[tokenIndex]);
+
+      if (parsed) {
+        exercises.push(parsed);
+      } else {
+        warnings.push({
+          type: "malformed_line",
+          message: `Could not parse exercise token "${tokens[tokenIndex].slice(0, 50)}"`,
+        });
+      }
+    }
+
+    if (exercises.length === 0) {
+      warnings.push({
+        type: "empty_day",
+        message: `Workout "${dayName}" has no exercises`,
+      });
+      continue;
+    }
+
+    days.push({
+      name: dayName,
+      label: workoutLabel,
+      exercises,
+    });
+  }
+
+  return {
+    days,
+    warnings,
+    detectedMode: days.length > 0 ? "session" : "weekday",
   };
 }
 

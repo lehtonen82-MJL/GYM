@@ -643,6 +643,54 @@ export async function getWorkoutHistory(): Promise<Workout[]> {
 
   return data ?? [];
 }
+export async function deleteWorkoutFromHistory(workoutId: string): Promise<void> {
+  if (DEMO_MODE) {
+    mockStore.delete(workoutId);
+    const idx = MOCK_HISTORY.findIndex((w) => w.id === workoutId);
+    if (idx >= 0) MOCK_HISTORY.splice(idx, 1);
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data: entries } = await supabase
+    .from("workout_exercise_entries")
+    .select("id")
+    .eq("workout_id", workoutId)
+    .eq("user_id", userId);
+
+  const entryIds = (entries ?? []).map((e) => e.id);
+  if (entryIds.length > 0) {
+    const { error: setsDeleteError } = await supabase
+      .from("set_entries")
+      .delete()
+      .in("workout_exercise_entry_id", entryIds)
+      .eq("user_id", userId);
+    if (setsDeleteError) {
+      throw new Error(`Failed to delete set entries: ${setsDeleteError.message}`);
+    }
+  }
+
+  const { error: entriesDeleteError } = await supabase
+    .from("workout_exercise_entries")
+    .delete()
+    .eq("workout_id", workoutId)
+    .eq("user_id", userId);
+  if (entriesDeleteError) {
+    throw new Error(`Failed to delete workout entries: ${entriesDeleteError.message}`);
+  }
+
+  const { error: workoutDeleteError } = await supabase
+    .from("workouts")
+    .delete()
+    .eq("id", workoutId)
+    .eq("user_id", userId);
+  if (workoutDeleteError) {
+    throw new Error(`Failed to delete workout: ${workoutDeleteError.message}`);
+  }
+}
+
 
 // ════════════════════════════════════════════════════════
 // PROGRESS
@@ -669,6 +717,7 @@ export async function getExerciseList() {
 
   return data ?? [];
 }
+
 
 export async function getExerciseProgress(exerciseId: string) {
   if (DEMO_MODE) return getExerciseProgressMock(exerciseId);
@@ -918,6 +967,7 @@ export async function getPrograms(): Promise<Program[]> {
 
   return data ?? [];
 }
+
 
 export async function getProgramsList() {
   const programs = await getPrograms();
@@ -1797,3 +1847,5 @@ export async function validateProgram(
 
   return { valid: warnings.length === 0, warnings };
 }
+
+
