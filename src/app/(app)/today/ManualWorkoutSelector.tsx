@@ -26,7 +26,7 @@ export default function ManualWorkoutSelector({ days }: { days: WorkoutDay[] }) 
                 : "border-border bg-border/20 hover:bg-border/30"
             }`}
           >
-            <p className="text-xs text-muted">Workout {index + 1} • {day.day_label}</p>
+            <p className="text-xs text-muted">Workout {index + 1}</p>
             <p className="text-sm font-medium text-white">{day.name}</p>
           </button>
         ))}
@@ -40,3 +40,4 @@ export default function ManualWorkoutSelector({ days }: { days: WorkoutDay[] }) 
     </div>
   );
 }
+

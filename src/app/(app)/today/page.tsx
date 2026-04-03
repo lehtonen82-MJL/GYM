@@ -9,20 +9,17 @@ export default async function TodayPage() {
     getWorkoutDaysForProgram(),
   ]);
 
-  const dayNames = ["SU", "MO", "TI", "WO", "TO", "FR", "LA"];
-  const todayLabel = dayNames[new Date().getDay()];
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Today</h1>
-        <p className="text-muted text-sm mt-1">{todayLabel} - {formatDate(new Date())}</p>
+        <p className="text-muted text-sm mt-1">{formatDate(new Date())}</p>
       </div>
 
       {todayDay ? (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <div>
-            <p className="text-muted text-sm">{todayDay.day_label} - Today&apos;s slot</p>
+            <p className="text-muted text-sm">Today&apos;s slot</p>
             <h2 className="text-xl font-bold text-white">{todayDay.name}</h2>
           </div>
           <StartWorkoutButton workoutDayId={todayDay.id} />
@@ -59,9 +56,7 @@ export default async function TodayPage() {
                   isToday ? "border-accent bg-accent/5" : "border-border"
                 }`}
               >
-                <p className="text-muted text-xs">
-                  Workout {index + 1} - {day.day_label}
-                </p>
+                <p className="text-muted text-xs">Workout {index + 1}</p>
                 <p className="text-white font-medium">{day.name}</p>
                 {isToday && <p className="text-xs text-accent mt-1">Today</p>}
                 <StartWorkoutButton workoutDayId={day.id} small />

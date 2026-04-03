@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useSettings } from "@/lib/settings";
 
 const tabs = [
@@ -14,7 +15,16 @@ const tabs = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { navPosition } = useSettings();
+
+  useEffect(() => {
+    for (const tab of tabs) {
+      if (!pathname.startsWith(tab.href)) {
+        router.prefetch(tab.href);
+      }
+    }
+  }, [pathname, router]);
 
   // Hide nav during active workout or in program builder
   const inWorkout = pathname.startsWith("/workout/");
@@ -41,6 +51,7 @@ export default function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
+              prefetch
               className={`flex flex-col items-center justify-center flex-1 py-1 text-xs ${
                 active ? "text-blue-500" : "text-zinc-500"
               }`}

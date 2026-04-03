@@ -1,9 +1,11 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useSettings } from "@/lib/settings";
 import BottomNav from "@/components/BottomNav";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { navPosition } = useSettings();
   const isTop = navPosition === "top";
 
@@ -15,7 +17,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           isTop ? "pt-16" : "pb-16"
         }`}
       >
-        {children}
+        <div key={pathname} className="page-transition">
+          {children}
+        </div>
       </main>
       {!isTop && <BottomNav />}
     </div>
