@@ -8,7 +8,7 @@
 
 alter table programs add column if not exists description text;
 alter table programs add column if not exists mode text default 'weekday' check (mode in ('weekday', 'session'));
-alter table programs add column if not exists is_active boolean default true;
+alter table programs add column if not exists is_active boolean default false;
 alter table programs add column if not exists updated_at timestamptz default now();
 
 -- ──────────────────────────────────────────
@@ -93,3 +93,17 @@ create trigger update_workout_days_updated_at before update on workout_days
 
 create trigger update_program_exercises_updated_at before update on program_exercises
   for each row execute procedure public.update_updated_at_timestamp();
+
+-- ============================================
+-- Active program helper function
+-- Used by setActiveProgram() to atomically deactivate all programs
+-- and activate one. Also safe to call directly from SQL Editor.
+-- ============================================
+
+create or replace function public.set_active_program(p_program_id uuid, p_user_id uuid)
+returns void as $$
+begin
+  update public.programs set is_active = false where user_id = p_user_id;
+  update public.programs set is_active = true  where id = p_program_id and user_id = p_user_id;
+end;
+$$ language plpgsql security definer;

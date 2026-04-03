@@ -36,7 +36,7 @@ create table if not exists programs (
   name text not null,
   description text,
   mode text default 'weekday' check (mode in ('weekday', 'session')),
-  is_active boolean default true,
+  is_active boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
