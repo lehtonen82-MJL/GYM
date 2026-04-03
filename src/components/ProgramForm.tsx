@@ -42,14 +42,13 @@ export function ProgramForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
           {error}
         </div>
       )}
 
-      {/* Name */}
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="name" className="mb-1 block text-sm font-medium text-muted">
           Program Name *
         </label>
         <input
@@ -58,14 +57,13 @@ export function ProgramForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g., Strength A/B"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-border bg-zinc-900 px-3 py-2 text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           disabled={isLoading}
         />
       </div>
 
-      {/* Description */}
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="description" className="mb-1 block text-sm font-medium text-muted">
           Description (optional)
         </label>
         <textarea
@@ -74,53 +72,45 @@ export function ProgramForm({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g., Classic strength split"
           rows={2}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-border bg-zinc-900 px-3 py-2 text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           disabled={isLoading}
         />
       </div>
 
-      {/* Mode Selector */}
       <fieldset>
-        <legend className="block text-sm font-medium text-gray-700 mb-2">
-          Program Type *
-        </legend>
+        <legend className="mb-2 block text-sm font-medium text-muted">Program Type *</legend>
         <div className="space-y-2">
-          <label className="flex items-center">
+          <label className="flex items-center text-white">
             <input
               type="radio"
               name="mode"
               value="weekday"
               checked={mode === "weekday"}
               onChange={(e) => setMode(e.target.value as ProgramMode)}
-              className="w-4 h-4"
+              className="h-4 w-4"
               disabled={isLoading}
             />
-            <span className="ml-2 text-base text-gray-700">
-              Weekday Mode (Mon, Tue, Wed, ...)
-            </span>
+            <span className="ml-2 text-base">Weekday Mode (Mon, Tue, Wed, ...)</span>
           </label>
-          <label className="flex items-center">
+          <label className="flex items-center text-white">
             <input
               type="radio"
               name="mode"
               value="session"
               checked={mode === "session"}
               onChange={(e) => setMode(e.target.value as ProgramMode)}
-              className="w-4 h-4"
+              className="h-4 w-4"
               disabled={isLoading}
             />
-            <span className="ml-2 text-base text-gray-700">
-              Session Mode (Workout 1, Workout 2, ...)
-            </span>
+            <span className="ml-2 text-base">Session Mode (Workout 1, Workout 2, ...)</span>
           </label>
         </div>
       </fieldset>
 
-      {/* Submit */}
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-blue-500 text-white font-medium py-3 rounded-lg hover:bg-blue-600 active:bg-blue-700 disabled:bg-gray-400 text-base"
+        className="w-full rounded-lg bg-accent py-3 text-base font-medium text-white hover:bg-accent-hover disabled:bg-zinc-600"
       >
         {isLoading ? "Creating..." : "Create Program"}
       </button>

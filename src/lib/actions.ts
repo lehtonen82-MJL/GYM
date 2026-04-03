@@ -9,6 +9,7 @@ import type {
   WorkoutDay,
   WorkoutExerciseEntry,
 } from "@/lib/types";
+import { parseSchemePrescription } from "@/lib/programParser";
 
 // ── Mode detection ──────────────────────────────────────
 
@@ -82,10 +83,16 @@ const MOCK_PREV: Record<string, { weight_kg: number; reps: number }[]> = {
 };
 
 type MockStore = { workout: Workout; entries: WorkoutExerciseEntry[] };
+type ValidationExerciseRow = {
+  exercise_name_snapshot?: string | null;
+  target_sets?: number | null;
+};
 declare const globalThis: typeof global & {
   __ws?: Map<string, MockStore>;
   __nid?: number;
   __mockPrograms?: Program[];
+  __mockProgramDays?: ProgramDay[];
+  __mockProgramExercises?: ProgramExercise[];
 };
 if (!globalThis.__ws) globalThis.__ws = new Map();
 if (!globalThis.__nid) globalThis.__nid = 1;
@@ -98,10 +105,14 @@ function uid() { return `mock-${globalThis.__nid!++}`; }
 
 export async function getTodayWorkoutDay(): Promise<WorkoutDay | null> {
   if (DEMO_MODE) {
-    const activeProgram = MOCK_PROGRAMS.find((p) => p.is_active);
-    if (!activeProgram) return null;
+    const preferredProgramId = getDemoPreferredProgramId();
+    if (!preferredProgramId) return null;
     const dow = new Date().getDay();
-    return MOCK_DAYS.find((d) => d.program_id === activeProgram.id && d.day_of_week === dow) ?? null;
+    return (
+      getDemoProgramDays(preferredProgramId)
+        .map(demoDayToWorkoutDay)
+        .find((d) => d.day_of_week === dow) ?? null
+    );
   }
 
   const supabase = await db();
@@ -126,9 +137,9 @@ export async function getTodayWorkoutDay(): Promise<WorkoutDay | null> {
 
 export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
   if (DEMO_MODE) {
-    const activeProgram = MOCK_PROGRAMS.find((p) => p.is_active);
-    if (!activeProgram) return [];
-    return MOCK_DAYS.filter((d) => d.program_id === activeProgram.id);
+    const preferredProgramId = getDemoPreferredProgramId();
+    if (!preferredProgramId) return [];
+    return getDemoProgramDays(preferredProgramId).map(demoDayToWorkoutDay);
   }
 
   const supabase = await db();
@@ -136,16 +147,41 @@ export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
 
   // Get active program first
   const activeProgram = await getActiveProgram();
-  if (!activeProgram) return [];
+  if (activeProgram) {
+    const { data: activeDays } = await supabase
+      .from("workout_days")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("program_id", activeProgram.id)
+      .order("day_order");
 
-  const { data } = await supabase
-    .from("workout_days")
-    .select("*")
+    if (activeDays && activeDays.length > 0) {
+      return activeDays;
+    }
+  }
+
+  // Fallback: if no active program has days, choose one program (newest with days).
+  const { data: programs } = await supabase
+    .from("programs")
+    .select("id, created_at, updated_at")
     .eq("user_id", userId)
-    .eq("program_id", activeProgram.id)
-    .order("day_of_week");
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
 
-  return data ?? [];
+  for (const program of programs ?? []) {
+    const { data: candidateDays } = await supabase
+      .from("workout_days")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("program_id", program.id)
+      .order("day_order");
+
+    if (candidateDays && candidateDays.length > 0) {
+      return candidateDays;
+    }
+  }
+
+  return [];
 }
 
 // ════════════════════════════════════════════════════════
@@ -188,7 +224,14 @@ export async function startWorkout(
   // 3. Get exercises — try legacy workout_day_exercises first, fall back to program_exercises.
   // This handles both old data (wde table) and programs built/imported via the program builder
   // (which stores exercises in program_exercises, not workout_day_exercises).
-  type WdeRow = { id: string; exercise_id: string; target_sets: number; exercise: unknown };
+  type WdeRow = {
+    id: string;
+    exercise_id: string;
+    target_sets: number;
+    target_reps?: number;
+    scheme_text?: string;
+    exercise: unknown;
+  };
   let resolvedWdes: WdeRow[] = [];
 
   const { data: legacyWdes } = await supabase
@@ -248,8 +291,15 @@ export async function startWorkout(
         .limit(1)
         .maybeSingle();
 
+      const schemeText = (pe.scheme_text as string | null) ?? undefined;
+      const prescription = parseSchemePrescription(schemeText);
+      const firstReps = prescription[0]?.reps;
+
       if (existingWde) {
-        resolvedWdes.push(existingWde as WdeRow);
+        resolvedWdes.push({
+          ...(existingWde as WdeRow),
+          scheme_text: schemeText,
+        });
       } else {
         const { data: newWde } = await supabase
           .from("workout_day_exercises")
@@ -259,11 +309,16 @@ export async function startWorkout(
             user_id: userId,
             order_index: pe.sort_order ?? 0,
             target_sets: (pe.target_sets as number | null) ?? 3,
-            target_reps: 5,
+            target_reps: firstReps ?? 5,
           })
           .select("*, exercise:exercises(*)")
           .single();
-        if (newWde) resolvedWdes.push(newWde as WdeRow);
+        if (newWde) {
+          resolvedWdes.push({
+            ...(newWde as WdeRow),
+            scheme_text: schemeText,
+          });
+        }
       }
     }
   }
@@ -287,13 +342,14 @@ export async function startWorkout(
       .single();
     if (!entry) continue;
 
-    // Create empty sets
-    const setsToInsert = Array.from({ length: wde.target_sets }, (_, i) => ({
+    const prescription = parseSchemePrescription(wde.scheme_text);
+    const setCount = prescription.length > 0 ? prescription.length : wde.target_sets;
+    const setsToInsert = Array.from({ length: setCount }, (_, i) => ({
       workout_exercise_entry_id: entry.id,
       user_id: userId,
       set_number: i + 1,
-      weight_kg: null,
-      reps: null,
+      weight_kg: prescription[i]?.weightKg ?? null,
+      reps: prescription[i]?.reps ?? null,
       completed: false,
     }));
 
@@ -320,22 +376,33 @@ export async function startWorkout(
 }
 
 function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
-  const day = MOCK_DAYS.find((d) => d.id === workoutDayId);
+  const day = MOCK_PROGRAM_DAYS.find((d) => d.id === workoutDayId);
   if (!day) return null;
 
   const workoutId = uid();
-  const exercises = MOCK_EXERCISES[workoutDayId] ?? [];
+  const exercises = MOCK_PROGRAM_EXERCISES
+    .filter((ex) => ex.workout_day_id === workoutDayId)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((ex) => ({
+      id: ex.id,
+      name: ex.exercise_name_snapshot,
+      target_sets: ex.target_sets ?? 3,
+      target_reps: parseInt(ex.target_reps_text ?? "5", 10) || 5,
+      scheme_text: ex.scheme_text,
+    }));
 
   const entries: WorkoutExerciseEntry[] = exercises.map((ex) => {
     const entryId = uid();
     const wdeId = uid();
-    const sets = Array.from({ length: ex.target_sets }, (_, i) => ({
+    const prescription = parseSchemePrescription(ex.scheme_text);
+    const setCount = prescription.length > 0 ? prescription.length : ex.target_sets;
+    const sets = Array.from({ length: setCount }, (_, i) => ({
       id: uid(),
       workout_exercise_entry_id: entryId,
       user_id: "mock-user",
       set_number: i + 1,
-      weight_kg: null as number | null,
-      reps: null as number | null,
+      weight_kg: prescription[i]?.weightKg ?? null,
+      reps: prescription[i]?.reps ?? null,
       completed: false,
       created_at: new Date().toISOString(),
     }));
@@ -361,7 +428,7 @@ function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
   const workout: Workout = {
     id: workoutId, user_id: "mock-user", workout_day_id: workoutDayId,
     started_at: new Date().toISOString(), completed_at: null, notes: null,
-    created_at: new Date().toISOString(), workout_day: day,
+    created_at: new Date().toISOString(), workout_day: demoDayToWorkoutDay(day),
   };
 
   const suggestions: Record<string, number | null> = {};
@@ -713,6 +780,129 @@ if (!globalThis.__mockPrograms) {
 }
 const MOCK_PROGRAMS = globalThis.__mockPrograms!;
 
+const INITIAL_MOCK_PROGRAM_DAYS: ProgramDay[] = [
+  {
+    id: "day-0",
+    program_id: "prog-demo-1",
+    user_id: "demo-user",
+    name: "Chest",
+    day_order: 0,
+    kind: "weekday",
+    day_of_week: 0,
+    day_label: "SU",
+    weekday_label: "Sunday",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "day-2",
+    program_id: "prog-demo-1",
+    user_id: "demo-user",
+    name: "Oly",
+    day_order: 1,
+    kind: "weekday",
+    day_of_week: 2,
+    day_label: "TI",
+    weekday_label: "Tuesday",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "day-4",
+    program_id: "prog-demo-1",
+    user_id: "demo-user",
+    name: "Back",
+    day_order: 2,
+    kind: "weekday",
+    day_of_week: 4,
+    day_label: "TO",
+    weekday_label: "Thursday",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "day-6",
+    program_id: "prog-demo-1",
+    user_id: "demo-user",
+    name: "Legs",
+    day_order: 3,
+    kind: "weekday",
+    day_of_week: 6,
+    day_label: "LA",
+    weekday_label: "Saturday",
+    created_at: new Date().toISOString(),
+  },
+];
+
+const INITIAL_MOCK_PROGRAM_EXERCISES: ProgramExercise[] = Object.entries(MOCK_EXERCISES).flatMap(
+  ([dayId, exercises]) =>
+    exercises.map((exercise, index) => ({
+      id: exercise.id,
+      program_id: "prog-demo-1",
+      workout_day_id: dayId,
+      user_id: "demo-user",
+      exercise_name_snapshot: exercise.name,
+      scheme_text: `${exercise.target_sets}x${exercise.target_reps}`,
+      target_sets: exercise.target_sets,
+      target_reps_text: `${exercise.target_reps}`,
+      notes: undefined,
+      sort_order: index,
+      created_at: new Date().toISOString(),
+    }))
+);
+
+if (!globalThis.__mockProgramDays) {
+  globalThis.__mockProgramDays = INITIAL_MOCK_PROGRAM_DAYS.map((day) => ({ ...day }));
+}
+if (!globalThis.__mockProgramExercises) {
+  globalThis.__mockProgramExercises = INITIAL_MOCK_PROGRAM_EXERCISES.map((exercise) => ({ ...exercise }));
+}
+
+const MOCK_PROGRAM_DAYS = globalThis.__mockProgramDays!;
+const MOCK_PROGRAM_EXERCISES = globalThis.__mockProgramExercises!;
+
+function dayLabelFromIndex(index: number): string {
+  return ["SU", "MO", "TI", "WO", "TO", "FR", "LA"][((index % 7) + 7) % 7];
+}
+
+function demoDayToWorkoutDay(day: ProgramDay): WorkoutDay {
+  const dayOfWeek = day.day_of_week ?? (day.day_order % 7);
+  return {
+    id: day.id,
+    program_id: day.program_id,
+    user_id: day.user_id,
+    name: day.name,
+    day_of_week: dayOfWeek,
+    day_label: day.day_label || dayLabelFromIndex(dayOfWeek),
+    created_at: day.created_at,
+  };
+}
+
+function getDemoProgramDays(programId: string): ProgramDay[] {
+  return MOCK_PROGRAM_DAYS
+    .filter((d) => d.program_id === programId)
+    .sort((a, b) => a.day_order - b.day_order);
+}
+
+function getDemoPreferredProgramId(): string | null {
+  const activeProgram = MOCK_PROGRAMS.find((p) => p.is_active);
+  if (activeProgram) {
+    const activeDays = getDemoProgramDays(activeProgram.id);
+    if (activeDays.length > 0) return activeProgram.id;
+  }
+
+  const newestWithDays = MOCK_PROGRAMS
+    .map((program) => ({
+      program,
+      dayCount: getDemoProgramDays(program.id).length,
+    }))
+    .filter((x) => x.dayCount > 0)
+    .sort(
+      (a, b) =>
+        new Date(b.program.created_at).getTime() -
+        new Date(a.program.created_at).getTime()
+    );
+
+  return newestWithDays[0]?.program.id ?? null;
+}
+
 export async function getPrograms(): Promise<Program[]> {
   if (DEMO_MODE) return MOCK_PROGRAMS;
 
@@ -733,12 +923,18 @@ export async function getProgramsList() {
   const programs = await getPrograms();
   
   if (DEMO_MODE) {
-    // For demo, return mock list with counts
-    return programs.map((prog) => ({
-      ...prog,
-      days_count: prog.id === "prog-demo-1" ? 4 : 0,
-      exercises_count: prog.id === "prog-demo-1" ? 18 : 0,
-    }));
+    return programs.map((prog) => {
+      const days = getDemoProgramDays(prog.id);
+      const dayIds = new Set(days.map((d) => d.id));
+      const exercisesCount = MOCK_PROGRAM_EXERCISES.filter((ex) =>
+        dayIds.has(ex.workout_day_id)
+      ).length;
+      return {
+        ...prog,
+        days_count: days.length,
+        exercises_count: exercisesCount,
+      };
+    });
   }
 
   const supabase = await db();
@@ -885,6 +1081,17 @@ export async function deleteProgram(id: string): Promise<void> {
   if (DEMO_MODE) {
     const idx = MOCK_PROGRAMS.findIndex((p) => p.id === id);
     if (idx >= 0) MOCK_PROGRAMS.splice(idx, 1);
+    for (let i = MOCK_PROGRAM_DAYS.length - 1; i >= 0; i--) {
+      if (MOCK_PROGRAM_DAYS[i].program_id === id) {
+        const dayId = MOCK_PROGRAM_DAYS[i].id;
+        MOCK_PROGRAM_DAYS.splice(i, 1);
+        for (let j = MOCK_PROGRAM_EXERCISES.length - 1; j >= 0; j--) {
+          if (MOCK_PROGRAM_EXERCISES[j].workout_day_id === dayId) {
+            MOCK_PROGRAM_EXERCISES.splice(j, 1);
+          }
+        }
+      }
+    }
     return;
   }
 
@@ -900,32 +1107,7 @@ export async function deleteProgram(id: string): Promise<void> {
 
 export async function getProgramDays(programId: string): Promise<ProgramDay[]> {
   if (DEMO_MODE) {
-    // Return mock days for the demo program
-    if (programId === "prog-demo-1") {
-      return [
-        {
-          id: "day-1",
-          program_id: programId,
-          user_id: "demo-user",
-          name: "Strength A",
-          day_order: 0,
-          kind: "weekday",
-          weekday_label: "Monday",
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "day-2",
-          program_id: programId,
-          user_id: "demo-user",
-          name: "Strength B",
-          day_order: 1,
-          kind: "weekday",
-          weekday_label: "Wednesday",
-          created_at: new Date().toISOString(),
-        },
-      ];
-    }
-    return [];
+    return getDemoProgramDays(programId);
   }
 
   const supabase = await db();
@@ -948,18 +1130,25 @@ export async function createProgramDay(
   weekdayLabel?: string,
   sessionLabel?: string
 ): Promise<ProgramDay> {
+  const kind: ProgramDay["kind"] = sessionLabel ? "session" : "weekday";
+  const normalizedDayOfWeek = ((dayOrder % 7) + 7) % 7;
+  const normalizedDayLabel = dayLabelFromIndex(normalizedDayOfWeek);
+
   if (DEMO_MODE) {
     const day: ProgramDay = {
-      id: `day-${Date.now()}`,
+      id: `day-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       program_id: programId,
       user_id: "demo-user",
       name,
       day_order: dayOrder,
-      kind: "weekday",
+      kind,
+      day_of_week: normalizedDayOfWeek,
+      day_label: normalizedDayLabel,
       weekday_label: weekdayLabel,
       session_label: sessionLabel,
       created_at: new Date().toISOString(),
     };
+    MOCK_PROGRAM_DAYS.push(day);
     return day;
   }
 
@@ -973,11 +1162,11 @@ export async function createProgramDay(
       user_id: userId,
       name,
       day_order: dayOrder,
-      kind: "weekday",
+      kind,
       weekday_label: weekdayLabel,
       session_label: sessionLabel,
-      day_of_week: 0, // Legacy field, set to 0
-      day_label: "", // Legacy field
+      day_of_week: normalizedDayOfWeek,
+      day_label: normalizedDayLabel,
     })
     .select()
     .single();
@@ -991,7 +1180,10 @@ export async function updateProgramDay(
   updates: Partial<ProgramDay>
 ): Promise<ProgramDay> {
   if (DEMO_MODE) {
-    throw new Error("Demo mode does not support updates");
+    const day = MOCK_PROGRAM_DAYS.find((d) => d.id === dayId);
+    if (!day) throw new Error("Day not found");
+    Object.assign(day, updates);
+    return day;
   }
 
   const supabase = await db();
@@ -1011,6 +1203,13 @@ export async function updateProgramDay(
 
 export async function deleteProgramDay(dayId: string): Promise<void> {
   if (DEMO_MODE) {
+    const idx = MOCK_PROGRAM_DAYS.findIndex((d) => d.id === dayId);
+    if (idx >= 0) MOCK_PROGRAM_DAYS.splice(idx, 1);
+    for (let i = MOCK_PROGRAM_EXERCISES.length - 1; i >= 0; i--) {
+      if (MOCK_PROGRAM_EXERCISES[i].workout_day_id === dayId) {
+        MOCK_PROGRAM_EXERCISES.splice(i, 1);
+      }
+    }
     return;
   }
 
@@ -1029,6 +1228,14 @@ export async function reorderProgramDays(
   dayOrders: Array<{ id: string; day_order: number }>
 ): Promise<void> {
   if (DEMO_MODE) {
+    for (const { id, day_order } of dayOrders) {
+      const day = MOCK_PROGRAM_DAYS.find((d) => d.id === id && d.program_id === programId);
+      if (day) {
+        day.day_order = day_order;
+        day.day_of_week = ((day_order % 7) + 7) % 7;
+        day.day_label = dayLabelFromIndex(day.day_of_week);
+      }
+    }
     return;
   }
 
@@ -1050,7 +1257,9 @@ export async function reorderProgramDays(
 
 export async function getProgramExercises(dayId: string): Promise<ProgramExercise[]> {
   if (DEMO_MODE) {
-    return [];
+    return MOCK_PROGRAM_EXERCISES
+      .filter((ex) => ex.workout_day_id === dayId)
+      .sort((a, b) => a.sort_order - b.sort_order);
   }
 
   const supabase = await db();
@@ -1076,8 +1285,12 @@ export async function createProgramExercise(
   notes?: string
 ): Promise<ProgramExercise> {
   if (DEMO_MODE) {
+    const existing = MOCK_PROGRAM_EXERCISES
+      .filter((ex) => ex.workout_day_id === dayId)
+      .sort((a, b) => b.sort_order - a.sort_order);
+    const maxSort = (existing[0]?.sort_order ?? -1) + 1;
     const ex: ProgramExercise = {
-      id: `ex-${Date.now()}`,
+      id: `ex-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       program_id: programId,
       workout_day_id: dayId,
       user_id: "demo-user",
@@ -1086,9 +1299,10 @@ export async function createProgramExercise(
       target_sets: targetSets,
       target_reps_text: targetRepsText,
       notes,
-      sort_order: 0,
+      sort_order: maxSort,
       created_at: new Date().toISOString(),
     };
+    MOCK_PROGRAM_EXERCISES.push(ex);
     return ex;
   }
 
@@ -1130,7 +1344,10 @@ export async function updateProgramExercise(
   updates: Partial<ProgramExercise>
 ): Promise<ProgramExercise> {
   if (DEMO_MODE) {
-    throw new Error("Demo mode does not support updates");
+    const ex = MOCK_PROGRAM_EXERCISES.find((e) => e.id === exerciseId);
+    if (!ex) throw new Error("Exercise not found");
+    Object.assign(ex, updates);
+    return ex;
   }
 
   const supabase = await db();
@@ -1150,6 +1367,8 @@ export async function updateProgramExercise(
 
 export async function deleteProgramExercise(exerciseId: string): Promise<void> {
   if (DEMO_MODE) {
+    const idx = MOCK_PROGRAM_EXERCISES.findIndex((e) => e.id === exerciseId);
+    if (idx >= 0) MOCK_PROGRAM_EXERCISES.splice(idx, 1);
     return;
   }
 
@@ -1168,6 +1387,12 @@ export async function reorderProgramExercises(
   exerciseOrders: Array<{ id: string; sort_order: number }>
 ): Promise<void> {
   if (DEMO_MODE) {
+    for (const { id, sort_order } of exerciseOrders) {
+      const ex = MOCK_PROGRAM_EXERCISES.find(
+        (e) => e.id === id && e.workout_day_id === dayId
+      );
+      if (ex) ex.sort_order = sort_order;
+    }
     return;
   }
 
@@ -1202,6 +1427,31 @@ export async function duplicateProgram(
       created_at: new Date().toISOString(),
     };
     MOCK_PROGRAMS.push(dup);
+
+    const sourceDays = getDemoProgramDays(sourceId);
+    for (const sourceDay of sourceDays) {
+      const newDay: ProgramDay = {
+        ...sourceDay,
+        id: `day-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        program_id: dup.id,
+        created_at: new Date().toISOString(),
+      };
+      MOCK_PROGRAM_DAYS.push(newDay);
+
+      const sourceExercises = MOCK_PROGRAM_EXERCISES.filter(
+        (e) => e.workout_day_id === sourceDay.id
+      );
+      for (const sourceEx of sourceExercises) {
+        MOCK_PROGRAM_EXERCISES.push({
+          ...sourceEx,
+          id: `ex-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          program_id: dup.id,
+          workout_day_id: newDay.id,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+
     return dup;
   }
 
@@ -1325,6 +1575,31 @@ export async function saveImportedProgram(
       created_at: new Date().toISOString(),
     };
     MOCK_PROGRAMS.push(prog);
+
+    for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
+      const sourceDay = days[dayIdx];
+      const createdDay = await createProgramDay(
+        prog.id,
+        sourceDay.name,
+        dayIdx,
+        mode === "weekday" ? sourceDay.label : undefined,
+        mode === "session" ? sourceDay.label ?? `Workout ${dayIdx + 1}` : undefined
+      );
+
+      for (let exIdx = 0; exIdx < sourceDay.exercises.length; exIdx++) {
+        const ex = sourceDay.exercises[exIdx];
+        await createProgramExercise(
+          createdDay.id,
+          prog.id,
+          ex.name,
+          ex.schemeText,
+          ex.targetSets,
+          ex.targetRepsText,
+          ex.notes
+        );
+      }
+    }
+
     return prog;
   }
 
@@ -1349,6 +1624,8 @@ export async function saveImportedProgram(
   // Create days and exercises
   for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
     const sourceDay = days[dayIdx];
+    const normalizedDayOfWeek = ((dayIdx % 7) + 7) % 7;
+    const normalizedDayLabel = dayLabelFromIndex(normalizedDayOfWeek);
 
     const { data: newDay, error: dayError } = await supabase
       .from("workout_days")
@@ -1358,8 +1635,8 @@ export async function saveImportedProgram(
         name: sourceDay.name,
         day_order: dayIdx,
         kind: mode,
-        day_of_week: 0, // Legacy field
-        day_label: "", // Legacy field
+        day_of_week: normalizedDayOfWeek,
+        day_label: normalizedDayLabel,
         weekday_label: sourceDay.label,
         session_label: sourceDay.label,
       })
@@ -1499,20 +1776,21 @@ export async function validateProgram(
     // Check duplicate exercise names within day and some field validations
     const seenEx = new Set<string>();
     for (let j = 0; exercises && j < exercises.length; j++) {
-      const ex = exercises[j] as any;
+      const ex = exercises[j] as ValidationExerciseRow;
       const lower = (ex.exercise_name_snapshot || "").toLowerCase();
+      const exName = ex.exercise_name_snapshot ?? undefined;
       if (seenEx.has(lower)) {
-        warnings.push({ type: "duplicate_exercise", message: `Duplicate exercise '${ex.exercise_name_snapshot}' in day '${day.name}'`, dayName: day.name, exerciseName: ex.exercise_name_snapshot });
+        warnings.push({ type: "duplicate_exercise", message: `Duplicate exercise '${ex.exercise_name_snapshot}' in day '${day.name}'`, dayName: day.name, exerciseName: exName });
       }
       seenEx.add(lower);
 
       const expectedEx = expectedDay?.exercises?.[j];
       if (expectedEx && lower !== (expectedEx.name || "").toLowerCase()) {
-        warnings.push({ type: "mismatch_exercise_name", message: `Exercise name mismatch in day '${day.name}': expected '${expectedEx.name}' but got '${ex.exercise_name_snapshot}'`, dayName: day.name, exerciseName: ex.exercise_name_snapshot });
+        warnings.push({ type: "mismatch_exercise_name", message: `Exercise name mismatch in day '${day.name}': expected '${expectedEx.name}' but got '${ex.exercise_name_snapshot}'`, dayName: day.name, exerciseName: exName });
       }
 
       if ((expectedEx?.targetSets ?? null) !== null && (ex.target_sets === null || ex.target_sets === undefined)) {
-        warnings.push({ type: "missing_target_sets", message: `Exercise '${ex.exercise_name_snapshot}' in day '${day.name}' missing target sets`, dayName: day.name, exerciseName: ex.exercise_name_snapshot });
+        warnings.push({ type: "missing_target_sets", message: `Exercise '${ex.exercise_name_snapshot}' in day '${day.name}' missing target sets`, dayName: day.name, exerciseName: exName });
       }
     }
   }

@@ -24,35 +24,32 @@ export function ProgramCard({
   const modeLabel = program.mode === "weekday" ? "Weekday" : "Sessions";
 
   return (
-    <div className="border-l-4 border-blue-500 bg-white rounded-lg p-4 shadow-sm mb-3">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-2">
+    <div className="mb-3 rounded-lg border border-border border-l-4 border-l-accent bg-card p-4">
+      <div className="mb-2 flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="font-semibold text-base text-gray-900">{program.name}</h3>
+          <h3 className="text-base font-semibold text-white">{program.name}</h3>
           {program.description && (
-            <p className="text-sm text-gray-600 mt-1">{program.description}</p>
+            <p className="mt-1 text-sm text-muted">{program.description}</p>
           )}
         </div>
         {program.is_active && (
-          <span className="ml-2 inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded">
+          <span className="ml-2 inline-block rounded bg-success/20 px-2 py-1 text-xs font-medium text-success">
             Active
           </span>
         )}
       </div>
 
-      {/* Meta info */}
-      <div className="flex gap-3 text-xs text-gray-600 mb-4">
+      <div className="mb-4 flex gap-3 text-xs text-muted">
         <span>{modeLabel}</span>
-        <span>•</span>
+        <span>-</span>
         <span>{daysCount} days</span>
       </div>
 
-      {/* Actions */}
       <div className="grid grid-cols-3 gap-2">
         {onOpen && (
           <button
             onClick={onOpen}
-            className="bg-blue-500 text-white text-sm font-medium py-2 rounded hover:bg-blue-600 active:bg-blue-700"
+            className="rounded bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover active:bg-accent-hover"
           >
             Open
           </button>
@@ -60,7 +57,7 @@ export function ProgramCard({
         {onEdit && (
           <button
             onClick={onEdit}
-            className="bg-gray-500 text-white text-sm font-medium py-2 rounded hover:bg-gray-600 active:bg-gray-700"
+            className="rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
           >
             Edit
           </button>
@@ -68,19 +65,18 @@ export function ProgramCard({
         {onDuplicate && (
           <button
             onClick={onDuplicate}
-            className="bg-gray-500 text-white text-sm font-medium py-2 rounded hover:bg-gray-600 active:bg-gray-700"
+            className="rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
           >
             Duplicate
           </button>
         )}
       </div>
 
-      {/* Second row of actions */}
-      <div className="grid grid-cols-3 gap-2 mt-2">
+      <div className="mt-2 grid grid-cols-3 gap-2">
         {onSetActive && !program.is_active && (
           <button
             onClick={onSetActive}
-            className="bg-green-500 text-white text-sm font-medium py-2 rounded hover:bg-green-600 active:bg-green-700 col-span-2"
+            className="col-span-2 rounded bg-success py-2 text-sm font-medium text-white hover:bg-green-600 active:bg-green-700"
           >
             Set Active
           </button>
@@ -88,7 +84,7 @@ export function ProgramCard({
         {onDelete && (
           <button
             onClick={onDelete}
-            className="bg-red-500 text-white text-sm font-medium py-2 rounded hover:bg-red-600 active:bg-red-700"
+            className="rounded bg-red-500 py-2 text-sm font-medium text-white hover:bg-red-600 active:bg-red-700"
           >
             Delete
           </button>

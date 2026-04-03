@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProgramCard } from "@/components/ProgramCard";
-import { getPrograms, setActiveProgram, deleteProgram } from "@/lib/actions";
+import {
+  getPrograms,
+  getProgramDays,
+  setActiveProgram,
+  deleteProgram,
+} from "@/lib/actions";
 import type { Program } from "@/lib/types";
 
 export default function ProgramsPage() {
@@ -18,11 +23,14 @@ export default function ProgramsPage() {
       try {
         const data = await getPrograms();
         setPrograms(data);
-        // Mock day counts for demo
-        const counts: Record<string, number> = {};
-        for (const prog of data) {
-          counts[prog.id] = prog.id === "prog-demo-1" ? 2 : 0;
-        }
+
+        const countsEntries = await Promise.all(
+          data.map(async (prog) => {
+            const days = await getProgramDays(prog.id);
+            return [prog.id, days.length] as const;
+          })
+        );
+        const counts = Object.fromEntries(countsEntries);
         setDayCounts(counts);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load programs");
@@ -36,9 +44,7 @@ export default function ProgramsPage() {
   const handleSetActive = async (id: string) => {
     try {
       await setActiveProgram(id);
-      setPrograms((prev) =>
-        prev.map((p) => ({ ...p, is_active: p.id === id }))
-      );
+      setPrograms((prev) => prev.map((p) => ({ ...p, is_active: p.id === id })));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to set active program");
     }
@@ -59,74 +65,63 @@ export default function ProgramsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading programs...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-muted">Loading programs...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
+    <div className="min-h-screen pb-20">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
         <div className="px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Programs</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage your workout programs</p>
+          <h1 className="text-2xl font-bold text-white">Programs</h1>
+          <p className="mt-1 text-sm text-muted">Manage your workout programs</p>
         </div>
       </div>
 
-      {/* Content */}
       <div className="px-4 py-4">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="mb-4 rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
             {error}
-            <button
-              onClick={() => setError("")}
-              className="ml-2 underline"
-            >
+            <button onClick={() => setError("")} className="ml-2 underline">
               Dismiss
             </button>
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="mb-6 grid grid-cols-2 gap-3">
           <button
             onClick={() => router.push("/programs/new")}
-            className="bg-blue-500 text-white font-medium py-3 rounded-lg hover:bg-blue-600 active:bg-blue-700 text-center transition-colors"
+            className="rounded-lg bg-accent py-3 text-center font-medium text-white transition-colors hover:bg-accent-hover active:bg-accent-hover"
           >
             + New
           </button>
           <button
             onClick={() => router.push("/programs/import")}
-            className="bg-purple-500 text-white font-medium py-3 rounded-lg hover:bg-purple-600 active:bg-purple-700 text-center transition-colors"
+            className="rounded-lg border border-border bg-card py-3 text-center font-medium text-white transition-colors hover:bg-card-hover active:bg-zinc-700"
           >
-            📥 Import
+            Import
           </button>
         </div>
 
-        {/* Active Program */}
         {activeProgram && (
           <div className="mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-              Active Program
-            </h2>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Active Program</h2>
             <ProgramCard
               program={activeProgram}
               daysCount={dayCounts[activeProgram.id] || 0}
               onEdit={() => router.push(`/programs/${activeProgram.id}/edit`)}
               onDuplicate={() => router.push(`/programs/${activeProgram.id}/edit?duplicate=true`)}
+              onSetActive={() => handleSetActive(activeProgram.id)}
               onDelete={() => handleDelete(activeProgram.id)}
             />
           </div>
         )}
 
-        {/* Other Programs */}
         {otherPrograms.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-              Other Programs
-            </h2>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Other Programs</h2>
             {otherPrograms.map((program) => (
               <ProgramCard
                 key={program.id}
@@ -141,15 +136,13 @@ export default function ProgramsPage() {
           </div>
         )}
 
-        {/* Empty State */}
         {programs.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-5xl mb-4">🗂️</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No programs yet</h3>
-            <p className="text-gray-600 mb-6">Create your first program to get started</p>
+          <div className="py-12 text-center">
+            <h3 className="mb-2 text-lg font-semibold text-white">No programs yet</h3>
+            <p className="mb-6 text-muted">Create your first program to get started</p>
             <button
               onClick={() => router.push("/programs/new")}
-              className="inline-block bg-blue-500 text-white font-medium px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors"
+              className="inline-block rounded-lg bg-accent px-6 py-3 font-medium text-white hover:bg-accent-hover"
             >
               Create Program
             </button>

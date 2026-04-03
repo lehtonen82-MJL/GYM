@@ -78,7 +78,11 @@ export function runTests() {
       result.warnings.forEach((w) => console.log(`    - ${w.message}`));
     }
 
-    success ? passed++ : failed++;
+    if (success) {
+      passed++;
+    } else {
+      failed++;
+    }
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

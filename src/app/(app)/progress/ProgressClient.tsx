@@ -13,15 +13,19 @@ export default function ProgressClient({
 }) {
   const [selectedId, setSelectedId] = useState(exercises[0]?.id ?? "");
   const [data, setData] = useState<NonNullable<DataPoint>[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!exercises[0]?.id);
 
   useEffect(() => {
     if (!selectedId) return;
-    setLoading(true);
+    let cancelled = false;
     getExerciseProgress(selectedId).then((d) => {
+      if (cancelled) return;
       setData((d ?? []).filter(Boolean) as NonNullable<DataPoint>[]);
       setLoading(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId]);
 
   const maxWeight = data.length > 0 ? Math.max(...data.map((d) => d.weight_kg)) : 0;
@@ -33,7 +37,10 @@ export default function ProgressClient({
       {/* Exercise selector */}
       <select
         value={selectedId}
-        onChange={(e) => setSelectedId(e.target.value)}
+        onChange={(e) => {
+          setLoading(true);
+          setSelectedId(e.target.value);
+        }}
         className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base"
       >
         {exercises.map((ex) => (
@@ -120,7 +127,7 @@ export default function ProgressClient({
             </svg>
 
             {/* Data table */}
-            <div className="mt-4 space-y-1 max-h-48 overflow-y-auto">
+            <div className="scrollbar-hidden mt-4 space-y-1 max-h-48 overflow-y-auto">
               {[...data].reverse().map((d, i) => (
                 <div
                   key={i}
@@ -133,7 +140,7 @@ export default function ProgressClient({
                     })}
                   </span>
                   <span className="text-white font-mono">
-                    {d.weight_kg}kg × {d.reps}
+                    {d.weight_kg}kg x {d.reps}
                   </span>
                 </div>
               ))}
@@ -144,3 +151,4 @@ export default function ProgressClient({
     </div>
   );
 }
+

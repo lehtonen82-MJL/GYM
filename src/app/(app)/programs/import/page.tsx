@@ -27,7 +27,6 @@ export default function ImportPage() {
         return;
       }
 
-      // Store in sessionStorage for preview page
       sessionStorage.setItem(
         "__import_preview",
         JSON.stringify({
@@ -45,43 +44,40 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="px-4 py-4 flex items-center gap-3">
+    <div className="min-h-screen pb-20">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+        <div className="flex items-center gap-3 px-4 py-4">
           <button
             onClick={() => router.push("/programs")}
-            className="text-gray-600 hover:text-gray-900 text-2xl"
+            className="text-2xl text-muted hover:text-white"
+            aria-label="Back"
           >
-            ←
+            {"<"}
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Import Program</h1>
+          <h1 className="text-2xl font-bold text-white">Import Program</h1>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-4 py-6 max-w-2xl">
+      <div className="max-w-2xl px-4 py-6">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="mb-4 rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
             {error}
           </div>
         )}
 
-        {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h2 className="font-semibold text-blue-900 mb-3">How to Format</h2>
-          <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
-            <li>Start each day with <code className="bg-white px-1 rounded font-mono text-xs">[Day Name]</code></li>
-            <li>Format exercises as: <code className="bg-white px-1 rounded font-mono text-xs">Exercise | Scheme | Notes</code></li>
+        <div className="mb-6 rounded-lg border border-accent/50 bg-accent/10 p-4">
+          <h2 className="mb-3 font-semibold text-white">How to Format</h2>
+          <ol className="list-inside list-decimal space-y-2 text-sm text-muted">
+            <li>Start each day with <code className="rounded bg-zinc-900 px-1 font-mono text-xs text-white">[Day Name]</code></li>
+            <li>Format exercises as: <code className="rounded bg-zinc-900 px-1 font-mono text-xs text-white">Exercise | Scheme | Notes</code></li>
             <li>Scheme and notes are optional</li>
             <li>Each line is one exercise</li>
           </ol>
         </div>
 
-        {/* Sample */}
-        <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-2">Sample Format:</h3>
-          <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words font-mono bg-white p-3 rounded border border-gray-300">
+        <div className="mb-6 rounded-lg border border-border bg-card p-4">
+          <h3 className="mb-2 font-semibold text-white">Sample Format:</h3>
+          <pre className="whitespace-pre-wrap break-words rounded border border-border bg-zinc-950 p-3 font-mono text-xs text-muted">
 {`[Monday]
 Back Squat | 4x2
 Bench Press | 5x5
@@ -93,9 +89,8 @@ Pull-ups | 3x8 | Assisted if needed`}
           </pre>
         </div>
 
-        {/* Textarea */}
         <div className="mb-6">
-          <label htmlFor="text" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="text" className="mb-2 block text-sm font-medium text-muted">
             Paste your program text
           </label>
           <textarea
@@ -104,23 +99,22 @@ Pull-ups | 3x8 | Assisted if needed`}
             onChange={(e) => setText(e.target.value)}
             placeholder="[Day Name]&#10;Exercise Name | Scheme | Notes&#10;..."
             rows={10}
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            className="w-full rounded-lg border border-border bg-zinc-950 px-4 py-3 font-mono text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
             disabled={isLoading}
           />
         </div>
 
-        {/* Buttons */}
         <div className="flex gap-2">
           <button
             onClick={() => router.push("/programs")}
-            className="flex-1 bg-gray-500 text-white font-medium py-3 rounded-lg hover:bg-gray-600 active:bg-gray-700 disabled:bg-gray-400 text-base transition-colors"
+            className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-600 active:bg-zinc-500 disabled:bg-zinc-700/60"
             disabled={isLoading}
           >
             Cancel
           </button>
           <button
             onClick={handleParse}
-            className="flex-1 bg-blue-500 text-white font-medium py-3 rounded-lg hover:bg-blue-600 active:bg-blue-700 disabled:bg-gray-400 text-base transition-colors"
+            className="flex-1 rounded-lg bg-accent py-3 text-base font-medium text-white transition-colors hover:bg-accent-hover active:bg-accent-hover disabled:bg-zinc-600"
             disabled={isLoading || !text.trim()}
           >
             {isLoading ? "Parsing..." : "Preview"}

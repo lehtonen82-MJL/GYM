@@ -1,10 +1,11 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProgramDayCard } from "@/components/ProgramDayCard";
 import { ProgramExerciseRow } from "@/components/ProgramExerciseRow";
 import { DuplicateProgramModal } from "@/components/DuplicateProgramModal";
+import { parseProgram, parseSchemeText } from "@/lib/programParser";
 import {
   getProgramById,
   getProgramDays,
@@ -21,6 +22,7 @@ import {
   duplicateProgram,
 } from "@/lib/actions";
 import type { Program, ProgramDay, ProgramExercise } from "@/lib/types";
+import type { ParsedDay, ParserWarning } from "@/lib/programParser";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -40,6 +42,12 @@ export default function ProgramEditorPage({ params }: PageProps) {
   const [errorTimeout, setErrorTimeout] = useState<NodeJS.Timeout | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAutoBuilding, setIsAutoBuilding] = useState(false);
+  const [parsedPreview, setParsedPreview] = useState<{
+    detectedMode: "weekday" | "session";
+    days: ParsedDay[];
+    warnings: ParserWarning[];
+  } | null>(null);
 
   // Load program and days
   useEffect(() => {
@@ -74,12 +82,12 @@ export default function ProgramEditorPage({ params }: PageProps) {
   }, [programId]);
 
   // Helper to set error with auto-dismiss
-  const setErrorWithTimeout = (msg: string) => {
+  const setErrorWithTimeout = useCallback((msg: string) => {
     setError(msg);
     if (errorTimeout) clearTimeout(errorTimeout);
     const timeout = setTimeout(() => setError(""), 5000);
     setErrorTimeout(timeout);
-  };
+  }, [errorTimeout]);
 
   const toggleDay = (dayId: string) => {
     const next = new Set(expandedDays);
@@ -121,7 +129,8 @@ export default function ProgramEditorPage({ params }: PageProps) {
     try {
       await deleteProgramDay(dayId);
       setDays((prev) => prev.filter((d) => d.id !== dayId));
-      const { [dayId]: _, ...rest } = exercisesByDay;
+      const { [dayId]: removedDayExercises, ...rest } = exercisesByDay;
+      void removedDayExercises;
       setExercisesByDay(rest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete day");
@@ -270,18 +279,237 @@ export default function ProgramEditorPage({ params }: PageProps) {
     }
   };
 
+  const parseProgramFromDescription = useCallback(() => {
+    if (!program) return;
+
+    const sourceText = (program.description || "").trim();
+    if (!sourceText) {
+      setErrorWithTimeout("No program text found in description.");
+      return null;
+    }
+
+    const parsed = parseProgram(sourceText);
+    if (parsed.days.length === 0) {
+      setErrorWithTimeout(
+        parsed.warnings[0]?.message ||
+          "Could not parse days from description text."
+      );
+      return null;
+    }
+    return parsed;
+  }, [program, setErrorWithTimeout]);
+
+  const applyParsedProgram = useCallback(async (
+    parsed: { detectedMode: "weekday" | "session"; days: ParsedDay[]; warnings: ParserWarning[] },
+    strategy: "replace" | "append"
+  ) => {
+    if (!program) {
+      setErrorWithTimeout("Program not loaded yet. Try again.");
+      return;
+    }
+
+    setIsAutoBuilding(true);
+    setError("");
+
+    const sanitizedDays = parsed.days
+      .map((day, dayIdx) => ({
+        ...day,
+        name: day.name.trim() || `Workout ${dayIdx + 1}`,
+        exercises: day.exercises
+          .map((ex) => ({
+            ...ex,
+            name: ex.name.trim(),
+          }))
+          .filter((ex) => ex.name.length > 0),
+      }))
+      .filter((day) => day.exercises.length > 0);
+
+    if (sanitizedDays.length === 0) {
+      setErrorWithTimeout("Add at least one exercise before saving.");
+      setIsAutoBuilding(false);
+      return;
+    }
+
+    try {
+      let baseDays = days;
+      let baseExercisesByDay = exercisesByDay;
+      let startOrder = days.length;
+
+      if (strategy === "replace") {
+        for (const day of days) {
+          await deleteProgramDay(day.id);
+        }
+        baseDays = [];
+        baseExercisesByDay = {};
+        startOrder = 0;
+      }
+
+      const newDays: ProgramDay[] = [...baseDays];
+      const newExercisesByDay: Record<string, ProgramExercise[]> = {
+        ...baseExercisesByDay,
+      };
+
+      for (let dayIdx = 0; dayIdx < sanitizedDays.length; dayIdx++) {
+        const parsedDay = sanitizedDays[dayIdx];
+        const createdDay = await createProgramDay(
+          programId,
+          parsedDay.name,
+          startOrder + dayIdx,
+          parsed.detectedMode === "weekday" ? (parsedDay.label || parsedDay.name) : undefined,
+          parsed.detectedMode === "session" ? `Workout ${dayIdx + 1}` : undefined
+        );
+
+        newDays.push(createdDay);
+        newExercisesByDay[createdDay.id] = [];
+
+        for (const ex of parsedDay.exercises) {
+          const createdEx = await createProgramExercise(
+            createdDay.id,
+            programId,
+            ex.name,
+            ex.schemeText,
+            ex.targetSets,
+            ex.targetRepsText,
+            ex.notes
+          );
+          newExercisesByDay[createdDay.id].push(createdEx);
+        }
+      }
+
+      if (program.mode !== parsed.detectedMode) {
+        const updatedProgram = await updateProgram(programId, {
+          mode: parsed.detectedMode,
+        });
+        setProgram(updatedProgram);
+      }
+
+      setDays(newDays);
+      setExercisesByDay(newExercisesByDay);
+      setExpandedDays(new Set(newDays[0] ? [newDays[0].id] : []));
+      setEditingExercise(null);
+      setParsedPreview(null);
+
+      if (parsed.warnings.length > 0) {
+        setErrorWithTimeout(
+          `Imported with ${parsed.warnings.length} warning(s). Check exercise details.`
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Auto-build failed");
+    } finally {
+      setIsAutoBuilding(false);
+    }
+  }, [days, exercisesByDay, program, programId, setErrorWithTimeout]);
+
+  const handlePreviewFromText = () => {
+    const parsed = parseProgramFromDescription();
+    if (!parsed) return;
+    setParsedPreview({
+      detectedMode: parsed.detectedMode,
+      days: parsed.days,
+      warnings: parsed.warnings,
+    });
+  };
+
+  const handleApplyParsed = async (strategy: "replace" | "append") => {
+    const parsed = parsedPreview ?? parseProgramFromDescription();
+    if (!parsed) return;
+    await applyParsedProgram(
+      {
+        detectedMode: parsed.detectedMode,
+        days: parsed.days,
+        warnings: parsed.warnings,
+      },
+      strategy
+    );
+  };
+
+  const handlePreviewDayNameChange = (dayIndex: number, nextName: string) => {
+    setParsedPreview((prev) => {
+      if (!prev) return prev;
+      const nextDays = prev.days.map((d, idx) =>
+        idx === dayIndex ? { ...d, name: nextName } : d
+      );
+      return { ...prev, days: nextDays };
+    });
+  };
+
+  const handlePreviewExerciseChange = (
+    dayIndex: number,
+    exerciseIndex: number,
+    field: "name" | "schemeText" | "notes",
+    value: string
+  ) => {
+    setParsedPreview((prev) => {
+      if (!prev) return prev;
+      const nextDays = prev.days.map((day, dIdx) => {
+        if (dIdx !== dayIndex) return day;
+        const nextExercises = day.exercises.map((ex, eIdx) => {
+          if (eIdx !== exerciseIndex) return ex;
+          const updated = { ...ex, [field]: value };
+          if (field === "schemeText") {
+            const scheme = parseSchemeText(value);
+            updated.targetSets = scheme.targetSets;
+            updated.targetRepsText = scheme.targetRepsText;
+          }
+          return updated;
+        });
+        return { ...day, exercises: nextExercises };
+      });
+      return { ...prev, days: nextDays };
+    });
+  };
+
+  const handlePreviewAddExercise = (dayIndex: number) => {
+    setParsedPreview((prev) => {
+      if (!prev) return prev;
+      const nextDays = prev.days.map((day, idx) =>
+        idx === dayIndex
+          ? {
+              ...day,
+              exercises: [
+                ...day.exercises,
+                {
+                  name: "",
+                  schemeText: "",
+                  targetSets: undefined,
+                  targetRepsText: undefined,
+                  notes: "",
+                },
+              ],
+            }
+          : day
+      );
+      return { ...prev, days: nextDays };
+    });
+  };
+
+  const handlePreviewRemoveExercise = (dayIndex: number, exerciseIndex: number) => {
+    setParsedPreview((prev) => {
+      if (!prev) return prev;
+      const nextDays = prev.days.map((day, idx) => {
+        if (idx !== dayIndex) return day;
+        return {
+          ...day,
+          exercises: day.exercises.filter((_, exIdx) => exIdx !== exerciseIndex),
+        };
+      });
+      return { ...prev, days: nextDays };
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading program...</div>
+        <div className="text-muted">Loading program...</div>
       </div>
     );
   }
 
   if (!program) {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-10">
-        <div className="mx-auto max-w-lg rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+      <div className="min-h-screen px-4 py-10">
+        <div className="mx-auto max-w-lg rounded-lg border border-red-500/60 bg-red-500/10 p-4 text-red-300">
           <p className="font-semibold">{error || "Program not found"}</p>
           <button
             onClick={() => router.push("/programs")}
@@ -295,29 +523,29 @@ export default function ProgramEditorPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen pb-20">
       {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
         <div className="px-4 py-4 flex items-center gap-3">
           <button
             onClick={() => router.push("/programs")}
-            className="text-gray-600 hover:text-gray-900 text-2xl"
+            className="text-2xl text-muted hover:text-white"
           >
-            ←
+            {"<"}
           </button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">{program.name}</h1>
-            <p className="text-xs text-gray-600 mt-1">
+            <h1 className="text-2xl font-bold text-white">{program.name}</h1>
+            <p className="mt-1 text-xs text-muted">
               {program.mode === "weekday" ? "Weekday Mode" : "Sessions Mode"}
-              {program.description && ` • ${program.description}`}
+              {program.description && ` - ${program.description}`}
             </p>
           </div>
           <button
             onClick={() => setShowDuplicateModal(true)}
-            className="text-gray-600 hover:text-gray-900 text-lg"
+            className="text-lg text-muted hover:text-white"
             title="Duplicate"
           >
-            📋
+            Duplicate
           </button>
         </div>
       </div>
@@ -325,7 +553,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
       {/* Content */}
       <div className="px-4 py-4">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="mb-4 rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
             {error}
             <button
               onClick={() => setError("")}
@@ -337,9 +565,153 @@ export default function ProgramEditorPage({ params }: PageProps) {
         )}
 
         {/* Add Day Button */}
+        {program.description?.trim() && (
+          <>
+            <button
+              onClick={handlePreviewFromText}
+              disabled={isAutoBuilding}
+              className="mb-3 w-full rounded-lg bg-emerald-500 py-3 text-base font-medium text-white transition-colors hover:bg-emerald-600 active:bg-emerald-700 disabled:bg-zinc-600"
+            >
+              {isAutoBuilding ? "Saving..." : "Preview Auto-generate From Text"}
+            </button>
+
+            {parsedPreview && (
+              <div className="mb-4 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-4">
+                <p className="mb-2 text-xs text-emerald-200">
+                  Nothing is changed yet. Press Save to apply these generated workouts.
+                </p>
+                <p className="text-sm font-semibold text-emerald-100">
+                  Parse Preview: {parsedPreview.days.length} day(s),{" "}
+                  {parsedPreview.days.reduce((sum, d) => sum + d.exercises.length, 0)} exercise(s)
+                </p>
+                <p className="mt-1 text-xs text-emerald-200">
+                  Mode: {parsedPreview.detectedMode === "weekday" ? "Weekday" : "Session"}
+                  {parsedPreview.warnings.length > 0
+                    ? ` - ${parsedPreview.warnings.length} warning(s)`
+                    : " - no warnings"}
+                </p>
+                <div className="mt-3 space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                  {parsedPreview.days.map((day, dayIndex) => (
+                    <div
+                      key={`${day.name}-${dayIndex}`}
+                      className="rounded border border-emerald-500/50 bg-zinc-900 p-3"
+                    >
+                      <div className="mb-2">
+                        <label className="mb-1 block text-xs font-medium text-emerald-200">
+                          Workout {dayIndex + 1} name
+                        </label>
+                        <input
+                          value={day.name}
+                          onChange={(e) => handlePreviewDayNameChange(dayIndex, e.target.value)}
+                          className="w-full rounded border border-emerald-500/50 bg-zinc-950 px-2 py-1 text-sm text-white"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        {day.exercises.map((exercise, exerciseIndex) => (
+                          <div
+                            key={`${dayIndex}-${exerciseIndex}`}
+                            className="rounded border border-border bg-card p-2"
+                          >
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                              <input
+                                value={exercise.name}
+                                onChange={(e) =>
+                                  handlePreviewExerciseChange(
+                                    dayIndex,
+                                    exerciseIndex,
+                                    "name",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Exercise name"
+                                className="rounded border border-border bg-zinc-950 px-2 py-1 text-sm text-white"
+                              />
+                              <input
+                                value={exercise.schemeText || ""}
+                                onChange={(e) =>
+                                  handlePreviewExerciseChange(
+                                    dayIndex,
+                                    exerciseIndex,
+                                    "schemeText",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Scheme (e.g. 4x6)"
+                                className="rounded border border-border bg-zinc-950 px-2 py-1 text-sm text-white"
+                              />
+                              <input
+                                value={exercise.targetSets?.toString() || ""}
+                                readOnly
+                                placeholder="Sets"
+                                className="rounded border border-border bg-zinc-800 px-2 py-1 text-sm text-white"
+                              />
+                              <button
+                                onClick={() =>
+                                  handlePreviewRemoveExercise(dayIndex, exerciseIndex)
+                                }
+                                className="rounded bg-red-500/20 px-2 py-1 text-sm font-medium text-red-300 hover:bg-red-500/30"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <input
+                              value={exercise.notes || ""}
+                              onChange={(e) =>
+                                handlePreviewExerciseChange(
+                                  dayIndex,
+                                  exerciseIndex,
+                                  "notes",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Notes (optional)"
+                              className="mt-2 w-full rounded border border-border bg-zinc-950 px-2 py-1 text-sm text-white"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => handlePreviewAddExercise(dayIndex)}
+                        className="mt-2 rounded bg-emerald-500/20 px-3 py-1 text-sm font-medium text-emerald-200 hover:bg-emerald-500/30"
+                      >
+                        + Add movement
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => void handleApplyParsed("replace")}
+                    disabled={isAutoBuilding}
+                    className="flex-1 rounded bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-zinc-600"
+                  >
+                    Save and Continue
+                  </button>
+                  <button
+                    onClick={() => void handleApplyParsed("append")}
+                    disabled={isAutoBuilding}
+                    className="flex-1 rounded bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-zinc-600"
+                  >
+                    Save and Append
+                  </button>
+                  <button
+                    onClick={() => setParsedPreview(null)}
+                    disabled={isAutoBuilding}
+                    className="rounded border border-border bg-zinc-700 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-600 disabled:bg-zinc-700/60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         <button
           onClick={handleAddDay}
-          className="w-full bg-blue-500 text-white font-medium py-3 rounded-lg hover:bg-blue-600 active:bg-blue-700 mb-6 text-base transition-colors"
+          className="mb-6 w-full rounded-lg bg-accent py-3 text-base font-medium text-white transition-colors hover:bg-accent-hover active:bg-accent-hover"
         >
           + Add Day
         </button>
@@ -347,8 +719,8 @@ export default function ProgramEditorPage({ params }: PageProps) {
         {/* Days */}
         {days.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-600 text-lg mb-4">No days yet</p>
-            <p className="text-gray-500 text-sm">Click "Add Day" above to get started!</p>
+            <p className="mb-4 text-lg text-muted">No days yet</p>
+            <p className="text-sm text-muted">Click &quot;Add Day&quot; above to get started!</p>
           </div>
         ) : (
           days.map((day, idx) => (
@@ -396,7 +768,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
                 {/* Add Exercise Button */}
                 <button
                   onClick={() => handleAddExercise(day.id)}
-                  className="w-full bg-gray-200 text-gray-900 font-medium py-2 rounded hover:bg-gray-300 active:bg-gray-400 text-sm mt-2"
+                  className="mt-2 w-full rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
                 >
                   + Add Exercise
                 </button>
@@ -417,3 +789,4 @@ export default function ProgramEditorPage({ params }: PageProps) {
     </div>
   );
 }
+

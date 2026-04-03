@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ProgramExercise } from "@/lib/types";
+import { parseSchemePrescription } from "@/lib/programParser";
 
 interface ProgramExerciseRowProps {
   exercise: ProgramExercise;
@@ -13,6 +14,46 @@ interface ProgramExerciseRowProps {
   onDelete?: () => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+}
+
+type DraftSet = {
+  id: string;
+  weight: string;
+  reps: string;
+};
+
+function buildInitialSets(exercise: ProgramExercise): DraftSet[] {
+  const fromScheme = parseSchemePrescription(exercise.scheme_text || "");
+  if (fromScheme.length > 0) {
+    return fromScheme.map((set, idx) => ({
+      id: `set-${idx}`,
+      weight: set.weightKg?.toString() || "",
+      reps: set.reps?.toString() || "",
+    }));
+  }
+
+  const setCount = exercise.target_sets ?? 0;
+  if (setCount > 0) {
+    const repsParts = (exercise.target_reps_text || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    return Array.from({ length: setCount }, (_, idx) => ({
+      id: `set-${idx}`,
+      weight: "",
+      reps: repsParts[idx] || repsParts[0] || "",
+    }));
+  }
+
+  return [{ id: "set-0", weight: "", reps: "" }];
+}
+
+function formatTargetRepsText(reps: number[]): string | undefined {
+  if (reps.length === 0) return undefined;
+  const unique = new Set(reps);
+  if (unique.size === 1) return String(reps[0]);
+  return reps.join(",");
 }
 
 export function ProgramExerciseRow({
@@ -27,96 +68,173 @@ export function ProgramExerciseRow({
   canMoveDown = false,
 }: ProgramExerciseRowProps) {
   const [name, setName] = useState(exercise.exercise_name_snapshot);
-  const [scheme, setScheme] = useState(exercise.scheme_text || "");
-  const [sets, setSets] = useState(exercise.target_sets?.toString() || "");
-  const [reps, setReps] = useState(exercise.target_reps_text || "");
   const [notes, setNotes] = useState(exercise.notes || "");
+  const [setRows, setSetRows] = useState<DraftSet[]>(() => buildInitialSets(exercise));
+  const [formError, setFormError] = useState("");
+
+  const previewScheme = useMemo(() => {
+    return setRows
+      .filter((row) => row.weight.trim() && row.reps.trim())
+      .map((row) => `${row.weight.trim()}x${row.reps.trim()}`)
+      .join(", ");
+  }, [setRows]);
+
+  const handleAddSet = () => {
+    setSetRows((prev) => [
+      ...prev,
+      { id: `set-${Date.now()}-${prev.length}`, weight: "", reps: "" },
+    ]);
+  };
+
+  const handleRemoveSet = (setId: string) => {
+    setSetRows((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((row) => row.id !== setId);
+    });
+  };
+
+  const handleSetChange = (setId: string, key: "weight" | "reps", value: string) => {
+    setSetRows((prev) =>
+      prev.map((row) => (row.id === setId ? { ...row, [key]: value } : row))
+    );
+  };
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    setFormError("");
+
+    if (!name.trim()) {
+      setFormError("Exercise name is required.");
+      return;
+    }
+
+    if (setRows.length === 0) {
+      setFormError("Add at least one set.");
+      return;
+    }
+
+    const parsedSets = setRows.map((row) => {
+      const weight = parseFloat(row.weight);
+      const reps = parseInt(row.reps, 10);
+      return {
+        weight,
+        reps,
+        validWeight: Number.isFinite(weight),
+        validReps: Number.isFinite(reps) && reps > 0,
+      };
+    });
+
+    const invalidIndex = parsedSets.findIndex((s) => !s.validWeight || !s.validReps);
+    if (invalidIndex >= 0) {
+      setFormError(`Set ${invalidIndex + 1}: weight and reps are required.`);
+      return;
+    }
+
+    const weights = parsedSets.map((s) => s.weight);
+    const reps = parsedSets.map((s) => s.reps);
+    const schemeText = weights.map((w, idx) => `${w}x${reps[idx]}`).join(", ");
+
     onSave?.({
       exercise_name_snapshot: name.trim(),
-      scheme_text: scheme.trim() || undefined,
-      target_sets: sets ? parseInt(sets) : undefined,
-      target_reps_text: reps.trim() || undefined,
+      scheme_text: schemeText,
+      target_sets: parsedSets.length,
+      target_reps_text: formatTargetRepsText(reps),
       notes: notes.trim() || undefined,
     });
   };
 
   if (isEditing) {
     return (
-      <div className="border border-gray-300 rounded-lg p-3 mb-2 bg-blue-50">
-        {/* Name */}
+      <div className="mb-2 rounded-lg border border-accent/60 bg-zinc-900 p-3">
+        {formError && (
+          <div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-2 py-1 text-xs text-red-300">
+            {formError}
+          </div>
+        )}
+
         <div className="mb-3">
-          <label className="text-xs font-medium text-gray-700">Exercise Name *</label>
+          <label className="text-xs font-medium text-muted">Exercise Name *</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., Back Squat"
-            className="w-full border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+            className="mt-1 w-full rounded border border-border bg-zinc-950 px-2 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
-        {/* Scheme */}
-        <div className="mb-3">
-          <label className="text-xs font-medium text-gray-700">Scheme (optional)</label>
-          <input
-            type="text"
-            value={scheme}
-            onChange={(e) => setScheme(e.target.value)}
-            placeholder="e.g., 4x2, 1x5 + 2x5"
-            className="w-full border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
-          />
+        <div className="mb-2 flex items-center justify-between">
+          <label className="text-xs font-medium text-muted">Sets (Weight + Reps) *</label>
+          <button
+            onClick={handleAddSet}
+            className="rounded bg-accent/20 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/30"
+          >
+            + Add Set
+          </button>
         </div>
 
-        {/* Sets */}
-        <div className="mb-3">
-          <label className="text-xs font-medium text-gray-700">Target Sets (optional)</label>
-          <input
-            type="number"
-            value={sets}
-            onChange={(e) => setSets(e.target.value)}
-            placeholder="e.g., 3"
-            className="w-full border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
-          />
+        <div className="mb-3 space-y-2">
+          {setRows.map((row, idx) => (
+            <div key={row.id} className="grid grid-cols-12 items-center gap-2">
+              <div className="col-span-2 text-xs text-muted">Set {idx + 1}</div>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                min="0"
+                value={row.weight}
+                onChange={(e) => handleSetChange(row.id, "weight", e.target.value)}
+                placeholder="kg"
+                className="col-span-4 rounded border border-border bg-zinc-950 px-2 py-2 text-sm font-medium text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                value={row.reps}
+                onChange={(e) => handleSetChange(row.id, "reps", e.target.value)}
+                placeholder="reps"
+                className="col-span-4 rounded border border-border bg-zinc-950 px-2 py-2 text-sm font-medium text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              <button
+                onClick={() => handleRemoveSet(row.id)}
+                className="col-span-2 rounded bg-red-500/20 px-2 py-2 text-xs font-medium text-red-300 hover:bg-red-500/30"
+                disabled={setRows.length <= 1}
+                title="Remove set"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
         </div>
 
-        {/* Reps */}
-        <div className="mb-3">
-          <label className="text-xs font-medium text-gray-700">Target Reps Text (optional)</label>
-          <input
-            type="text"
-            value={reps}
-            onChange={(e) => setReps(e.target.value)}
-            placeholder="e.g., 5, 5,5,5, 8-10"
-            className="w-full border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
-          />
+        <div className="mb-3 rounded border border-border bg-card px-2 py-2">
+          <p className="text-[11px] text-muted">Generated Scheme</p>
+          <p className="mt-1 text-xs font-medium text-white">
+            {previewScheme || "Add weight + reps to build scheme"}
+          </p>
         </div>
 
-        {/* Notes */}
         <div className="mb-3">
-          <label className="text-xs font-medium text-gray-700">Notes (optional)</label>
+          <label className="text-xs font-medium text-muted">Notes (optional)</label>
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g., top set + backoff"
-            className="w-full border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+            className="mt-1 w-full rounded border border-border bg-zinc-950 px-2 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
-        {/* Buttons */}
         <div className="flex gap-2">
           <button
             onClick={handleSave}
-            className="flex-1 bg-blue-500 text-white text-sm font-medium py-2 rounded hover:bg-blue-600 active:bg-blue-700"
+            className="flex-1 rounded bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover active:bg-accent-hover"
           >
             Save
           </button>
           <button
             onClick={onCancel}
-            className="flex-1 bg-gray-500 text-white text-sm font-medium py-2 rounded hover:bg-gray-600 active:bg-gray-700"
+            className="flex-1 rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
           >
             Cancel
           </button>
@@ -126,48 +244,45 @@ export function ProgramExerciseRow({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 mb-2 bg-white flex items-stretch gap-2 group">
-      {/* Content */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <h4 className="font-semibold text-sm text-gray-900">{exercise.exercise_name_snapshot}</h4>
-        <div className="flex gap-3 text-xs text-gray-600 mt-1">
+    <div className="group mb-2 flex items-stretch gap-2 rounded-lg border border-border bg-card p-3">
+      <div className="min-w-0 flex-1">
+        <h4 className="text-sm font-semibold text-white">{exercise.exercise_name_snapshot}</h4>
+        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
           {exercise.target_sets && <span>{exercise.target_sets} sets</span>}
           {exercise.scheme_text && <span>{exercise.scheme_text}</span>}
-          {exercise.target_reps_text && <span>{exercise.target_reps_text} reps</span>}
           {exercise.notes && <span className="italic">{exercise.notes}</span>}
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex gap-1 flex-shrink-0 items-center">
+      <div className="flex flex-shrink-0 items-center gap-1">
         {canMoveUp && (
           <button
             onClick={onMoveUp}
-            className="w-10 h-10 flex items-center justify-center rounded text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
             title="Move up"
             aria-label="Move exercise up"
           >
-            ↑
+            ^
           </button>
         )}
         {canMoveDown && (
           <button
             onClick={onMoveDown}
-            className="w-10 h-10 flex items-center justify-center rounded text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
             title="Move down"
             aria-label="Move exercise down"
           >
-            ↓
+            v
           </button>
         )}
         {onDelete && (
           <button
             onClick={onDelete}
-            className="w-10 h-10 flex items-center justify-center rounded text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
+            className="h-10 w-10 rounded text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
             title="Delete exercise"
             aria-label="Delete exercise"
           >
-            ×
+            x
           </button>
         )}
       </div>

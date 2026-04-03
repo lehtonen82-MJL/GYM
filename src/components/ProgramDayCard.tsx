@@ -40,20 +40,17 @@ export function ProgramDayCard({
   };
 
   return (
-    <div className="border-l-4 border-blue-500 bg-white rounded-lg overflow-hidden shadow-sm mb-3">
-      {/* Header */}
-      <div className="p-4 flex items-center gap-3">
-        {/* Expand/Collapse */}
+    <div className="mb-3 overflow-hidden rounded-lg border border-border border-l-4 border-l-accent bg-card">
+      <div className="flex items-center gap-3 p-4">
         <button
           onClick={onToggle}
-          className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded transition-colors flex-shrink-0"
+          className="h-10 w-10 flex-shrink-0 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
           aria-label={isExpanded ? "Collapse day" : "Expand day"}
         >
-          {isExpanded ? "▼" : "▶"}
+          {isExpanded ? "v" : ">"}
         </button>
 
-        {/* Name */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           {isEditing ? (
             <input
               type="text"
@@ -69,61 +66,55 @@ export function ProgramDayCard({
               }}
               placeholder="Day name"
               autoFocus
-              className="w-full border border-blue-500 rounded px-2 py-1 text-base focus:outline-none"
+              className="w-full rounded border border-accent bg-zinc-900 px-2 py-1 text-base text-white focus:outline-none"
             />
           ) : (
             <h3
               onClick={() => setIsEditing(true)}
-              className="font-semibold text-base text-gray-900 cursor-pointer hover:text-blue-600"
+              className="cursor-pointer text-base font-semibold text-white hover:text-accent"
             >
               {day.name}
             </h3>
           )}
-          {day.weekday_label && (
-            <p className="text-xs text-gray-600 mt-1">{day.weekday_label}</p>
-          )}
-          {day.session_label && (
-            <p className="text-xs text-gray-600 mt-1">{day.session_label}</p>
-          )}
+          {day.weekday_label && <p className="mt-1 text-xs text-muted">{day.weekday_label}</p>}
+          {day.session_label && <p className="mt-1 text-xs text-muted">{day.session_label}</p>}
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-1 items-center flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-1">
           {canMoveUp && (
             <button
               onClick={onMoveUp}
-              className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded transition-colors"
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
               title="Move day up"
               aria-label="Move day up"
             >
-              ↑
+              ^
             </button>
           )}
           {canMoveDown && (
             <button
               onClick={onMoveDown}
-              className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded transition-colors"
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
               title="Move day down"
               aria-label="Move day down"
             >
-              ↓
+              v
             </button>
           )}
           {onDelete && (
             <button
               onClick={onDelete}
-              className="w-10 h-10 flex items-center justify-center text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition-colors"
+              className="h-10 w-10 rounded text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
               title="Delete day"
               aria-label="Delete day"
             >
-              ×
+              x
             </button>
           )}
         </div>
       </div>
 
-      {/* Expanded content */}
-      {isExpanded && children && <div className="border-t bg-gray-50 p-4">{children}</div>}
+      {isExpanded && children && <div className="border-t border-border bg-zinc-900/40 p-4">{children}</div>}
     </div>
   );
 }

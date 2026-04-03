@@ -11,12 +11,12 @@ export default function ManualWorkoutSelector({ days }: { days: WorkoutDay[] }) 
   return (
     <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
       <div>
-        <p className="text-muted text-sm">Start another workout</p>
-        <h3 className="text-lg font-semibold text-white mt-1">Select a day</h3>
+        <p className="text-muted text-sm">Flexible start</p>
+        <h3 className="text-lg font-semibold text-white mt-1">Choose any workout</h3>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        {days.map((day) => (
+        {days.map((day, index) => (
           <button
             key={day.id}
             onClick={() => setSelectedDayId(day.id)}
@@ -26,7 +26,7 @@ export default function ManualWorkoutSelector({ days }: { days: WorkoutDay[] }) 
                 : "border-border bg-border/20 hover:bg-border/30"
             }`}
           >
-            <p className="text-xs text-muted">{day.day_label}</p>
+            <p className="text-xs text-muted">Workout {index + 1} • {day.day_label}</p>
             <p className="text-sm font-medium text-white">{day.name}</p>
           </button>
         ))}

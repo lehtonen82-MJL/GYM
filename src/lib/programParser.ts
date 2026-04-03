@@ -1,4 +1,4 @@
-// Parser utility for program text import
+﻿// Parser utility for program text import
 
 export interface ParsedDay {
   name: string;
@@ -18,6 +18,11 @@ export interface ParserWarning {
   line?: number;
   type: "unknown_exercise" | "malformed_line" | "empty_day" | "duplicate_day";
   message: string;
+}
+
+export interface PrescribedSet {
+  weightKg?: number;
+  reps?: number;
 }
 
 const WEEKDAY_NAMES = new Set([
@@ -222,7 +227,7 @@ function parseInlineWeekdayFormat(text: string): {
     const first = tokens[0];
 
     if (first && !first.includes("|") && tokens.length > 1) {
-      dayName = first;
+      dayName = cleanLeadingJunk(first);
       firstExerciseIndex = 1;
     }
 
@@ -275,38 +280,159 @@ function parseExerciseToken(token: string): ParsedExercise | null {
 
   if (parts.length === 0) return null;
 
-  const exerciseName = parts[0];
+  const exerciseName = cleanLeadingJunk(parts[0]);
   if (!exerciseName) return null;
 
   const schemeText = parts[1];
   const notes = parts.length > 2 ? parts.slice(2).join(" | ") : undefined;
+  const scheme = parseSchemeText(schemeText);
 
   return {
     name: exerciseName,
     schemeText: schemeText || undefined,
-    targetSets: extractTargetSets(schemeText),
-    targetRepsText: undefined,
+    targetSets: scheme.targetSets,
+    targetRepsText: scheme.targetRepsText,
     notes: notes || undefined,
   };
 }
 
 function normalizeText(input: string): string {
-  return input.replace(/[��-]/g, "-");
+  return input.replace(/[–—−]/g, "-");
 }
 
-/**
- * Extract target sets from scheme text.
- * Examples: "3x5" -> 3, "4x2" -> 4, "1x5 + 2x5" -> 3, "3x8-10" -> 3
- */
-function extractTargetSets(schemeText?: string): number | undefined {
-  if (!schemeText) return undefined;
+function cleanLeadingJunk(value: string): string {
+  return value.replace(/^[^A-Za-z0-9]+/, "").trim();
+}
 
-  const matches = [...schemeText.matchAll(/(\d+)\s*x/gi)];
-  if (matches.length > 0) {
-    return matches.reduce((sum, m) => sum + parseInt(m[1], 10), 0);
+export function parseSchemeText(schemeText?: string): {
+  targetSets?: number;
+  targetRepsText?: string;
+} {
+  if (!schemeText) return {};
+
+  const raw = schemeText.trim();
+  if (!raw) return {};
+
+  // Weighted set list: "42x2, 42x2, 42x2"
+  const commaParts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (commaParts.length > 1) {
+    const repsValues = commaParts
+      .map((part) => {
+        const match = part.match(/^\d+(?:\.\d+)?\s*x\s*(\d+(?:-\d+)?)$/i);
+        return match ? match[1] : null;
+      })
+      .filter((v): v is string => Boolean(v));
+
+    if (repsValues.length === commaParts.length) {
+      return {
+        targetSets: commaParts.length,
+        targetRepsText:
+          new Set(repsValues).size === 1 ? repsValues[0] : repsValues.join(","),
+      };
+    }
   }
 
-  return undefined;
+  // Multi-block set expression: "1x5 + 2x5"
+  const plusParts = raw
+    .split("+")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (plusParts.length > 1) {
+    const setCounts: number[] = [];
+    const repsValues: string[] = [];
+
+    for (const part of plusParts) {
+      const match = part.match(/^(\d+)\s*x\s*(\d+(?:-\d+)?)$/i);
+      if (!match) return {};
+      setCounts.push(parseInt(match[1], 10));
+      repsValues.push(match[2]);
+    }
+
+    return {
+      targetSets: setCounts.reduce((sum, n) => sum + n, 0),
+      targetRepsText:
+        new Set(repsValues).size === 1 ? repsValues[0] : repsValues.join(","),
+    };
+  }
+
+  // Single block: either sets x reps ("3x12") or weight x reps ("80x8")
+  const single = raw.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:-\d+)?)$/i);
+  if (!single) return {};
+
+  const leftRaw = single[1];
+  const left = parseFloat(leftRaw);
+  const reps = single[2];
+  const looksLikeWeight = leftRaw.includes(".") || left > 20;
+
+  return {
+    targetSets: looksLikeWeight ? 1 : Math.max(1, Math.round(left)),
+    targetRepsText: reps,
+  };
+}
+
+export function parseSchemePrescription(schemeText?: string): PrescribedSet[] {
+  if (!schemeText) return [];
+  const raw = schemeText.trim();
+  if (!raw) return [];
+
+  // Weighted set list: "42x2, 45x2, 45x2"
+  const commaParts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (commaParts.length > 1) {
+    const parsed = commaParts
+      .map((part) => {
+        const match = part.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+)$/i);
+        if (!match) return null;
+        return {
+          weightKg: parseFloat(match[1]),
+          reps: parseInt(match[2], 10),
+        };
+      })
+      .filter((v): v is { weightKg: number; reps: number } => Boolean(v));
+
+    if (parsed.length === commaParts.length) return parsed;
+  }
+
+  // Multi-block set expression: "1x5 + 2x5"
+  const plusParts = raw
+    .split("+")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (plusParts.length > 1) {
+    const result: PrescribedSet[] = [];
+    for (const part of plusParts) {
+      const match = part.match(/^(\d+)\s*x\s*(\d+)$/i);
+      if (!match) return [];
+      const count = parseInt(match[1], 10);
+      const reps = parseInt(match[2], 10);
+      for (let i = 0; i < count; i++) {
+        result.push({ reps });
+      }
+    }
+    return result;
+  }
+
+  // Single pattern: sets x reps (3x12) or weight x reps (80x8).
+  const single = raw.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+)$/i);
+  if (!single) return [];
+
+  const leftRaw = single[1];
+  const left = parseFloat(leftRaw);
+  const reps = parseInt(single[2], 10);
+  const looksLikeWeight = leftRaw.includes(".") || left > 20;
+
+  if (looksLikeWeight) return [{ weightKg: left, reps }];
+
+  const sets = Math.max(1, Math.round(left));
+  return Array.from({ length: sets }, () => ({ reps }));
 }
 
 /**

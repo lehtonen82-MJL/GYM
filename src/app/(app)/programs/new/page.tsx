@@ -17,7 +17,6 @@ export default function NewProgramPage() {
 
     try {
       const program = await createProgram(name, description, mode);
-      // Redirect to edit page
       router.push(`/programs/${program.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create program");
@@ -26,32 +25,28 @@ export default function NewProgramPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="px-4 py-4 flex items-center gap-3">
+    <div className="min-h-screen pb-20">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+        <div className="flex items-center gap-3 px-4 py-4">
           <button
             onClick={() => router.back()}
-            className="text-gray-600 hover:text-gray-900 text-2xl"
+            className="text-2xl text-muted hover:text-white"
+            aria-label="Back"
           >
-            ←
+            {"<"}
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">New Program</h1>
+          <h1 className="text-2xl font-bold text-white">New Program</h1>
         </div>
       </div>
 
-      {/* Form */}
-      <div className="px-4 py-6 max-w-2xl">
-        <div className="bg-white rounded-lg p-6 shadow-sm">
+      <div className="max-w-2xl px-4 py-6">
+        <div className="rounded-lg border border-border bg-card p-6">
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <div className="mb-4 rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
               {error}
             </div>
           )}
-          <ProgramForm
-            onSubmit={handleSubmit}
-            isLoading={isLoading}
-          />
+          <ProgramForm onSubmit={handleSubmit} isLoading={isLoading} />
         </div>
       </div>
     </div>

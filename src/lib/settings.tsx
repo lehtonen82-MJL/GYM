@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 export type NavPosition = "bottom" | "top";
 
@@ -35,23 +35,42 @@ function saveSettings(s: Settings) {
   } catch {}
 }
 
+let currentSettings: Settings = defaults;
+const listeners = new Set<() => void>();
+
+if (typeof window !== "undefined") {
+  currentSettings = loadSettings();
+}
+
+function emitChange() {
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot() {
+  return currentSettings;
+}
+
+function getServerSnapshot() {
+  return defaults;
+}
+
 const SettingsContext = createContext<SettingsContextType>({
   ...defaults,
   setNavPosition: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<Settings>(defaults);
-
-  // Load from localStorage after hydration
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
+  const settings = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function setNavPosition(navPosition: NavPosition) {
-    const next = { ...settings, navPosition };
-    setSettings(next);
-    saveSettings(next);
+    currentSettings = { ...currentSettings, navPosition };
+    saveSettings(currentSettings);
+    emitChange();
   }
 
   return (

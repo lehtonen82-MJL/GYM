@@ -13,9 +13,7 @@ export default function ProgramDetailPage() {
 
   const [program, setProgram] = useState<Program | null>(null);
   const [days, setDays] = useState<ProgramDay[]>([]);
-  const [exercisesByDay, setExercisesByDay] = useState<
-    Record<string, ProgramExercise[]>
-  >({});
+  const [exercisesByDay, setExercisesByDay] = useState<Record<string, ProgramExercise[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -35,7 +33,6 @@ export default function ProgramDetailPage() {
         setProgram(prog);
         setDays(daysList);
 
-        // Load exercises for each day
         const exByDay: Record<string, ProgramExercise[]> = {};
         for (const day of daysList) {
           exByDay[day.id] = await getProgramExercises(day.id);
@@ -53,26 +50,27 @@ export default function ProgramDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading program...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-muted">Loading program...</div>
       </div>
     );
   }
 
   if (!program || error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="px-4 py-4 flex items-center gap-3 bg-white border-b">
+      <div className="min-h-screen">
+        <div className="flex items-center gap-3 border-b border-border bg-background/95 px-4 py-4">
           <button
             onClick={() => router.back()}
-            className="text-gray-600 hover:text-gray-900 text-2xl"
+            className="text-2xl text-muted hover:text-white"
+            aria-label="Back"
           >
-            ←
+            {"<"}
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Program</h1>
+          <h1 className="text-2xl font-bold text-white">Program</h1>
         </div>
         <div className="px-4 py-6">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <div className="rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
             {error || "Program not found"}
           </div>
         </div>
@@ -83,73 +81,62 @@ export default function ProgramDetailPage() {
   const modeLabel = program.mode === "weekday" ? "Weekday" : "Sessions";
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 flex-1">
+    <div className="min-h-screen pb-20">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+        <div className="flex items-center justify-between px-4 py-4">
+          <div className="flex flex-1 items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-900 text-2xl"
+              className="text-2xl text-muted hover:text-white"
+              aria-label="Back"
             >
-              ←
+              {"<"}
             </button>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900">{program.name}</h1>
-              <p className="text-sm text-gray-600 mt-1">{program.description}</p>
+              <h1 className="text-2xl font-bold text-white">{program.name}</h1>
+              <p className="mt-1 text-sm text-muted">{program.description}</p>
             </div>
           </div>
           <Link
             href={`/programs/${programId}/edit`}
-            className="bg-blue-500 text-white px-3 py-2 rounded text-sm font-medium hover:bg-blue-600"
+            className="rounded bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
           >
             Edit
           </Link>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-4 py-6 max-w-2xl">
-        {/* Program Info */}
-        <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
+      <div className="max-w-2xl px-4 py-6">
+        <div className="mb-6 rounded-lg border border-border bg-card p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-3xl font-bold text-gray-900">{days.length}</div>
-              <div className="text-sm text-gray-600">Days</div>
+              <div className="text-3xl font-bold text-white">{days.length}</div>
+              <div className="text-sm text-muted">Days</div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-gray-900">
-                {Object.values(exercisesByDay).flat().length}
-              </div>
-              <div className="text-sm text-gray-600">Exercises</div>
+              <div className="text-3xl font-bold text-white">{Object.values(exercisesByDay).flat().length}</div>
+              <div className="text-sm text-muted">Exercises</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-gray-900">{modeLabel}</div>
-              <div className="text-sm text-gray-600">Mode</div>
+              <div className="text-lg font-bold text-white">{modeLabel}</div>
+              <div className="text-sm text-muted">Mode</div>
             </div>
           </div>
         </div>
 
-        {/* Days */}
         {days.length > 0 ? (
           <div className="space-y-4">
             {days.map((day) => {
               const dayExercises = exercisesByDay[day.id] || [];
               return (
-                <div key={day.id} className="bg-white rounded-lg p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      {day.name}
-                    </h2>
+                <div key={day.id} className="rounded-lg border border-border bg-card p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-white">{day.name}</h2>
                     {program.mode === "weekday" && day.weekday_label && (
-                      <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                        {day.weekday_label}
-                      </span>
+                      <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-muted">{day.weekday_label}</span>
                     )}
                     {program.mode === "session" && day.session_label && (
-                      <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                        {day.session_label}
-                      </span>
+                      <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-muted">{day.session_label}</span>
                     )}
                   </div>
 
@@ -158,49 +145,31 @@ export default function ProgramDetailPage() {
                       {dayExercises.map((ex) => (
                         <li
                           key={ex.id}
-                          className="flex items-start justify-between text-sm py-2 border-t border-gray-200 first:border-t-0"
+                          className="flex items-start justify-between border-t border-border py-2 first:border-t-0 text-sm"
                         >
                           <div>
-                            <div className="font-medium text-gray-900">
-                              {ex.exercise_name_snapshot}
-                            </div>
-                            {ex.scheme_text && (
-                              <div className="text-xs text-gray-600">
-                                {ex.scheme_text}
-                              </div>
-                            )}
-                            {ex.target_reps_text && (
-                              <div className="text-xs text-gray-600">
-                                {ex.target_reps_text} reps
-                              </div>
-                            )}
-                            {ex.notes && (
-                              <div className="text-xs text-gray-500 italic">
-                                {ex.notes}
-                              </div>
-                            )}
+                            <div className="font-medium text-white">{ex.exercise_name_snapshot}</div>
+                            {ex.scheme_text && <div className="text-xs text-muted">{ex.scheme_text}</div>}
+                            {ex.target_reps_text && <div className="text-xs text-muted">{ex.target_reps_text} reps</div>}
+                            {ex.notes && <div className="text-xs italic text-muted">{ex.notes}</div>}
                           </div>
-                          {ex.target_sets && (
-                            <div className="text-xs text-gray-600 ml-2">
-                              {ex.target_sets}x
-                            </div>
-                          )}
+                          {ex.target_sets && <div className="ml-2 text-xs text-muted">{ex.target_sets}x</div>}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-gray-600">No exercises yet</p>
+                    <p className="text-sm text-muted">No exercises yet</p>
                   )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-            <p className="text-gray-600 mb-4">No days added yet</p>
+          <div className="rounded-lg border border-border bg-card p-6 text-center">
+            <p className="mb-4 text-muted">No days added yet</p>
             <Link
               href={`/programs/${programId}/edit`}
-              className="inline-block bg-blue-500 text-white px-4 py-2 rounded font-medium hover:bg-blue-600"
+              className="inline-block rounded bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover"
             >
               Add Days
             </Link>

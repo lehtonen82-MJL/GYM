@@ -14,13 +14,18 @@ interface PreviewData {
   detectedMode: ProgramMode;
 }
 
+type ValidationWarningItem = {
+  type?: string;
+  message: string;
+};
+
 export default function ImportPreviewPage() {
   const router = useRouter();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [validationWarnings, setValidationWarnings] = useState<any[] | null>(null);
+  const [validationWarnings, setValidationWarnings] = useState<ValidationWarningItem[] | null>(null);
   const [createdProgramId, setCreatedProgramId] = useState<string | null>(null);
   const [programName, setProgramName] = useState("");
   const [setAsActive, setSetAsActive] = useState(false);
@@ -37,7 +42,7 @@ export default function ImportPreviewPage() {
       const parsed = JSON.parse(data);
       setPreview(parsed);
       setProgramName(`Imported Program ${new Date().toLocaleDateString()}`);
-    } catch (err) {
+    } catch {
       setError("Failed to load preview data");
     } finally {
       setLoading(false);
@@ -52,25 +57,17 @@ export default function ImportPreviewPage() {
     setError("");
 
     try {
-      const prog = await saveImportedProgram(
-        programName.trim(),
-        null,
-        preview.detectedMode,
-        preview.days
-      );
+      const prog = await saveImportedProgram(programName.trim(), null, preview.detectedMode, preview.days);
       setCreatedProgramId(prog.id);
 
-      // Validate the created program against the preview we just used
       try {
-        const res = await validateProgram(prog.id, preview.days as any);
+        const res = await validateProgram(prog.id, preview.days);
         if (res.warnings && res.warnings.length > 0) {
           setValidationWarnings(res.warnings);
-          // Keep saving state false so user can decide
           setIsSaving(false);
           return;
         }
       } catch (vErr) {
-        // Non-fatal: show validation error and allow proceed
         setValidationWarnings([{ message: vErr instanceof Error ? vErr.message : String(vErr) }]);
         setIsSaving(false);
         return;
@@ -80,10 +77,7 @@ export default function ImportPreviewPage() {
         await setActiveProgram(prog.id);
       }
 
-      // Clear preview data
       sessionStorage.removeItem("__import_preview");
-
-      // Redirect to programs list
       router.push("/programs");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save program");
@@ -113,20 +107,20 @@ export default function ImportPreviewPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading preview...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-muted">Loading preview...</div>
       </div>
     );
   }
 
   if (!preview) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">{error || "Preview not available"}</p>
+          <p className="mb-4 text-muted">{error || "Preview not available"}</p>
           <button
             onClick={() => router.push("/programs/import")}
-            className="bg-blue-500 text-white font-medium px-6 py-2 rounded-lg hover:bg-blue-600"
+            className="rounded-lg bg-accent px-6 py-2 font-medium text-white hover:bg-accent-hover"
           >
             Go Back
           </button>
@@ -138,45 +132,42 @@ export default function ImportPreviewPage() {
   const hasWarnings = preview.warnings.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="px-4 py-4 flex items-center gap-3">
+    <div className="min-h-screen pb-20">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+        <div className="flex items-center gap-3 px-4 py-4">
           <button
             onClick={() => router.push("/programs/import")}
-            className="text-gray-600 hover:text-gray-900 text-2xl"
+            className="text-2xl text-muted hover:text-white"
+            aria-label="Back"
           >
-            ←
+            {"<"}
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Preview</h1>
+          <h1 className="text-2xl font-bold text-white">Preview</h1>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-4 py-6 max-w-2xl">
+      <div className="max-w-2xl px-4 py-6">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="mb-4 rounded border border-red-500/60 bg-red-500/10 px-4 py-3 text-red-300">
             {error}
           </div>
         )}
 
-        {/* Mode & Stats */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-start mb-2">
-            <h2 className="font-semibold text-blue-900">Import Summary</h2>
-            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              {preview.detectedMode === "weekday" ? "📅 Weekday" : "🔄 Sessions"}
+        <div className="mb-6 rounded-lg border border-accent/50 bg-accent/10 p-4">
+          <div className="mb-2 flex items-start justify-between">
+            <h2 className="font-semibold text-white">Import Summary</h2>
+            <span className="rounded bg-accent/20 px-2 py-1 text-xs text-accent">
+              {preview.detectedMode === "weekday" ? "Weekday" : "Sessions"}
             </span>
           </div>
-          <p className="text-sm text-blue-800">
-            {preview.days.length} days • {preview.days.reduce((sum, d) => sum + d.exercises.length, 0)} exercises
+          <p className="text-sm text-muted">
+            {preview.days.length} days - {preview.days.reduce((sum, d) => sum + d.exercises.length, 0)} exercises
           </p>
         </div>
 
-        {/* Warnings */}
         {hasWarnings && (
           <div className="mb-6">
-            <h3 className="font-semibold text-gray-900 mb-2">Warnings ({preview.warnings.length})</h3>
+            <h3 className="mb-2 font-semibold text-white">Warnings ({preview.warnings.length})</h3>
             <div className="space-y-2">
               {preview.warnings.map((w, idx) => (
                 <WarningBadge key={idx} type={w.type} message={w.message} />
@@ -185,39 +176,42 @@ export default function ImportPreviewPage() {
           </div>
         )}
 
-        {/* Validation results from server */}
         {validationWarnings && (
           <div className="mb-6">
-            <h3 className="font-semibold text-red-900 mb-2">Validation Warnings ({validationWarnings.length})</h3>
-            <div className="space-y-2 mb-4">
-              {validationWarnings.map((w: any, idx: number) => (
-                <div key={idx} className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
-                  <div className="font-medium text-yellow-900">{w.type ?? "Warning"}</div>
-                  <div className="text-xs text-yellow-800 mt-1">{w.message}</div>
+            <h3 className="mb-2 font-semibold text-red-300">
+              Validation Warnings ({validationWarnings.length})
+            </h3>
+            <div className="mb-4 space-y-2">
+              {validationWarnings.map((w, idx: number) => (
+                <div key={idx} className="rounded border border-yellow-500/60 bg-yellow-500/10 p-3 text-sm">
+                  <div className="font-medium text-yellow-200">{w.type ?? "Warning"}</div>
+                  <div className="mt-1 text-xs text-yellow-100">{w.message}</div>
                 </div>
               ))}
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => { setValidationWarnings(null); router.push('/programs/import'); }}
-                className="flex-1 bg-gray-500 text-white font-medium py-3 rounded-lg hover:bg-gray-600 active:bg-gray-700 text-base"
+                onClick={() => {
+                  setValidationWarnings(null);
+                  router.push("/programs/import");
+                }}
+                className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 text-base font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
               >
                 Fix Import
               </button>
               <button
                 onClick={handleProceedAnyway}
                 disabled={isSaving}
-                className="flex-1 bg-orange-500 text-white font-medium py-3 rounded-lg hover:bg-orange-600 active:bg-orange-700 text-base"
+                className="flex-1 rounded-lg bg-orange-500 py-3 text-base font-medium text-white hover:bg-orange-600 active:bg-orange-700"
               >
-                {isSaving ? 'Proceeding...' : 'Proceed Anyway'}
+                {isSaving ? "Proceeding..." : "Proceed Anyway"}
               </button>
             </div>
           </div>
         )}
 
-        {/* Program Name Input */}
-        <div className="mb-6 bg-white rounded-lg p-4 border border-gray-200">
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="mb-6 rounded-lg border border-border bg-card p-4">
+          <label htmlFor="name" className="mb-2 block text-sm font-medium text-muted">
             Program Name *
           </label>
           <input
@@ -225,28 +219,26 @@ export default function ImportPreviewPage() {
             type="text"
             value={programName}
             onChange={(e) => setProgramName(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-border bg-zinc-950 px-3 py-2 text-base text-white focus:outline-none focus:ring-2 focus:ring-accent"
             disabled={isSaving}
           />
         </div>
 
-        {/* Set as Active Checkbox */}
-        <div className="mb-6 bg-white rounded-lg p-4 border border-gray-200">
+        <div className="mb-6 rounded-lg border border-border bg-card p-4">
           <label className="flex items-center gap-3">
             <input
               type="checkbox"
               checked={setAsActive}
               onChange={(e) => setSetAsActive(e.target.checked)}
-              className="w-4 h-4"
+              className="h-4 w-4"
               disabled={isSaving}
             />
-            <span className="text-sm text-gray-700">Set as active program immediately</span>
+            <span className="text-sm text-white">Set as active program immediately</span>
           </label>
         </div>
 
-        {/* Days Preview */}
         <div className="mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Program Structure</h3>
+          <h3 className="mb-3 font-semibold text-white">Program Structure</h3>
           {preview.days.map((day, dayIdx) => (
             <ImportPreviewCard
               key={dayIdx}
@@ -256,9 +248,9 @@ export default function ImportPreviewPage() {
             >
               <div className="space-y-2">
                 {day.exercises.map((ex, exIdx) => (
-                  <div key={exIdx} className="bg-gray-50 rounded p-3 text-sm">
-                    <div className="font-medium text-gray-900">{ex.name}</div>
-                    <div className="text-xs text-gray-600 mt-1 flex gap-3">
+                  <div key={exIdx} className="rounded border border-border bg-zinc-900 p-3 text-sm">
+                    <div className="font-medium text-white">{ex.name}</div>
+                    <div className="mt-1 flex gap-3 text-xs text-muted">
                       {ex.targetSets && <span>{ex.targetSets} sets</span>}
                       {ex.schemeText && <span>{ex.schemeText}</span>}
                       {ex.targetRepsText && <span>{ex.targetRepsText} reps</span>}
@@ -271,12 +263,11 @@ export default function ImportPreviewPage() {
           ))}
         </div>
 
-        {/* Buttons */}
         <form onSubmit={handleSave} className="flex gap-2">
           <button
             type="button"
             onClick={() => router.push("/programs/import")}
-            className="flex-1 bg-gray-500 text-white font-medium py-3 rounded-lg hover:bg-gray-600 active:bg-gray-700 disabled:bg-gray-400 text-base transition-colors"
+            className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-600 active:bg-zinc-500 disabled:bg-zinc-700/60"
             disabled={isSaving}
           >
             Back
@@ -284,7 +275,7 @@ export default function ImportPreviewPage() {
           <button
             type="submit"
             disabled={isSaving || !programName.trim()}
-            className="flex-1 bg-green-500 text-white font-medium py-3 rounded-lg hover:bg-green-600 active:bg-green-700 disabled:bg-gray-400 text-base transition-colors"
+            className="flex-1 rounded-lg bg-success py-3 text-base font-medium text-white transition-colors hover:bg-green-600 active:bg-green-700 disabled:bg-zinc-600"
           >
             {isSaving ? "Saving..." : "Save Program"}
           </button>

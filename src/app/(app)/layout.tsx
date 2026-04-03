@@ -1,4 +1,4 @@
-import BottomNav from "@/components/BottomNav";
+import AppShell from "@/components/AppShell";
 import { SettingsProvider } from "@/lib/settings";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -10,4 +10,3 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 // Inner shell reads settings (client context), wraps layout
-import AppShell from "@/components/AppShell";
