@@ -31,14 +31,23 @@ export default function LoginPage() {
         setMessage("Check your email for the confirmation link.");
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (error) {
         setMessage(error.message);
-      } else {
+      } else if (data.session) {
+        const { access_token, refresh_token } = data.session;
+        // Mirror session to server cookies for next/server actions
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ access_token, refresh_token }),
+        });
         window.location.href = "/today";
+      } else {
+        setMessage("Failed to sign in");
       }
     }
 
