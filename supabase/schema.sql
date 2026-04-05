@@ -110,6 +110,26 @@ create table if not exists workouts (
 alter table workouts enable row level security;
 create policy "Users can manage own workouts" on workouts for all using (auth.uid() = user_id);
 
+-- Workout Bonus Cardio (manual rower metrics)
+create table if not exists workout_bonus_cardio (
+  id uuid primary key default gen_random_uuid(),
+  workout_id uuid not null unique references workouts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  machine_type text not null default 'rower' check (machine_type in ('rower')),
+  distance_m int,
+  duration_seconds numeric(8,1),
+  pace_per_500_seconds numeric(8,1),
+  calories int,
+  stroke_rate int,
+  avg_watts int,
+  extra_metrics jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table workout_bonus_cardio enable row level security;
+create policy "Users can manage own workout_bonus_cardio" on workout_bonus_cardio for all using (auth.uid() = user_id);
+
 -- Workout Exercise Entries (exercises within a workout session)
 create table if not exists workout_exercise_entries (
   id uuid primary key default gen_random_uuid(),
@@ -190,6 +210,9 @@ create trigger if not exists update_workout_days_updated_at before update on wor
   for each row execute procedure public.update_updated_at_timestamp();
 
 create trigger if not exists update_program_exercises_updated_at before update on program_exercises
+  for each row execute procedure public.update_updated_at_timestamp();
+
+create trigger if not exists update_workout_bonus_cardio_updated_at before update on workout_bonus_cardio
   for each row execute procedure public.update_updated_at_timestamp();
 
 -- ============================================

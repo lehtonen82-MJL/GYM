@@ -117,6 +117,22 @@ export type Workout = {
   workout_day?: WorkoutDay;
 };
 
+export type WorkoutBonusCardio = {
+  id: string;
+  workout_id: string;
+  user_id: string;
+  machine_type: "rower";
+  distance_m: number | null;
+  duration_seconds: number | null;
+  pace_per_500_seconds: number | null;
+  calories: number | null;
+  stroke_rate: number | null;
+  avg_watts: number | null;
+  extra_metrics?: Record<string, number | null> | null;
+  created_at: string;
+  updated_at?: string;
+};
+
 export type WorkoutExerciseEntry = {
   id: string;
   workout_id: string;

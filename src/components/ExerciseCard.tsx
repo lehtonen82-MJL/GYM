@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import SetRow from "./SetRow";
+import IntervalTimer from "./IntervalTimer";
 import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
 import { getPreviousResults } from "@/lib/actions";
 
@@ -25,6 +26,7 @@ export default function ExerciseCard({
   const [prevResults, setPrevResults] = useState<
     { weight_kg: number; reps: number }[]
   >([]);
+  const [showTimer, setShowTimer] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -126,7 +128,28 @@ export default function ExerciseCard({
               onToggleComplete={() => handleToggleComplete(set.id)}
             />
           ))}
+
+          {/* Interval Timer button */}
+          <button
+            type="button"
+            onClick={() => setShowTimer(true)}
+            className="w-full mt-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
+          >
+            <span>⏱</span>
+            <span>Interval Timer</span>
+          </button>
         </div>
+      )}
+
+      {showTimer && (
+        <IntervalTimer
+          defaultRounds={targetSets}
+          exerciseId={entry.exercise_id}
+          sets={sets}
+          targetReps={targetReps}
+          onSetsChange={onSetsChange}
+          onClose={() => setShowTimer(false)}
+        />
       )}
     </div>
   );

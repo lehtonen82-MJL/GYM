@@ -16,13 +16,18 @@ export default function StartWorkoutButton({
 
   async function handleStart() {
     setLoading(true);
-    const result = await startWorkout(workoutDayId);
-    if (result) {
-      // Store full workout data in sessionStorage to avoid server module isolation issues
-      sessionStorage.setItem(`workout-${result.id}`, JSON.stringify(result));
-      router.push(`/workout/${result.id}`);
+    try {
+      const result = await startWorkout(workoutDayId);
+      if (result) {
+        const serialized = JSON.stringify(result);
+        // Keep both stores: sessionStorage for fast tab-local resume and localStorage as fallback.
+        sessionStorage.setItem(`workout-${result.id}`, serialized);
+        localStorage.setItem(`workout-${result.id}`, serialized);
+        router.push(`/workout/${result.id}`);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   if (small) {

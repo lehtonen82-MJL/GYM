@@ -1,10 +1,15 @@
-import { getTodayWorkoutDay, getWorkoutDaysForProgram } from "@/lib/actions";
+import {
+  getLatestUnfinishedWorkout,
+  getTodayWorkoutDay,
+  getWorkoutDaysForProgram,
+} from "@/lib/actions";
 import Link from "next/link";
 import StartWorkoutButton from "./StartWorkoutButton";
 import ManualWorkoutSelector from "./ManualWorkoutSelector";
 
 export default async function TodayPage() {
-  const [todayDay, allDays] = await Promise.all([
+  const [unfinishedWorkout, todayDay, allDays] = await Promise.all([
+    getLatestUnfinishedWorkout(),
     getTodayWorkoutDay(),
     getWorkoutDaysForProgram(),
   ]);
@@ -15,6 +20,26 @@ export default async function TodayPage() {
         <h1 className="text-2xl font-bold text-white">Today</h1>
         <p className="text-muted text-sm mt-1">{formatDate(new Date())}</p>
       </div>
+
+      {unfinishedWorkout && (
+        <div className="bg-card rounded-2xl border border-accent/40 p-5 space-y-4">
+          <div>
+            <p className="text-accent text-sm font-semibold">Unfinished workout</p>
+            <h2 className="text-xl font-bold text-white">
+              {unfinishedWorkout.workout_day?.name ?? "Workout in progress"}
+            </h2>
+            <p className="text-muted text-sm mt-1">
+              Started {formatStartedAt(unfinishedWorkout.started_at)}
+            </p>
+          </div>
+          <Link
+            href={`/workout/${unfinishedWorkout.id}`}
+            className="block w-full py-4 rounded-xl bg-accent text-white font-bold text-lg text-center active:bg-accent-hover"
+          >
+            Resume Workout
+          </Link>
+        </div>
+      )}
 
       {todayDay ? (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -74,5 +99,14 @@ function formatDate(d: Date): string {
     weekday: "long",
     month: "short",
     day: "numeric",
+  });
+}
+
+function formatStartedAt(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }

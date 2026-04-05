@@ -40,7 +40,7 @@ export default function SetRow({
         <input
           type="number"
           inputMode="numeric"
-          value={reps ?? ""}
+          value={reps || ""}
           onChange={(e) => onRepsChange(parseInt(e.target.value) || 0)}
           placeholder={String(targetReps)}
           className="w-14 h-11 text-center text-lg font-semibold bg-zinc-800 rounded-xl text-white border border-zinc-700 focus:border-blue-500 focus:outline-none"

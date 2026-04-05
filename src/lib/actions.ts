@@ -6,6 +6,7 @@ import type {
   ProgramExercise,
   ProgramMode,
   Workout,
+  WorkoutBonusCardio,
   WorkoutDay,
   WorkoutExerciseEntry,
 } from "@/lib/types";
@@ -90,13 +91,16 @@ type ValidationExerciseRow = {
 declare const globalThis: typeof global & {
   __ws?: Map<string, MockStore>;
   __nid?: number;
+  __bonusCardio?: Map<string, WorkoutBonusCardio>;
   __mockPrograms?: Program[];
   __mockProgramDays?: ProgramDay[];
   __mockProgramExercises?: ProgramExercise[];
 };
 if (!globalThis.__ws) globalThis.__ws = new Map();
 if (!globalThis.__nid) globalThis.__nid = 1;
+if (!globalThis.__bonusCardio) globalThis.__bonusCardio = new Map();
 const mockStore = globalThis.__ws;
+const mockBonusCardio = globalThis.__bonusCardio;
 function uid() { return `mock-${globalThis.__nid!++}`; }
 
 // ════════════════════════════════════════════════════════
@@ -184,6 +188,33 @@ export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
   return [];
 }
 
+export async function getLatestUnfinishedWorkout(): Promise<Workout | null> {
+  if (DEMO_MODE) {
+    const unfinished = Array.from(mockStore.values())
+      .map((stored) => stored.workout)
+      .filter((workout) => !workout.completed_at)
+      .sort(
+        (a, b) =>
+          new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+      );
+    return unfinished[0] ?? null;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("workouts")
+    .select("*, workout_day:workout_days(*)")
+    .eq("user_id", userId)
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data as Workout | null) ?? null;
+}
+
 // ════════════════════════════════════════════════════════
 // START WORKOUT
 // ════════════════════════════════════════════════════════
@@ -194,6 +225,48 @@ export type StartWorkoutResult = {
   entries: WorkoutExerciseEntry[];
   suggestions: Record<string, number | null>;
 };
+
+async function buildStartWorkoutResultFromExisting(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  workout: Workout
+): Promise<StartWorkoutResult | null> {
+  const { data: entriesData } = await supabase
+    .from("workout_exercise_entries")
+    .select(
+      "*, exercise:exercises(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
+    )
+    .eq("workout_id", workout.id)
+    .eq("user_id", userId)
+    .order("created_at");
+
+  const entries = (entriesData ?? []) as WorkoutExerciseEntry[];
+  if (entries.length === 0) return null;
+
+  for (const entry of entries) {
+    entry.set_entries?.sort(
+      (a: { set_number: number }, b: { set_number: number }) =>
+        a.set_number - b.set_number
+    );
+  }
+
+  const suggestions: Record<string, number | null> = {};
+  for (const entry of entries) {
+    const targetSets =
+      entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
+    suggestions[entry.exercise_id] = await getSuggestedWeight(
+      entry.exercise_id,
+      targetSets
+    );
+  }
+
+  return {
+    id: workout.id,
+    workout,
+    entries,
+    suggestions,
+  };
+}
 
 export async function startWorkout(
   workoutDayId: string
@@ -211,6 +284,26 @@ export async function startWorkout(
     .eq("user_id", userId)
     .single();
   if (!day) return null;
+
+  // 2. Reuse the latest unfinished workout for this slot if it exists.
+  const { data: unfinishedWorkout } = await supabase
+    .from("workouts")
+    .select("*, workout_day:workout_days(*)")
+    .eq("user_id", userId)
+    .eq("workout_day_id", workoutDayId)
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (unfinishedWorkout) {
+    const resumed = await buildStartWorkoutResultFromExisting(
+      supabase,
+      userId,
+      unfinishedWorkout as Workout
+    );
+    if (resumed) return resumed;
+  }
 
   // 2. Create workout row
   const { data: workout, error: wErr } = await supabase
@@ -379,6 +472,35 @@ function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
   const day = MOCK_PROGRAM_DAYS.find((d) => d.id === workoutDayId);
   if (!day) return null;
 
+  const existing = Array.from(mockStore.values()).find(
+    (stored) =>
+      stored.workout.workout_day_id === workoutDayId &&
+      !stored.workout.completed_at
+  );
+
+  if (existing) {
+    const suggestions: Record<string, number | null> = {};
+    for (const entry of existing.entries) {
+      const targetSets =
+        entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
+      const prev = MOCK_PREV[entry.exercise_id];
+      if (!prev) {
+        suggestions[entry.exercise_id] = null;
+        continue;
+      }
+      const maxW = Math.max(...prev.map((s) => s.weight_kg));
+      suggestions[entry.exercise_id] =
+        prev.length >= targetSets ? maxW + 2.5 : maxW;
+    }
+
+    return {
+      id: existing.workout.id,
+      workout: existing.workout,
+      entries: existing.entries,
+      suggestions,
+    };
+  }
+
   const workoutId = uid();
   const exercises = MOCK_PROGRAM_EXERCISES
     .filter((ex) => ex.workout_day_id === workoutDayId)
@@ -487,6 +609,116 @@ export async function getWorkout(
 // PREVIOUS RESULTS & SUGGESTIONS
 // ════════════════════════════════════════════════════════
 
+export async function getWorkoutBonusCardio(
+  workoutId: string
+): Promise<WorkoutBonusCardio | null> {
+  if (DEMO_MODE) {
+    return mockBonusCardio.get(workoutId) ?? null;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("workout_bonus_cardio")
+    .select("*")
+    .eq("workout_id", workoutId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingBonusCardioTableError(error)) return null;
+    throw new Error(`Failed to load bonus cardio: ${error.message}`);
+  }
+
+  return (data ?? null) as WorkoutBonusCardio | null;
+}
+
+export type SaveWorkoutBonusCardioInput = {
+  machine_type?: "rower";
+  distance_m?: number | null;
+  duration_seconds?: number | null;
+  pace_per_500_seconds?: number | null;
+  calories?: number | null;
+  stroke_rate?: number | null;
+  avg_watts?: number | null;
+  extra_metrics?: Record<string, number | null> | null;
+};
+
+export async function saveWorkoutBonusCardio(
+  workoutId: string,
+  input: SaveWorkoutBonusCardioInput
+): Promise<WorkoutBonusCardio> {
+  const payload = {
+    machine_type: "rower" as const,
+    distance_m: input.distance_m ?? null,
+    duration_seconds: input.duration_seconds ?? null,
+    pace_per_500_seconds: input.pace_per_500_seconds ?? null,
+    calories: input.calories ?? null,
+    stroke_rate: input.stroke_rate ?? null,
+    avg_watts: input.avg_watts ?? null,
+    extra_metrics: input.extra_metrics ?? {},
+  };
+
+  if (DEMO_MODE) {
+    const existing = mockBonusCardio.get(workoutId);
+    const next: WorkoutBonusCardio = {
+      id: existing?.id ?? uid(),
+      workout_id: workoutId,
+      user_id: "mock-user",
+      created_at: existing?.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...payload,
+    };
+    mockBonusCardio.set(workoutId, next);
+    return next;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data, error } = await supabase
+    .from("workout_bonus_cardio")
+    .upsert(
+      {
+        workout_id: workoutId,
+        user_id: userId,
+        ...payload,
+      },
+      { onConflict: "workout_id" }
+    )
+    .select("*")
+    .single();
+
+  if (error) {
+    if (isMissingBonusCardioTableError(error)) {
+      console.warn(
+        "[bonus-cardio] Table workout_bonus_cardio is missing in Supabase; skipping persistence."
+      );
+      return {
+        id: uid(),
+        workout_id: workoutId,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...payload,
+      } as WorkoutBonusCardio;
+    }
+    throw new Error(`Failed to save bonus cardio: ${error.message}`);
+  }
+  return data as WorkoutBonusCardio;
+}
+
+function isMissingBonusCardioTableError(error: { message?: string } | null | undefined): boolean {
+  const message = String(error?.message ?? "").toLowerCase();
+  if (!message) return false;
+  return (
+    message.includes("could not find the table") ||
+    message.includes("schema cache") ||
+    message.includes("workout_bonus_cardio") ||
+    message.includes('relation "workout_bonus_cardio" does not exist')
+  );
+}
 export async function getPreviousResults(
   exerciseId: string
 ): Promise<{ weight_kg: number; reps: number }[]> {
@@ -646,6 +878,7 @@ export async function getWorkoutHistory(): Promise<Workout[]> {
 export async function deleteWorkoutFromHistory(workoutId: string): Promise<void> {
   if (DEMO_MODE) {
     mockStore.delete(workoutId);
+    mockBonusCardio.delete(workoutId);
     const idx = MOCK_HISTORY.findIndex((w) => w.id === workoutId);
     if (idx >= 0) MOCK_HISTORY.splice(idx, 1);
     return;
@@ -679,6 +912,15 @@ export async function deleteWorkoutFromHistory(workoutId: string): Promise<void>
     .eq("user_id", userId);
   if (entriesDeleteError) {
     throw new Error(`Failed to delete workout entries: ${entriesDeleteError.message}`);
+  }
+
+  const { error: bonusDeleteError } = await supabase
+    .from("workout_bonus_cardio")
+    .delete()
+    .eq("workout_id", workoutId)
+    .eq("user_id", userId);
+  if (bonusDeleteError) {
+    throw new Error(`Failed to delete bonus cardio: ${bonusDeleteError.message}`);
   }
 
   const { error: workoutDeleteError } = await supabase
@@ -1847,5 +2089,7 @@ export async function validateProgram(
 
   return { valid: warnings.length === 0, warnings };
 }
+
+
 
 
