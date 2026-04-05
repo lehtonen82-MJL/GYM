@@ -9,13 +9,12 @@ import type { Workout } from "@/lib/types";
 export default function HistoryList({ workouts }: { workouts: Workout[] }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  const handleDelete = async (workoutId: string) => {
-    const ok = confirm("Delete this workout from history? This cannot be undone.");
-    if (!ok) return;
-
+  const handleDeleteConfirmed = async (workoutId: string) => {
     try {
       setDeletingId(workoutId);
+      setConfirmId(null);
       await deleteWorkoutFromHistory(workoutId);
       router.refresh();
     } catch {
@@ -38,13 +37,36 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
               {w.notes && <p className="text-muted text-sm mt-2 line-clamp-1">{w.notes}</p>}
             </Link>
 
-            <button
-              onClick={() => void handleDelete(w.id)}
-              disabled={deletingId === w.id}
-              className="rounded-lg bg-red-500 px-3 py-2 text-xs font-medium text-white hover:bg-red-600 disabled:bg-zinc-600"
-            >
-              {deletingId === w.id ? "Deleting..." : "Delete"}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {confirmId === w.id ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmId(null)}
+                    className="rounded-lg bg-zinc-700 px-3 py-2 text-xs font-medium text-white active:bg-zinc-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteConfirmed(w.id)}
+                    disabled={deletingId === w.id}
+                    className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white active:bg-red-700 disabled:bg-zinc-600"
+                  >
+                    {deletingId === w.id ? "Deleting…" : "Confirm"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmId(w.id)}
+                  disabled={deletingId === w.id}
+                  className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-red-400 active:bg-zinc-700 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}
