@@ -4,10 +4,25 @@ import {
   getWorkoutDaysForProgram,
 } from "@/lib/actions";
 import Link from "next/link";
+import { Suspense } from "react";
 import StartWorkoutButton from "./StartWorkoutButton";
 import ManualWorkoutSelector from "./ManualWorkoutSelector";
 
-export default async function TodayPage() {
+export default function TodayPage() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white">Today</h1>
+        <p className="text-muted text-sm mt-1">{formatDate(new Date())}</p>
+      </div>
+      <Suspense fallback={<TodaySkeleton />}>
+        <TodayContent />
+      </Suspense>
+    </div>
+  );
+}
+
+async function TodayContent() {
   const [unfinishedWorkout, todayDay, allDays] = await Promise.all([
     getLatestUnfinishedWorkout(),
     getTodayWorkoutDay(),
@@ -15,12 +30,7 @@ export default async function TodayPage() {
   ]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Today</h1>
-        <p className="text-muted text-sm mt-1">{formatDate(new Date())}</p>
-      </div>
-
+    <>
       {unfinishedWorkout && (
         <div className="bg-card rounded-2xl border border-accent/40 p-5 space-y-4">
           <div>
@@ -90,7 +100,24 @@ export default async function TodayPage() {
           })}
         </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+function TodaySkeleton() {
+  return (
+    <>
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-3 animate-pulse">
+        <div className="h-4 w-24 bg-white/10 rounded" />
+        <div className="h-6 w-40 bg-white/10 rounded" />
+        <div className="h-12 w-full bg-white/10 rounded-xl" />
+      </div>
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-3 animate-pulse">
+        <div className="h-4 w-20 bg-white/10 rounded" />
+        <div className="h-6 w-32 bg-white/10 rounded" />
+        <div className="h-12 w-full bg-white/10 rounded-xl" />
+      </div>
+    </>
   );
 }
 

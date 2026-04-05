@@ -251,13 +251,17 @@ async function buildStartWorkoutResultFromExisting(
   }
 
   const suggestions: Record<string, number | null> = {};
-  for (const entry of entries) {
-    const targetSets =
-      entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
-    suggestions[entry.exercise_id] = await getSuggestedWeight(
-      entry.exercise_id,
-      targetSets
-    );
+  // Fetch all suggestions in parallel — one Supabase client, no re-auth per exercise
+  const suggestionPairs = await Promise.all(
+    entries.map(async (entry) => {
+      const targetSets =
+        entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
+      const weight = await getSuggestedWeightInternal(supabase, userId, entry.exercise_id, targetSets);
+      return [entry.exercise_id, weight] as [string, number | null];
+    })
+  );
+  for (const [exerciseId, weight] of suggestionPairs) {
+    suggestions[exerciseId] = weight;
   }
 
   return {
@@ -418,51 +422,87 @@ export async function startWorkout(
 
   if (resolvedWdes.length === 0) return null;
 
-  // 4. Create exercise entries + empty sets
+  // 4. Create all exercise entries in parallel
+  const entryResults = await Promise.all(
+    resolvedWdes.map((wde) =>
+      supabase
+        .from("workout_exercise_entries")
+        .insert({
+          workout_id: workout.id,
+          exercise_id: wde.exercise_id,
+          workout_day_exercise_id: wde.id,
+          user_id: userId,
+        })
+        .select("*")
+        .single()
+    )
+  );
+
+  // 5. Collect all set rows and batch-insert in a single query
+  type SetRow = {
+    workout_exercise_entry_id: string;
+    user_id: string;
+    set_number: number;
+    weight_kg: number | null;
+    reps: number | null;
+    completed: boolean;
+  };
+  const allSetRows: SetRow[] = [];
+  const entryWdeMap: Array<{ entry: Record<string, unknown>; wde: WdeRow }> = [];
+
+  for (let i = 0; i < resolvedWdes.length; i++) {
+    const { data: entry } = entryResults[i];
+    if (!entry) continue;
+    const wde = resolvedWdes[i];
+    const prescription = parseSchemePrescription(wde.scheme_text);
+    const setCount = prescription.length > 0 ? prescription.length : wde.target_sets;
+    for (let j = 0; j < setCount; j++) {
+      allSetRows.push({
+        workout_exercise_entry_id: entry.id as string,
+        user_id: userId,
+        set_number: j + 1,
+        weight_kg: prescription[j]?.weightKg ?? null,
+        reps: prescription[j]?.reps ?? null,
+        completed: false,
+      });
+    }
+    entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });
+  }
+
+  // Single round-trip for all sets
+  const { data: allSets } = await supabase
+    .from("set_entries")
+    .insert(allSetRows)
+    .select("*")
+    .order("set_number");
+
+  // Group sets by entry id
+  const setsByEntryId: Record<string, unknown[]> = {};
+  for (const s of allSets ?? []) {
+    const eid = (s as { workout_exercise_entry_id: string }).workout_exercise_entry_id;
+    if (!setsByEntryId[eid]) setsByEntryId[eid] = [];
+    setsByEntryId[eid].push(s);
+  }
+
+  // 6. Fetch all suggestions in parallel — single client, no re-auth per exercise
+  const suggestionResults = await Promise.all(
+    entryWdeMap.map(({ wde }) =>
+      getSuggestedWeightInternal(supabase, userId, wde.exercise_id, wde.target_sets)
+    )
+  );
+
   const entries: WorkoutExerciseEntry[] = [];
   const suggestions: Record<string, number | null> = {};
 
-  for (const wde of resolvedWdes) {
-    const { data: entry } = await supabase
-      .from("workout_exercise_entries")
-      .insert({
-        workout_id: workout.id,
-        exercise_id: wde.exercise_id,
-        workout_day_exercise_id: wde.id,
-        user_id: userId,
-      })
-      .select("*")
-      .single();
-    if (!entry) continue;
-
-    const prescription = parseSchemePrescription(wde.scheme_text);
-    const setCount = prescription.length > 0 ? prescription.length : wde.target_sets;
-    const setsToInsert = Array.from({ length: setCount }, (_, i) => ({
-      workout_exercise_entry_id: entry.id,
-      user_id: userId,
-      set_number: i + 1,
-      weight_kg: prescription[i]?.weightKg ?? null,
-      reps: prescription[i]?.reps ?? null,
-      completed: false,
-    }));
-
-    const { data: sets } = await supabase
-      .from("set_entries")
-      .insert(setsToInsert)
-      .select("*")
-      .order("set_number");
-
+  for (let i = 0; i < entryWdeMap.length; i++) {
+    const { entry, wde } = entryWdeMap[i];
     entries.push({
-      ...entry,
+      ...(entry as WorkoutExerciseEntry),
       exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
       workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
-      set_entries: sets ?? [],
+      set_entries: (setsByEntryId[entry.id as string] ?? []) as WorkoutExerciseEntry["set_entries"],
     });
-
-    suggestions[wde.exercise_id] = await getSuggestedWeight(
-      wde.exercise_id,
-      wde.target_sets
-    );
+    suggestions[wde.exercise_id] = suggestionResults[i];
   }
 
   return { id: workout.id, workout, entries, suggestions };
@@ -726,8 +766,15 @@ export async function getPreviousResults(
 
   const supabase = await db();
   const userId = await getUserId();
+  return getPreviousResultsInternal(supabase, userId, exerciseId);
+}
 
-  // Find the most recent completed workout that included this exercise
+// Internal version that reuses an existing client — avoids repeated auth round-trips
+async function getPreviousResultsInternal(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  exerciseId: string
+): Promise<{ weight_kg: number; reps: number }[]> {
   const { data } = await supabase
     .from("workout_exercise_entries")
     .select(
@@ -755,6 +802,19 @@ export async function getSuggestedWeight(
   const maxWeight = Math.max(...prev.map((s) => s.weight_kg ?? 0));
   const allCompleted = prev.length >= targetSets;
   return allCompleted ? maxWeight + 2.5 : maxWeight;
+}
+
+// Internal version that reuses an existing client — avoids repeated auth round-trips
+async function getSuggestedWeightInternal(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  exerciseId: string,
+  targetSets: number
+): Promise<number | null> {
+  const prev = await getPreviousResultsInternal(supabase, userId, exerciseId);
+  if (prev.length === 0) return null;
+  const maxWeight = Math.max(...prev.map((s) => s.weight_kg ?? 0));
+  return prev.length >= targetSets ? maxWeight + 2.5 : maxWeight;
 }
 
 // ════════════════════════════════════════════════════════
