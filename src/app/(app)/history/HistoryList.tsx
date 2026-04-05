@@ -17,8 +17,8 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
       setConfirmId(null);
       await deleteWorkoutFromHistory(workoutId);
       router.refresh();
-    } catch {
-      alert("Failed to delete workout. Please try again.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete workout. Please try again.");
     } finally {
       setDeletingId(null);
     }

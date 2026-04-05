@@ -947,49 +947,17 @@ export async function deleteWorkoutFromHistory(workoutId: string): Promise<void>
   const supabase = await db();
   const userId = await getUserId();
 
-  const { data: entries } = await supabase
-    .from("workout_exercise_entries")
-    .select("id")
-    .eq("workout_id", workoutId)
-    .eq("user_id", userId);
-
-  const entryIds = (entries ?? []).map((e) => e.id);
-  if (entryIds.length > 0) {
-    const { error: setsDeleteError } = await supabase
-      .from("set_entries")
-      .delete()
-      .in("workout_exercise_entry_id", entryIds)
-      .eq("user_id", userId);
-    if (setsDeleteError) {
-      throw new Error(`Failed to delete set entries: ${setsDeleteError.message}`);
-    }
-  }
-
-  const { error: entriesDeleteError } = await supabase
-    .from("workout_exercise_entries")
-    .delete()
-    .eq("workout_id", workoutId)
-    .eq("user_id", userId);
-  if (entriesDeleteError) {
-    throw new Error(`Failed to delete workout entries: ${entriesDeleteError.message}`);
-  }
-
-  const { error: bonusDeleteError } = await supabase
-    .from("workout_bonus_cardio")
-    .delete()
-    .eq("workout_id", workoutId)
-    .eq("user_id", userId);
-  if (bonusDeleteError) {
-    throw new Error(`Failed to delete bonus cardio: ${bonusDeleteError.message}`);
-  }
-
-  const { error: workoutDeleteError } = await supabase
+  // All child tables (workout_exercise_entries, set_entries, workout_bonus_cardio)
+  // have ON DELETE CASCADE on their workout_id / workout_exercise_entry_id FKs,
+  // so a single delete on the parent row handles everything at the DB level.
+  const { error } = await supabase
     .from("workouts")
     .delete()
     .eq("id", workoutId)
     .eq("user_id", userId);
-  if (workoutDeleteError) {
-    throw new Error(`Failed to delete workout: ${workoutDeleteError.message}`);
+
+  if (error) {
+    throw new Error(`Failed to delete workout: ${error.message}`);
   }
 }
 
