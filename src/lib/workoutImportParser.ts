@@ -49,8 +49,8 @@ export type WorkoutImportResult = {
   warnings: ImportWarning[];
 };
 
-// DD.MM.YYYY  or  D.M.YYYY  or  YYYY-MM-DD
-const DATE_RE = /^(?:(\d{1,2})\.(\d{1,2})\.(\d{4})|(\d{4})-(\d{2})-(\d{2}))/;
+// DD.MM.YYYY  or  D.M.YYYY  or  YYYY-MM-DD  or  DD/MM/YY(YY)
+const DATE_RE = /^(?:(\d{1,2})\.(\d{1,2})\.(\d{4})|(\d{4})-(\d{2})-(\d{2})|(\d{1,2})\/(\d{1,2})\/(\d{2,4}))/;
 
 // No-colon: "Name NxR@Wkg" or "Name NxR Wkg" or "Name NxR"
 const FULL_SCHEME_RE =
@@ -67,10 +67,16 @@ function parseDate(line: string): Date | null {
     day = parseInt(m[1], 10);
     month = parseInt(m[2], 10) - 1;
     year = parseInt(m[3], 10);
-  } else {
+  } else if (m[4]) {
     year = parseInt(m[4], 10);
     month = parseInt(m[5], 10) - 1;
     day = parseInt(m[6], 10);
+  } else {
+    // DD/MM/YY or DD/MM/YYYY
+    day = parseInt(m[7], 10);
+    month = parseInt(m[8], 10) - 1;
+    year = parseInt(m[9], 10);
+    if (year < 100) year += 2000;
   }
   const d = new Date(year, month, day, 12, 0, 0);
   if (isNaN(d.getTime())) return null;
@@ -132,14 +138,18 @@ function parseSetSpec(spec: string): ParsedImportSet[] | null {
 function parseExerciseLine(
   line: string
 ): { name: string; sets: ParsedImportSet[] } | null {
-  const trimmed = line.trim();
+  let trimmed = line.trim();
   if (!trimmed) return null;
 
-  // Format 1: "Name: SETSPEC" (colon separator)
-  const colonIdx = trimmed.indexOf(":");
-  if (colonIdx > 0) {
-    const name = trimmed.slice(0, colonIdx).trim();
-    const specStr = trimmed.slice(colonIdx + 1).trim();
+  // Strip leading bullet / dash / en-dash / em-dash (e.g. "- Bench Press | ...")
+  trimmed = trimmed.replace(/^[-\u2013\u2014]\s*/, "");
+  if (!trimmed) return null;
+
+  // Format 1: "Name: SETSPEC" or "Name | SETSPEC" (colon or pipe separator)
+  const sepIdx = trimmed.search(/[:|]/);
+  if (sepIdx > 0) {
+    const name = trimmed.slice(0, sepIdx).trim();
+    const specStr = trimmed.slice(sepIdx + 1).trim();
     if (name && specStr) {
       const sets = parseSetSpec(specStr);
       if (sets && sets.length > 0) return { name, sets };
@@ -216,6 +226,12 @@ export function parseWorkoutImport(text: string): WorkoutImportResult {
         });
       }
       currentSession.exercises.push({ ...exercise, line: lineNum });
+      continue;
+    }
+
+    // If we just opened a session with no exercises yet, treat this as the session name
+    if (currentSession && currentSession.exercises.length === 0 && line.length > 1) {
+      currentSession.sessionName = line;
       continue;
     }
 

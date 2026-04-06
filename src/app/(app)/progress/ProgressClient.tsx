@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { getExerciseProgress } from "@/lib/actions";
 
 type Exercise = { id: string; name: string };
-type DataPoint = { date: string; weight_kg: number; reps: number; volume: number };
+type DataPoint = { date: string; weight_kg: number; reps: number; sets: number; volume: number };
 
 function MiniChart({
   data,
@@ -169,6 +169,9 @@ export default function ProgressClient({
                   </span>
                   <span className="text-white font-mono">
                     {d.weight_kg}kg × {d.reps}
+                    {d.sets > 0 && (
+                      <span className="text-muted ml-2">· {d.sets} sets</span>
+                    )}
                     {d.volume > 0 && (
                       <span className="text-muted ml-2">
                         · {Math.round(d.volume)}kg vol
