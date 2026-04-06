@@ -1,19 +1,24 @@
-// ============================================================
+﻿// ============================================================
 // workoutImportParser.ts
 //
 // Parses free-form text into structured past workout sessions.
 //
-// Supported formats (flexible):
+// Supported formats:
 //
-//   17.2.2024 Chest Day           ← date header, optional session name
-//   Bench Press 4x5@90kg          ← exercise with sets x reps @ weight
-//   Squat 5x100kg                 ← sets x weight (reps omitted)
-//   Deadlift 3x5 140kg            ← space-separated weight
-//   Incline 3x8                   ← no weight
-//   Row 6000m 24:10 1:57/500m     ← skipped (no weight/reps — parser ignores)
+//   17.2.2024 Chest Day             DD.MM.YYYY date, optional session name
+//   2026-04-02 - Workout 2          YYYY-MM-DD, dash/en-dash separator ok
 //
-//   Multiple sessions in one paste — each date header starts a new session.
-//   Multiple lines for the same exercise on the same date → multiple entries.
+//   Pull-up: 3x8                    colon format - N sets x R reps (no weight)
+//   Row: 55x8, 55x8, 55x8          colon format - comma list, each WxR
+//   Romanian Deadlift: 65x8, 65x8  same
+//   Face Pull: 3x15                 colon format - N sets x R reps
+//
+//   Bench Press 4x5@90kg            no-colon, setsxreps@weight
+//   Bench Press 4x5 90kg            no-colon, space-separated weight
+//   Squat 5x100kg                   no-colon, setsxweight (kg suffix, no reps)
+//   Pull-up 3x8                     no-colon, setsxreps, no weight
+//
+//   Multiple sessions in one paste - each date header starts a new session.
 // ============================================================
 
 export type ParsedImportSet = {
@@ -47,13 +52,12 @@ export type WorkoutImportResult = {
 // DD.MM.YYYY  or  D.M.YYYY  or  YYYY-MM-DD
 const DATE_RE = /^(?:(\d{1,2})\.(\d{1,2})\.(\d{4})|(\d{4})-(\d{2})-(\d{2}))/;
 
-// Fallback: "Bench Press 5x90kg" where weight is after x, no reps
-// e.g. "Bench 5x90kg" → sets=5, weight=90, reps=null
-const SETS_WEIGHT_ONLY_RE = /^(.+?)\s+(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*k?gs?\s*$/i;
-
-// Full pattern with @: "Bench Press 4x5@90kg" or "4x5 @ 90"
+// No-colon: "Name NxR@Wkg" or "Name NxR Wkg" or "Name NxR"
 const FULL_SCHEME_RE =
-  /^(.+?)\s+(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:[@]\s*(\d+(?:\.\d+)?)\s*k?gs?)?\s*$/i;
+  /^(.+?)\s+(\d+)\s*[x\xd7]\s*(\d+(?:\.\d+)?)\s*(?:[@]\s*(\d+(?:\.\d+)?)\s*k?gs?)?\s*$/i;
+
+// No-colon: "Name NxWkg" (weight only, kg suffix required, no reps)
+const SETS_WEIGHT_ONLY_RE = /^(.+?)\s+(\d+)\s*[x\xd7]\s*(\d+(?:\.\d+)?)\s*k?gs?\s*$/i;
 
 function parseDate(line: string): Date | null {
   const m = DATE_RE.exec(line);
@@ -76,9 +80,53 @@ function parseDate(line: string): Date | null {
 function parseDateHeader(line: string): { date: Date; sessionName: string | null } | null {
   const date = parseDate(line);
   if (!date) return null;
-  // Strip the date prefix, remainder is session name
-  const remainder = line.replace(DATE_RE, "").trim();
+  // Strip date prefix, then strip leading hyphens / en-dashes / em-dashes
+  let remainder = line.replace(DATE_RE, "").trim();
+  remainder = remainder.replace(/^[\u2013\u2014\-]+\s*/, "").trim();
   return { date, sessionName: remainder || null };
+}
+
+/** Parses a single "AxB" token, e.g. "55x8" -> {a:55, b:8} */
+function parseAxB(s: string): { a: number; b: number } | null {
+  const m = /^(\d+(?:\.\d+)?)\s*[x\xd7]\s*(\d+(?:\.\d+)?)$/i.exec(s.trim());
+  if (!m) return null;
+  return { a: parseFloat(m[1]), b: parseFloat(m[2]) };
+}
+
+/**
+ * Parses the set specification after a colon:
+ *   "3x8"        -> 3 sets x 8 reps, no weight     (a <= 20, integer)
+ *   "55x8"       -> 1 set, weight=55, reps=8        (a > 20)
+ *   "55x8, 55x8" -> 2 individual sets, WxR each
+ */
+function parseSetSpec(spec: string): ParsedImportSet[] | null {
+  const parts = spec.split(",").map((s) => s.trim()).filter(Boolean);
+
+  if (parts.length > 1) {
+    // Comma-separated individual sets: each "WxR"
+    const sets: ParsedImportSet[] = [];
+    for (const part of parts) {
+      const axb = parseAxB(part);
+      if (!axb) return null;
+      sets.push({ weightKg: axb.a, reps: axb.b });
+    }
+    return sets;
+  }
+
+  if (parts.length === 0) return null;
+  const axb = parseAxB(parts[0]);
+  if (!axb) return null;
+
+  // Small integer 'a' -> treat as "N sets x R reps" (bodyweight / no weight)
+  if (axb.a <= 20 && Number.isInteger(axb.a)) {
+    return Array.from({ length: Math.round(axb.a) }, () => ({
+      weightKg: null,
+      reps: axb.b,
+    }));
+  }
+
+  // Otherwise treat as 1 set: weight=a, reps=b
+  return [{ weightKg: axb.a, reps: axb.b }];
 }
 
 function parseExerciseLine(
@@ -87,40 +135,33 @@ function parseExerciseLine(
   const trimmed = line.trim();
   if (!trimmed) return null;
 
-  // Try "Name NxR@Wkg" or "Name NxR Wkg"
-  // e.g. "Bench Press 4x5@90kg", "Bench Press 4x5 90kg", "Bench Press 4x5"
+  // Format 1: "Name: SETSPEC" (colon separator)
+  const colonIdx = trimmed.indexOf(":");
+  if (colonIdx > 0) {
+    const name = trimmed.slice(0, colonIdx).trim();
+    const specStr = trimmed.slice(colonIdx + 1).trim();
+    if (name && specStr) {
+      const sets = parseSetSpec(specStr);
+      if (sets && sets.length > 0) return { name, sets };
+    }
+  }
+
+  // Format 2: "Name NxR@Wkg" / "Name NxR Wkg" / "Name NxR"
   const fullMatch = FULL_SCHEME_RE.exec(trimmed);
   if (fullMatch) {
     const name = fullMatch[1].trim();
     const numSets = parseInt(fullMatch[2], 10);
-    const repsOrWeight = parseFloat(fullMatch[3]);
+    const reps = parseFloat(fullMatch[3]);
     const explicitWeight = fullMatch[4] ? parseFloat(fullMatch[4]) : null;
-
-    // Decide: if there's an explicit weight after @, those are reps + weight
-    // Otherwise: check if the number after x is suspiciously large (>30) — likely weight, not reps
-    let reps: number | null;
-    let weightKg: number | null;
-    if (explicitWeight !== null) {
-      reps = repsOrWeight;
-      weightKg = explicitWeight;
-    } else {
-      // "4x90kg" → no reps, just weight per set (sets=4, weight=90, reps=null)
-      // "4x5" → sets=4, reps=5, no weight
-      // Heuristic: if value ends with kg indicator it was already consumed by regex
-      reps = repsOrWeight;
-      weightKg = null;
-    }
-
     if (!name || numSets < 1 || numSets > 100) return null;
-
     const sets: ParsedImportSet[] = Array.from({ length: numSets }, () => ({
-      weightKg,
+      weightKg: explicitWeight,
       reps,
     }));
     return { name, sets };
   }
 
-  // Try "Name NxWkg" (weight-only, no reps)
+  // Format 3: "Name NxWkg" (weight only, kg suffix)
   const weightOnlyMatch = SETS_WEIGHT_ONLY_RE.exec(trimmed);
   if (weightOnlyMatch) {
     const name = weightOnlyMatch[1].trim();
@@ -141,7 +182,6 @@ export function parseWorkoutImport(text: string): WorkoutImportResult {
   const lines = text.split(/\r?\n/);
   const sessions: ParsedImportSession[] = [];
   const warnings: ImportWarning[] = [];
-
   let currentSession: ParsedImportSession | null = null;
 
   for (let i = 0; i < lines.length; i++) {
@@ -149,10 +189,8 @@ export function parseWorkoutImport(text: string): WorkoutImportResult {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Try date header first
     const header = parseDateHeader(line);
     if (header) {
-      // Flush current and start new session
       currentSession = {
         date: header.date,
         sessionName: header.sessionName,
@@ -162,11 +200,9 @@ export function parseWorkoutImport(text: string): WorkoutImportResult {
       continue;
     }
 
-    // Try exercise line
     const exercise = parseExerciseLine(line);
     if (exercise) {
       if (!currentSession) {
-        // Exercise without a date header — use today as date
         currentSession = {
           date: new Date(),
           sessionName: null,
@@ -176,25 +212,25 @@ export function parseWorkoutImport(text: string): WorkoutImportResult {
         warnings.push({
           line: lineNum,
           text: line,
-          message: "No date found before this exercise — using today's date",
+          message: "No date found before this exercise - using today's date",
         });
       }
       currentSession.exercises.push({ ...exercise, line: lineNum });
       continue;
     }
 
-    // Couldn't parse — warn if it looks like it was intended as an exercise
-    if (line.length > 2 && !/^[#\/\-]/.test(line)) {
+    // Warn for lines that look like they were intended as data
+    if (line.length > 2 && !/^[#/\-\u2013\u2014]/.test(line)) {
       warnings.push({
         line: lineNum,
         text: line,
-        message: "Could not parse this line — skipped",
+        message: "Could not parse this line - skipped",
       });
     }
   }
 
-  // Drop sessions with no exercises
-  const validSessions = sessions.filter((s) => s.exercises.length > 0);
-
-  return { sessions: validSessions, warnings };
+  return {
+    sessions: sessions.filter((s) => s.exercises.length > 0),
+    warnings,
+  };
 }
