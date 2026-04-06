@@ -154,6 +154,7 @@ export type SetEntry = {
   weight_kg: number | null;
   reps: number | null;
   completed: boolean;
+  is_warmup?: boolean;
   created_at: string;
 };
 

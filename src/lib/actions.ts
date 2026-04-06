@@ -860,7 +860,7 @@ async function getSuggestedWeightInternal(
 
 export async function updateSet(
   setId: string,
-  data: { weight_kg?: number; reps?: number; completed?: boolean }
+  data: { weight_kg?: number; reps?: number; completed?: boolean; is_warmup?: boolean }
 ) {
   if (DEMO_MODE) {
     for (const stored of mockStore.values()) {
