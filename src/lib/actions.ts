@@ -963,6 +963,115 @@ export async function deleteWorkoutFromHistory(workoutId: string): Promise<void>
 
 
 // ════════════════════════════════════════════════════════
+// PAST WORKOUT IMPORT
+// ════════════════════════════════════════════════════════
+
+export type ImportSessionInput = {
+  date: string; // ISO string
+  sessionName: string | null;
+  exercises: Array<{
+    name: string;
+    sets: Array<{ weightKg: number | null; reps: number | null }>;
+  }>;
+};
+
+export async function importPastWorkouts(
+  sessions: ImportSessionInput[]
+): Promise<{ imported: number }> {
+  if (DEMO_MODE) return { imported: 0 };
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  let imported = 0;
+
+  for (const session of sessions) {
+    // 1. Create the workout row (no workout_day_id — it's a free-form import)
+    const startedAt = new Date(session.date);
+    startedAt.setHours(12, 0, 0, 0);
+
+    const { data: workout, error: wErr } = await supabase
+      .from("workouts")
+      .insert({
+        user_id: userId,
+        workout_day_id: null,
+        import_session_name: session.sessionName ?? null,
+        started_at: startedAt.toISOString(),
+        completed_at: startedAt.toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (wErr || !workout) continue;
+
+    // 2. For each exercise: find-or-create by normalized name, then insert entry + sets
+    for (const ex of session.exercises) {
+      const normalized = ex.name.toLowerCase().trim();
+
+      // Find existing exercise
+      let exerciseId: string | null = null;
+      const { data: existing } = await supabase
+        .from("exercises")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("normalized_name", normalized)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        exerciseId = existing.id as string;
+      } else {
+        // Create new exercise
+        const { data: created } = await supabase
+          .from("exercises")
+          .insert({
+            user_id: userId,
+            name: ex.name.trim(),
+            normalized_name: normalized,
+          })
+          .select("id")
+          .single();
+        exerciseId = created?.id ?? null;
+      }
+
+      if (!exerciseId) continue;
+
+      // Create exercise entry (no workout_day_exercise_id for imports)
+      const { data: entry, error: entryErr } = await supabase
+        .from("workout_exercise_entries")
+        .insert({
+          workout_id: workout.id,
+          exercise_id: exerciseId,
+          workout_day_exercise_id: null,
+          user_id: userId,
+        })
+        .select("id")
+        .single();
+
+      if (entryErr || !entry) continue;
+
+      // Create set entries
+      if (ex.sets.length > 0) {
+        const setRows = ex.sets.map((s, i) => ({
+          workout_exercise_entry_id: entry.id,
+          user_id: userId,
+          set_number: i + 1,
+          weight_kg: s.weightKg ?? null,
+          reps: s.reps ?? null,
+          completed: true,
+        }));
+
+        await supabase.from("set_entries").insert(setRows);
+      }
+    }
+
+    imported++;
+  }
+
+  return { imported };
+}
+
+// ════════════════════════════════════════════════════════
 // PROGRESS
 // ════════════════════════════════════════════════════════
 

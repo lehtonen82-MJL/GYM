@@ -13,6 +13,7 @@ import {
   completeWorkout,
   saveSets,
   saveWorkoutBonusCardio,
+  deleteWorkoutFromHistory,
 } from "@/lib/actions";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
@@ -101,6 +102,8 @@ export default function WorkoutClient({
   const [showSummary, setShowSummary] = useState(false);
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const [hydratedDraft, setHydratedDraft] = useState(false);
   const [bonusCardioDraft, setBonusCardioDraft] = useState<BonusCardioDraft>(
     bonusCardio
@@ -288,6 +291,24 @@ export default function WorkoutClient({
     }
   }
 
+  async function handleDiscard() {
+    setDiscarding(true);
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(`workout-${workout.id}`);
+        localStorage.removeItem(`workout-${workout.id}`);
+        localStorage.removeItem(draftStorageKey(workout.id));
+      }
+      await deleteWorkoutFromHistory(workout.id);
+      router.push("/today");
+    } catch {
+      alert("Failed to discard workout. Please try again.");
+    } finally {
+      setDiscarding(false);
+      setShowDiscardConfirm(false);
+    }
+  }
+
   if (readOnly) {
     return (
       <div className="space-y-4 pb-8">
@@ -389,11 +410,40 @@ export default function WorkoutClient({
 
         <button
           onClick={handleFinish}
-          disabled={saving}
+          disabled={saving || discarding}
           className="w-full py-4 rounded-xl bg-success text-white font-bold text-lg active:opacity-80 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save Workout"}
         </button>
+
+        {showDiscardConfirm ? (
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowDiscardConfirm(false)}
+              className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:bg-zinc-700"
+            >
+              Keep
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDiscard()}
+              disabled={discarding}
+              className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm active:bg-red-700 disabled:opacity-50"
+            >
+              {discarding ? "Discarding..." : "Yes, Discard"}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowDiscardConfirm(true)}
+            disabled={saving}
+            className="w-full py-3 rounded-xl bg-zinc-900 text-red-400 font-semibold text-sm border border-zinc-800 active:bg-zinc-800 disabled:opacity-50"
+          >
+            Discard Workout
+          </button>
+        )}
       </div>
     );
   }

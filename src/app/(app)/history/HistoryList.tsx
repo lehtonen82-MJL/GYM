@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { deleteWorkoutFromHistory } from "@/lib/actions";
 import type { Workout } from "@/lib/types";
+import ImportWorkoutModal from "./ImportWorkoutModal";
 
 export default function HistoryList({ workouts }: { workouts: Workout[] }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const handleDeleteConfirmed = async (workoutId: string) => {
     try {
@@ -26,11 +28,31 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
 
   return (
     <div className="space-y-3">
+      {/* Import button */}
+      <button
+        type="button"
+        onClick={() => setShowImport(true)}
+        className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-accent font-semibold text-sm active:bg-zinc-800"
+      >
+        + Import Past Workouts
+      </button>
+
+      {showImport && (
+        <ImportWorkoutModal onClose={() => setShowImport(false)} />
+      )}
+
       {workouts.map((w) => (
         <div key={w.id} className="bg-card rounded-2xl border border-border p-4">
           <div className="flex items-start justify-between gap-3">
             <Link href={`/workout/${w.id}`} className="min-w-0 flex-1 active:opacity-80 transition-opacity">
-              <p className="text-white font-semibold">{w.workout_day?.name ?? "Workout"}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-white font-semibold">
+                  {w.workout_day?.name ?? w.import_session_name ?? "Workout"}
+                </p>
+                {!w.workout_day && w.import_session_name !== undefined && (
+                  <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
+                )}
+              </div>
               <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
               <p className="text-white text-sm mt-2">{formatDate(w.started_at)}</p>
               <p className="text-muted text-xs">{formatDuration(w.started_at, w.completed_at)}</p>

@@ -109,7 +109,8 @@ export type WorkoutDayExercise = {
 export type Workout = {
   id: string;
   user_id: string;
-  workout_day_id: string;
+  workout_day_id: string | null;
+  import_session_name?: string | null;
   started_at: string;
   completed_at: string | null;
   notes: string | null;
@@ -137,7 +138,7 @@ export type WorkoutExerciseEntry = {
   id: string;
   workout_id: string;
   exercise_id: string;
-  workout_day_exercise_id: string;
+  workout_day_exercise_id: string | null;
   user_id: string;
   created_at: string;
   exercise?: Exercise;
