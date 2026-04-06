@@ -8,16 +8,6 @@ import type { ParsedImportSession } from "@/lib/workoutImportParser";
 
 type Step = "input" | "preview";
 
-const EXAMPLE = `17.2.2024 Chest Day
-Bench Press 4x5@90kg
-Incline DB Press 3x8@60kg
-Cable Fly 3x12@30kg
-
-18.2.2024 Legs
-Squat 5x100kg
-Romanian Deadlift 4x8@80kg
-Leg Press 3x10@120kg`;
-
 export default function ImportWorkoutModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("input");
@@ -79,7 +69,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
   const totalExercises = sessions.reduce((n, s) => n + s.exercises.length, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top)] pb-3 pt-safe border-b border-zinc-800">
         <h2 className="text-lg font-bold text-white">Import Past Workouts</h2>
@@ -94,27 +84,35 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
       </div>
 
       {step === "input" && (
-        <div className="flex flex-col flex-1 overflow-hidden p-4 gap-4">
-          <p className="text-muted text-sm">
-            Paste your workout history below. One date header per session, followed by exercises.
-          </p>
-
+        <div className="scrollbar-hidden flex-1 overflow-y-auto p-4 flex flex-col gap-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {/* Format guide */}
-          <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-3 text-xs text-muted space-y-1">
-            <p className="text-white font-medium mb-1">Format</p>
-            <p><span className="text-accent">17.2.2024 Chest Day</span> — date (required) + session name</p>
-            <p><span className="text-white">Bench Press 4x5@90kg</span> — name, sets×reps@weight</p>
-            <p><span className="text-white">Squat 5x100kg</span> — name, sets×weight (no reps)</p>
-            <p><span className="text-white">Pull-up 3x8</span> — name, sets×reps (no weight)</p>
+          <div className="bg-zinc-900 rounded-xl border border-zinc-800 px-3 py-2.5 text-xs text-muted space-y-0.5">
+            <p className="text-white font-medium text-sm mb-1">Format</p>
+            <p><span className="text-accent">17.2.2024 Chest Day</span> — date + session name</p>
+            <p><span className="text-white font-mono">Bench Press 4x5@90kg</span> — sets×reps@weight</p>
+            <p><span className="text-white font-mono">Squat 5x100kg</span> — sets×weight (no reps)</p>
+            <p><span className="text-white font-mono">Pull-up 3x8</span> — sets×reps (no weight)</p>
           </div>
 
-          <textarea
-            value={text}
-            onChange={(e) => { setText(e.target.value); setError(""); }}
-            placeholder={EXAMPLE}
-            rows={12}
-            className="flex-1 w-full px-3 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-accent focus:outline-none text-sm resize-none font-mono"
-          />
+          {/* Auto-grow textarea via CSS grid overlay trick */}
+          <div className="grid">
+            {/* Hidden mirror div — same styling, content drives the height */}
+            <div
+              className="invisible whitespace-pre-wrap break-words px-3 py-2.5 text-sm font-mono border rounded-xl min-h-[100px]"
+              style={{ gridArea: "1/1" }}
+              aria-hidden="true"
+            >
+              {text || "17.2.2024 Chest Day\nBench Press 4x5@90kg"}
+              {"\n"}
+            </div>
+            <textarea
+              value={text}
+              onChange={(e) => { setText(e.target.value); setError(""); }}
+              placeholder={"17.2.2024 Chest Day\nBench Press 4x5@90kg\nSquat 5x100kg"}
+              className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-accent focus:outline-none text-sm resize-none font-mono min-h-[100px]"
+              style={{ gridArea: "1/1" }}
+            />
+          </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
@@ -122,7 +120,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
             type="button"
             onClick={handlePreview}
             disabled={!text.trim()}
-            className="w-full py-4 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-40"
+            className="w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-40"
           >
             Preview →
           </button>
