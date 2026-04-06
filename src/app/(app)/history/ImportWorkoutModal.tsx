@@ -54,10 +54,20 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
       }));
 
       const result = await importPastWorkouts(input);
+      if (result.error) {
+        // Detect the most common root cause (migration not applied)
+        const hint = result.error.toLowerCase().includes("null")
+          ? " Make sure the database migration 004_past_workout_import.sql has been applied in Supabase."
+          : "";
+        setError(`Import failed: ${result.error}.${hint}`);
+        return;
+      }
+      if (result.imported === 0) {
+        setError("No workouts were imported. Please check the format and try again.");
+        return;
+      }
       router.refresh();
       onClose();
-      // Brief confirmation shown by router refresh + modal close
-      void result;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed. Please try again.");
     } finally {

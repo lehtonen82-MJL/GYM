@@ -977,7 +977,7 @@ export type ImportSessionInput = {
 
 export async function importPastWorkouts(
   sessions: ImportSessionInput[]
-): Promise<{ imported: number }> {
+): Promise<{ imported: number; error?: string }> {
   if (DEMO_MODE) return { imported: 0 };
 
   const supabase = await db();
@@ -1002,7 +1002,10 @@ export async function importPastWorkouts(
       .select("id")
       .single();
 
-    if (wErr || !workout) continue;
+    if (wErr || !workout) {
+      // Surface the first DB error so callers can show a meaningful message
+      return { imported, error: wErr?.message ?? "Failed to create workout row" };
+    }
 
     // 2. For each exercise: find-or-create by normalized name, then insert entry + sets
     for (const ex of session.exercises) {
