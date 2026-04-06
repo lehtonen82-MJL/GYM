@@ -103,12 +103,12 @@ function parseSetSpec(spec: string): ParsedImportSet[] | null {
   const parts = spec.split(",").map((s) => s.trim()).filter(Boolean);
 
   if (parts.length > 1) {
-    // Comma-separated individual sets: each "WxR"
+    // Comma-separated individual sets: each "WxR" (0 weight = bodyweight)
     const sets: ParsedImportSet[] = [];
     for (const part of parts) {
       const axb = parseAxB(part);
       if (!axb) return null;
-      sets.push({ weightKg: axb.a, reps: axb.b });
+      sets.push({ weightKg: axb.a === 0 ? null : axb.a, reps: axb.b });
     }
     return sets;
   }
@@ -117,16 +117,16 @@ function parseSetSpec(spec: string): ParsedImportSet[] | null {
   const axb = parseAxB(parts[0]);
   if (!axb) return null;
 
-  // Small integer 'a' -> treat as "N sets x R reps" (bodyweight / no weight)
-  if (axb.a <= 20 && Number.isInteger(axb.a)) {
+  // Small positive integer 'a' -> treat as "N sets x R reps" (bodyweight / no weight)
+  if (axb.a > 0 && axb.a <= 20 && Number.isInteger(axb.a)) {
     return Array.from({ length: Math.round(axb.a) }, () => ({
       weightKg: null,
       reps: axb.b,
     }));
   }
 
-  // Otherwise treat as 1 set: weight=a, reps=b
-  return [{ weightKg: axb.a, reps: axb.b }];
+  // Otherwise treat as 1 set: weight=a (0 = bodyweight), reps=b
+  return [{ weightKg: axb.a === 0 ? null : axb.a, reps: axb.b }];
 }
 
 function parseExerciseLine(
