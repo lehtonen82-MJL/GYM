@@ -6,16 +6,19 @@ export type NavPosition = "bottom" | "top";
 
 type Settings = {
   navPosition: NavPosition;
+  debugBorders: boolean;
 };
 
 type SettingsContextType = Settings & {
   setNavPosition: (pos: NavPosition) => void;
+  setDebugBorders: (on: boolean) => void;
 };
 
 const STORAGE_KEY = "gym-app-settings";
 
 const defaults: Settings = {
   navPosition: "bottom",
+  debugBorders: false,
 };
 
 function loadSettings(): Settings {
@@ -62,6 +65,7 @@ function getServerSnapshot() {
 const SettingsContext = createContext<SettingsContextType>({
   ...defaults,
   setNavPosition: () => {},
+  setDebugBorders: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -73,8 +77,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     emitChange();
   }
 
+  function setDebugBorders(debugBorders: boolean) {
+    currentSettings = { ...currentSettings, debugBorders };
+    saveSettings(currentSettings);
+    emitChange();
+  }
+
   return (
-    <SettingsContext.Provider value={{ ...settings, setNavPosition }}>
+    <SettingsContext.Provider value={{ ...settings, setNavPosition, setDebugBorders }}>
       {children}
     </SettingsContext.Provider>
   );

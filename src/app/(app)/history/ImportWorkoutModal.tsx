@@ -69,7 +69,8 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
   const totalExercises = sessions.reduce((n, s) => n + s.exercises.length, 0);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 sm:p-8">
+      <div className="flex flex-col w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-2xl bg-black overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top)] pb-3 pt-safe border-b border-zinc-800">
         <h2 className="text-lg font-bold text-white">Import Past Workouts</h2>
@@ -84,43 +85,32 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
       </div>
 
       {step === "input" && (
-        <div className="scrollbar-hidden flex-1 overflow-y-auto p-4 flex flex-col gap-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="flex flex-col flex-1 min-h-0 px-4 pt-4 pb-4 gap-4">
           {/* Format guide */}
-          <div className="bg-zinc-900 rounded-xl border border-zinc-800 px-3 py-2.5 text-xs text-muted space-y-0.5">
-            <p className="text-white font-medium text-sm mb-1">Format</p>
-            <p><span className="text-accent">17.2.2024 Chest Day</span> — date + session name</p>
-            <p><span className="text-white font-mono">Bench Press 4x5@90kg</span> — sets×reps@weight</p>
-            <p><span className="text-white font-mono">Squat 5x100kg</span> — sets×weight (no reps)</p>
-            <p><span className="text-white font-mono">Pull-up 3x8</span> — sets×reps (no weight)</p>
+          <div className="shrink-0 bg-zinc-900 rounded-xl border border-zinc-800 px-3 py-3 text-xs text-muted">
+            <p className="text-white font-semibold text-sm mb-2">Format</p>
+            <p className="leading-6"><span className="text-accent">17.2.2024 Chest Day</span> — date + session name</p>
+            <p className="leading-6"><span className="text-white font-mono">Bench Press 4x5@90kg</span> — sets×reps@weight</p>
+            <p className="leading-6"><span className="text-white font-mono">Squat 5x100kg</span> — sets×weight (no reps)</p>
+            <p className="leading-6"><span className="text-white font-mono">Pull-up 3x8</span> — sets×reps (no weight)</p>
           </div>
 
-          {/* Auto-grow textarea via CSS grid overlay trick */}
-          <div className="grid">
-            {/* Hidden mirror div — same styling, content drives the height */}
-            <div
-              className="invisible whitespace-pre-wrap break-words px-3 py-2.5 text-sm font-mono border rounded-xl min-h-[100px]"
-              style={{ gridArea: "1/1" }}
-              aria-hidden="true"
-            >
-              {text || "17.2.2024 Chest Day\nBench Press 4x5@90kg"}
-              {"\n"}
-            </div>
-            <textarea
-              value={text}
-              onChange={(e) => { setText(e.target.value); setError(""); }}
-              placeholder={"17.2.2024 Chest Day\nBench Press 4x5@90kg\nSquat 5x100kg"}
-              className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-accent focus:outline-none text-sm resize-none font-mono min-h-[100px]"
-              style={{ gridArea: "1/1" }}
-            />
-          </div>
+          {/* Textarea — flex-1 grows, min-h ensures it is always visible */}
+          <textarea
+            value={text}
+            onChange={(e) => { setText(e.target.value); setError(""); }}
+            placeholder={"17.2.2024 Chest Day\nBench Press 4x5@90kg\nSquat 5x100kg"}
+            className="scrollbar-hidden flex-1 w-full px-3 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-accent focus:outline-none text-sm resize-none font-mono"
+            style={{ minHeight: "120px" }}
+          />
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="shrink-0 text-red-400 text-sm">{error}</p>}
 
           <button
             type="button"
             onClick={handlePreview}
             disabled={!text.trim()}
-            className="w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-40"
+            className="shrink-0 w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-40"
           >
             Preview →
           </button>
@@ -128,9 +118,9 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
       )}
 
       {step === "preview" && (
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Summary bar */}
-          <div className="px-4 py-2 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
+          <div className="shrink-0 px-4 py-2 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
             <span className="text-sm text-muted">
               {totalSessions} workout{totalSessions !== 1 ? "s" : ""} · {totalExercises} exercise{totalExercises !== 1 ? "s" : ""}
             </span>
@@ -144,7 +134,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
           </div>
 
           {/* Scrollable session list */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-[env(safe-area-inset-bottom)]">
+          <div className="scrollbar-hidden flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-[env(safe-area-inset-bottom)] space-y-2">
             {warnings.length > 0 && (
               <div className="bg-yellow-900/30 border border-yellow-600/40 rounded-xl p-3 space-y-1">
                 <p className="text-yellow-400 text-xs font-semibold">
@@ -159,12 +149,12 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
             )}
 
             {sessions.map((session, si) => (
-              <div key={si} className="bg-card rounded-2xl border border-border p-4 space-y-3">
-                <div>
-                  <p className="text-white font-semibold">
+              <div key={si} className="bg-card rounded-xl border border-border px-3 py-2 space-y-1.5">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-white font-semibold text-sm">
                     {session.sessionName ?? "Workout"}
                   </p>
-                  <p className="text-muted text-xs">
+                  <p className="text-muted text-xs shrink-0 ml-2">
                     {session.date.toLocaleDateString("en-US", {
                       weekday: "short",
                       month: "short",
@@ -174,15 +164,15 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
                   </p>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {session.exercises.map((ex, ei) => (
-                    <div key={ei} className="border-t border-zinc-800 pt-2 first:border-0 first:pt-0">
-                      <p className="text-white text-sm font-medium">{ex.name}</p>
-                      <div className="flex flex-wrap gap-2 mt-1">
+                    <div key={ei} className="border-t border-zinc-800 pt-1 first:border-0 first:pt-0">
+                      <p className="text-white text-xs font-medium">{ex.name}</p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
                         {ex.sets.map((s, si2) => (
                           <span
                             key={si2}
-                            className="text-xs font-mono bg-zinc-800 text-muted rounded px-2 py-0.5"
+                            className="text-xs font-mono bg-zinc-800 text-muted rounded px-1.5 py-0.5"
                           >
                             {s.weightKg != null && s.reps != null
                               ? `${s.weightKg}kg × ${s.reps}`
@@ -193,8 +183,8 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
                               : "set"}
                           </span>
                         ))}
-                        <span className="text-xs text-muted self-center">
-                          ({ex.sets.length} set{ex.sets.length !== 1 ? "s" : ""})
+                        <span className="text-xs text-muted/60 self-center">
+                          {ex.sets.length}×
                         </span>
                       </div>
                     </div>
@@ -205,13 +195,13 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
           </div>
 
           {/* Bottom action bar */}
-          <div className="p-4 border-t border-zinc-800 space-y-3 pb-[env(safe-area-inset-bottom)]">
+          <div className="shrink-0 px-4 pt-3 pb-4 border-t border-zinc-800 space-y-2 pb-[env(safe-area-inset-bottom)]">
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <button
               type="button"
               onClick={() => void handleImport()}
               disabled={importing}
-              className="w-full py-4 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-50"
             >
               {importing
                 ? "Importing..."
@@ -220,6 +210,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

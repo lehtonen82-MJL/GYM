@@ -48,7 +48,6 @@ body {
 
 .page-transition {
   animation: page-fade-slide-in 180ms ease-out;
-  will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
