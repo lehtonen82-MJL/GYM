@@ -169,6 +169,7 @@ export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
     .from("programs")
     .select("id, created_at, updated_at")
     .eq("user_id", userId)
+    .neq("name", "__imports__")
     .order("updated_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -983,28 +984,97 @@ export async function importPastWorkouts(
   const supabase = await db();
   const userId = await getUserId();
 
+  // Detect whether migration 004 has been applied (import_session_name column exists)
+  const { error: probeErr } = await supabase
+    .from("workouts")
+    .select("import_session_name")
+    .limit(0);
+  const migrationApplied = !probeErr;
+
+  // Fallback: if migration not applied, we need real FK values
+  let importDayId: string | null = null;
+  // Cache: exercise_id → workout_day_exercise_id
+  const exerciseSlotCache = new Map<string, string>();
+
+  if (!migrationApplied) {
+    // Find or create a hidden "__imports__" program + single workout_day
+    const { data: existingProg } = await supabase
+      .from("programs")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("name", "__imports__")
+      .maybeSingle();
+
+    let programId: string;
+    if (existingProg) {
+      programId = existingProg.id;
+    } else {
+      const { data: created, error: cpErr } = await supabase
+        .from("programs")
+        .insert({ user_id: userId, name: "__imports__", mode: "session", is_active: false })
+        .select("id")
+        .single();
+      if (cpErr || !created) return { imported: 0, error: cpErr?.message ?? "Failed to create import program" };
+      programId = created.id;
+    }
+
+    const { data: existingDay } = await supabase
+      .from("workout_days")
+      .select("id")
+      .eq("program_id", programId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingDay) {
+      importDayId = existingDay.id;
+    } else {
+      const { data: day, error: dayErr } = await supabase
+        .from("workout_days")
+        .insert({ program_id: programId, user_id: userId, name: "Imported", kind: "session", day_order: 0 })
+        .select("id")
+        .single();
+      if (dayErr || !day) return { imported: 0, error: dayErr?.message ?? "Failed to create import day" };
+      importDayId = day.id;
+    }
+  }
+
   let imported = 0;
 
   for (const session of sessions) {
-    // 1. Create the workout row (no workout_day_id — it's a free-form import)
     const startedAt = new Date(session.date);
     startedAt.setHours(12, 0, 0, 0);
 
-    const { data: workout, error: wErr } = await supabase
-      .from("workouts")
-      .insert({
-        user_id: userId,
-        workout_day_id: null,
-        import_session_name: session.sessionName ?? null,
-        started_at: startedAt.toISOString(),
-        completed_at: startedAt.toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (wErr || !workout) {
-      // Surface the first DB error so callers can show a meaningful message
-      return { imported, error: wErr?.message ?? "Failed to create workout row" };
+    // 1. Create the workout row
+    let workoutId: string;
+    if (migrationApplied) {
+      const { data: workout, error: wErr } = await supabase
+        .from("workouts")
+        .insert({
+          user_id: userId,
+          workout_day_id: null,
+          import_session_name: session.sessionName ?? null,
+          started_at: startedAt.toISOString(),
+          completed_at: startedAt.toISOString(),
+        })
+        .select("id")
+        .single();
+      if (wErr || !workout) return { imported, error: wErr?.message ?? "Failed to create workout row" };
+      workoutId = workout.id;
+    } else {
+      // Fallback: use real workout_day_id, store session name in notes
+      const { data: workout, error: wErr } = await supabase
+        .from("workouts")
+        .insert({
+          user_id: userId,
+          workout_day_id: importDayId,
+          notes: session.sessionName ? `[Import] ${session.sessionName}` : "[Import]",
+          started_at: startedAt.toISOString(),
+          completed_at: startedAt.toISOString(),
+        })
+        .select("id")
+        .single();
+      if (wErr || !workout) return { imported, error: wErr?.message ?? "Failed to create workout row" };
+      workoutId = workout.id;
     }
 
     // 2. For each exercise: find-or-create by normalized name, then insert entry + sets
@@ -1024,7 +1094,6 @@ export async function importPastWorkouts(
       if (existing) {
         exerciseId = existing.id as string;
       } else {
-        // Create new exercise
         const { data: created } = await supabase
           .from("exercises")
           .insert({
@@ -1039,13 +1108,40 @@ export async function importPastWorkouts(
 
       if (!exerciseId) continue;
 
-      // Create exercise entry (no workout_day_exercise_id for imports)
+      // Resolve workout_day_exercise_id for fallback path
+      let slotId: string | null = null;
+      if (!migrationApplied && importDayId) {
+        if (exerciseSlotCache.has(exerciseId)) {
+          slotId = exerciseSlotCache.get(exerciseId)!;
+        } else {
+          const { data: existingSlot } = await supabase
+            .from("workout_day_exercises")
+            .select("id")
+            .eq("workout_day_id", importDayId)
+            .eq("exercise_id", exerciseId)
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (existingSlot) {
+            slotId = existingSlot.id;
+          } else {
+            const { data: newSlot } = await supabase
+              .from("workout_day_exercises")
+              .insert({ workout_day_id: importDayId, exercise_id: exerciseId, user_id: userId, order_index: 0, target_sets: 3, target_reps: 5 })
+              .select("id")
+              .single();
+            slotId = newSlot?.id ?? null;
+          }
+          if (slotId) exerciseSlotCache.set(exerciseId, slotId);
+        }
+      }
+
+      // Create exercise entry
       const { data: entry, error: entryErr } = await supabase
         .from("workout_exercise_entries")
         .insert({
-          workout_id: workout.id,
+          workout_id: workoutId,
           exercise_id: exerciseId,
-          workout_day_exercise_id: null,
+          workout_day_exercise_id: migrationApplied ? null : slotId,
           user_id: userId,
         })
         .select("id")
@@ -1344,6 +1440,7 @@ export async function getPrograms(): Promise<Program[]> {
     .from("programs")
     .select("*")
     .eq("user_id", userId)
+    .neq("name", "__imports__")
     .order("is_active", { ascending: false })
     .order("created_at", { ascending: false });
 

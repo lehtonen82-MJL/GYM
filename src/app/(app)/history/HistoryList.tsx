@@ -47,16 +47,19 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
             <Link href={`/workout/${w.id}`} className="min-w-0 flex-1 active:opacity-80 transition-opacity">
               <div className="flex items-center gap-2">
                 <p className="text-white font-semibold">
-                  {w.workout_day?.name ?? w.import_session_name ?? "Workout"}
+                  {w.workout_day?.name === "Imported" && w.notes?.startsWith("[Import]")
+                    ? w.notes.replace(/^\[Import\]\s*/, "") || "Imported"
+                    : (w.workout_day?.name ?? w.import_session_name ?? "Workout")}
                 </p>
-                {!w.workout_day && w.import_session_name !== undefined && (
+                {((!w.workout_day && w.import_session_name !== undefined) ||
+                  w.notes?.startsWith("[Import]")) && (
                   <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
                 )}
               </div>
               <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
               <p className="text-white text-sm mt-2">{formatDate(w.started_at)}</p>
               <p className="text-muted text-xs">{formatDuration(w.started_at, w.completed_at)}</p>
-              {w.notes && <p className="text-muted text-sm mt-2 line-clamp-1">{w.notes}</p>}
+              {w.notes && !w.notes.startsWith("[Import]") && <p className="text-muted text-sm mt-2 line-clamp-1">{w.notes}</p>}
             </Link>
 
             <div className="flex items-center gap-2 shrink-0">
