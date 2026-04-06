@@ -168,10 +168,10 @@ export default function ProgressClient({
                     })}
                   </span>
                   <span className="text-white font-mono">
-                    {d.weight_kg}kg \u00d7 {d.reps}
+                    {d.weight_kg}kg × {d.reps}
                     {d.volume > 0 && (
                       <span className="text-muted ml-2">
-                        \u00b7 {Math.round(d.volume)}kg vol
+                        · {Math.round(d.volume)}kg vol
                       </span>
                     )}
                   </span>
