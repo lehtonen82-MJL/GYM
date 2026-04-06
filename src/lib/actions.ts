@@ -779,17 +779,19 @@ async function getPreviousResultsInternal(
   const { data } = await supabase
     .from("workout_exercise_entries")
     .select(
-      "workout_id, set_entries!inner(weight_kg, reps, completed, set_number)"
+      "workout_id, set_entries!inner(weight_kg, reps, completed, set_number), workout:workouts!inner(completed_at)"
     )
     .eq("exercise_id", exerciseId)
     .eq("user_id", userId)
+    .not("workout.completed_at", "is", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
 
   if (!data?.set_entries) return [];
 
-  return (data.set_entries as { weight_kg: number; reps: number; set_number: number }[])
+  return (data.set_entries as { weight_kg: number; reps: number; set_number: number; completed: boolean }[])
+    .filter((s) => s.completed)
     .sort((a, b) => a.set_number - b.set_number)
     .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0 }));
 }
