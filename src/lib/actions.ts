@@ -1030,7 +1030,7 @@ export async function importPastWorkouts(
     } else {
       const { data: day, error: dayErr } = await supabase
         .from("workout_days")
-        .insert({ program_id: programId, user_id: userId, name: "Imported", kind: "session", day_order: 0 })
+        .insert({ program_id: programId, user_id: userId, name: "Imported", kind: "session", day_order: 0, day_of_week: 0, day_label: "" })
         .select("id")
         .single();
       if (dayErr || !day) return { imported: 0, error: dayErr?.message ?? "Failed to create import day" };
