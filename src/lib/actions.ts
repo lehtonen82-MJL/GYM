@@ -1216,8 +1216,8 @@ export async function getExerciseProgress(exerciseId: string) {
 
   if (!data || data.length === 0) return [];
 
-  // Group by date and pick top set (highest weight)
-  const byDate = new Map<string, { weight_kg: number; reps: number }>();
+  // Group by date: pick top set (highest weight) AND sum total volume
+  const byDate = new Map<string, { weight_kg: number; reps: number; volume: number }>();
   for (const row of data) {
     const we = row.workout_exercise_entry as unknown as {
       workout: { started_at: string; completed_at: string | null };
@@ -1226,8 +1226,16 @@ export async function getExerciseProgress(exerciseId: string) {
     const date = we.workout.started_at.split("T")[0];
     const existing = byDate.get(date);
     const w = row.weight_kg ?? 0;
-    if (!existing || w > existing.weight_kg) {
-      byDate.set(date, { weight_kg: w, reps: row.reps ?? 0 });
+    const r = row.reps ?? 0;
+    const setVolume = w * r;
+    if (!existing) {
+      byDate.set(date, { weight_kg: w, reps: r, volume: setVolume });
+    } else {
+      existing.volume += setVolume;
+      if (w > existing.weight_kg) {
+        existing.weight_kg = w;
+        existing.reps = r;
+      }
     }
   }
 
@@ -1237,39 +1245,39 @@ export async function getExerciseProgress(exerciseId: string) {
 }
 
 function getExerciseProgressMock(exerciseId: string) {
-  const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number }[]> = {
+  const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number; volume: number }[]> = {
     "ex-bench": [
-      { date: "2026-01-05", weight_kg: 90,   reps: 5 },
-      { date: "2026-01-12", weight_kg: 92.5, reps: 5 },
-      { date: "2026-01-19", weight_kg: 95,   reps: 5 },
-      { date: "2026-01-26", weight_kg: 97.5, reps: 4 },
-      { date: "2026-02-02", weight_kg: 97.5, reps: 5 },
-      { date: "2026-02-09", weight_kg: 100,  reps: 5 },
-      { date: "2026-02-16", weight_kg: 100,  reps: 4 },
-      { date: "2026-03-02", weight_kg: 100,  reps: 5 },
+      { date: "2026-01-05", weight_kg: 90,   reps: 5, volume: 1800 },
+      { date: "2026-01-12", weight_kg: 92.5, reps: 5, volume: 1850 },
+      { date: "2026-01-19", weight_kg: 95,   reps: 5, volume: 1900 },
+      { date: "2026-01-26", weight_kg: 97.5, reps: 4, volume: 1560 },
+      { date: "2026-02-02", weight_kg: 97.5, reps: 5, volume: 1950 },
+      { date: "2026-02-09", weight_kg: 100,  reps: 5, volume: 2000 },
+      { date: "2026-02-16", weight_kg: 100,  reps: 4, volume: 1600 },
+      { date: "2026-03-02", weight_kg: 100,  reps: 5, volume: 2000 },
     ],
     "ex-bsquat": [
-      { date: "2026-01-03", weight_kg: 100,  reps: 5 },
-      { date: "2026-01-10", weight_kg: 105,  reps: 5 },
-      { date: "2026-01-17", weight_kg: 110,  reps: 5 },
-      { date: "2026-01-24", weight_kg: 112.5, reps: 5 },
-      { date: "2026-01-31", weight_kg: 115,  reps: 4 },
-      { date: "2026-02-07", weight_kg: 115,  reps: 5 },
-      { date: "2026-02-21", weight_kg: 117.5, reps: 5 },
-      { date: "2026-03-07", weight_kg: 120,  reps: 5 },
+      { date: "2026-01-03", weight_kg: 100,  reps: 5, volume: 2000 },
+      { date: "2026-01-10", weight_kg: 105,  reps: 5, volume: 2100 },
+      { date: "2026-01-17", weight_kg: 110,  reps: 5, volume: 2200 },
+      { date: "2026-01-24", weight_kg: 112.5, reps: 5, volume: 2250 },
+      { date: "2026-01-31", weight_kg: 115,  reps: 4, volume: 1840 },
+      { date: "2026-02-07", weight_kg: 115,  reps: 5, volume: 2300 },
+      { date: "2026-02-21", weight_kg: 117.5, reps: 5, volume: 2350 },
+      { date: "2026-03-07", weight_kg: 120,  reps: 5, volume: 2400 },
     ],
     "ex-snatch": [
-      { date: "2026-01-06", weight_kg: 60,   reps: 2 },
-      { date: "2026-01-13", weight_kg: 62.5, reps: 2 },
-      { date: "2026-01-20", weight_kg: 65,   reps: 2 },
-      { date: "2026-02-03", weight_kg: 67.5, reps: 2 },
-      { date: "2026-02-17", weight_kg: 70,   reps: 2 },
+      { date: "2026-01-06", weight_kg: 60,   reps: 2, volume: 480 },
+      { date: "2026-01-13", weight_kg: 62.5, reps: 2, volume: 500 },
+      { date: "2026-01-20", weight_kg: 65,   reps: 2, volume: 520 },
+      { date: "2026-02-03", weight_kg: 67.5, reps: 2, volume: 540 },
+      { date: "2026-02-17", weight_kg: 70,   reps: 2, volume: 560 },
     ],
     "ex-rdl": [
-      { date: "2026-01-08", weight_kg: 70,   reps: 8 },
-      { date: "2026-01-15", weight_kg: 75,   reps: 8 },
-      { date: "2026-01-22", weight_kg: 77.5, reps: 8 },
-      { date: "2026-02-05", weight_kg: 80,   reps: 8 },
+      { date: "2026-01-08", weight_kg: 70,   reps: 8, volume: 1680 },
+      { date: "2026-01-15", weight_kg: 75,   reps: 8, volume: 1800 },
+      { date: "2026-01-22", weight_kg: 77.5, reps: 8, volume: 1860 },
+      { date: "2026-02-05", weight_kg: 80,   reps: 8, volume: 1920 },
     ],
   };
   return MOCK_PROGRESS[exerciseId] ?? [];
