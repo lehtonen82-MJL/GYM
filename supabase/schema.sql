@@ -100,7 +100,8 @@ create policy "Users can manage own workout_day_exercises" on workout_day_exerci
 create table if not exists workouts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  workout_day_id uuid not null references workout_days(id) on delete cascade,
+  workout_day_id uuid references workout_days(id) on delete cascade, -- nullable: imported workouts have no day
+  import_session_name text, -- display name for imported workouts
   started_at timestamptz default now(),
   completed_at timestamptz,
   notes text,
@@ -135,7 +136,7 @@ create table if not exists workout_exercise_entries (
   id uuid primary key default gen_random_uuid(),
   workout_id uuid not null references workouts(id) on delete cascade,
   exercise_id uuid not null references exercises(id) on delete cascade,
-  workout_day_exercise_id uuid not null references workout_day_exercises(id) on delete cascade,
+  workout_day_exercise_id uuid references workout_day_exercises(id) on delete cascade, -- nullable: imported entries have no program slot
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz default now()
 );
