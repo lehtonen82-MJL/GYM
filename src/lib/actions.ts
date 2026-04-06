@@ -963,6 +963,96 @@ export async function deleteWorkoutFromHistory(workoutId: string): Promise<void>
 }
 
 
+export async function deleteWorkoutsBulk(workoutIds: string[]): Promise<void> {
+  if (workoutIds.length === 0) return;
+  if (DEMO_MODE) {
+    workoutIds.forEach((id) => {
+      mockStore.delete(id);
+      mockBonusCardio.delete(id);
+      const idx = MOCK_HISTORY.findIndex((w) => w.id === id);
+      if (idx >= 0) MOCK_HISTORY.splice(idx, 1);
+    });
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { error } = await supabase
+    .from("workouts")
+    .delete()
+    .in("id", workoutIds)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(`Failed to delete workouts: ${error.message}`);
+  }
+}
+
+export async function deleteAllImportedWorkouts(): Promise<{ deleted: number }> {
+  if (DEMO_MODE) return { deleted: 0 };
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Identify imported workouts: those linked to the __imports__ program OR with import_session_name set
+  // First get IDs of workouts via the __imports__ program path (fallback)
+  const { data: importProgram } = await supabase
+    .from("programs")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("name", "__imports__")
+    .maybeSingle();
+
+  const ids: string[] = [];
+
+  if (importProgram) {
+    const { data: days } = await supabase
+      .from("workout_days")
+      .select("id")
+      .eq("program_id", importProgram.id)
+      .eq("user_id", userId);
+
+    if (days && days.length > 0) {
+      const dayIds = days.map((d) => d.id);
+      const { data: workouts } = await supabase
+        .from("workouts")
+        .select("id")
+        .in("workout_day_id", dayIds)
+        .eq("user_id", userId);
+      if (workouts) ids.push(...workouts.map((w) => w.id));
+    }
+  }
+
+  // Also catch migration-applied path: workout_day_id is null (imported without FK)
+  // Check if import_session_name column exists first
+  const { error: probeErr } = await supabase
+    .from("workouts")
+    .select("import_session_name")
+    .limit(0);
+  if (!probeErr) {
+    const { data: nullDayWorkouts } = await supabase
+      .from("workouts")
+      .select("id")
+      .is("workout_day_id", null)
+      .eq("user_id", userId);
+    if (nullDayWorkouts) ids.push(...nullDayWorkouts.map((w) => w.id));
+  }
+
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return { deleted: 0 };
+
+  const { error } = await supabase
+    .from("workouts")
+    .delete()
+    .in("id", uniqueIds)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(`Failed to delete imported workouts: ${error.message}`);
+
+  return { deleted: uniqueIds.length };
+}
+
 // ════════════════════════════════════════════════════════
 // PAST WORKOUT IMPORT
 // ════════════════════════════════════════════════════════
