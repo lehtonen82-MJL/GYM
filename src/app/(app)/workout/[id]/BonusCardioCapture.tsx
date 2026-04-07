@@ -118,7 +118,6 @@ export default function BonusCardioCapture({
 
   const [editingTime, setEditingTime] = useState<string | null>(null);
   const [editingAvgPace, setEditingAvgPace] = useState<string | null>(null);
-  const [editingPace, setEditingPace] = useState<string | null>(null);
 
   const timeInput =
     editingTime ??
@@ -128,9 +127,6 @@ export default function BonusCardioCapture({
     (value.extra_metrics.avg_pace_per_500_seconds != null
       ? formatSecondsForInput(value.extra_metrics.avg_pace_per_500_seconds)
       : "");
-  const paceInput =
-    editingPace ??
-    (value.pace_per_500_seconds != null ? formatSecondsForInput(value.pace_per_500_seconds) : "");
 
   function updateNumber<K extends keyof BonusCardioDraft>(key: K, raw: string) {
     const n = raw.trim() === "" ? null : Number(raw);
@@ -169,11 +165,6 @@ export default function BonusCardioCapture({
     updateExtraDuration("avg_pace_per_500_seconds", raw);
   }
 
-  function handlePaceInputChange(raw: string) {
-    setEditingPace(raw);
-    updateDuration("pace_per_500_seconds", raw);
-  }
-
   function normalizeTimeInput() {
     const raw = editingTime ?? "";
     const parsed = parseTimeToSeconds(raw);
@@ -187,14 +178,6 @@ export default function BonusCardioCapture({
     const parsed = parseTimeToSeconds(raw);
     if (parsed != null || raw.trim() === "") {
       setEditingAvgPace(null);
-    }
-  }
-
-  function normalizePaceInput() {
-    const raw = editingPace ?? "";
-    const parsed = parseTimeToSeconds(raw);
-    if (parsed != null || raw.trim() === "") {
-      setEditingPace(null);
     }
   }
 
@@ -233,75 +216,37 @@ export default function BonusCardioCapture({
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-muted">
+          <div className="flex flex-col gap-3">
+            <label className="text-sm font-medium text-muted">
               Distance (m) *
               <input
                 type="number"
                 inputMode="numeric"
                 value={value.distance_m ?? ""}
                 onChange={(e) => updateNumber("distance_m", e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
+                className="mt-1.5 w-full rounded-xl border border-border bg-zinc-900 px-4 py-3 text-white text-base"
               />
             </label>
-            <label className="text-xs text-muted">
+            <label className="text-sm font-medium text-muted">
               Time (mm:ss) *
               <input
                 type="text"
+                inputMode="numeric"
                 value={timeInput}
                 onChange={(e) => handleTimeInputChange(e.target.value)}
                 onBlur={normalizeTimeInput}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
+                className="mt-1.5 w-full rounded-xl border border-border bg-zinc-900 px-4 py-3 text-white text-base"
               />
             </label>
-            <label className="text-xs text-muted">
+            <label className="text-sm font-medium text-muted">
               Avg pace/500m (mm:ss) *
               <input
                 type="text"
+                inputMode="numeric"
                 value={avgPaceInput}
                 onChange={(e) => handleAvgPaceInputChange(e.target.value)}
                 onBlur={normalizeAvgPaceInput}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
-              />
-            </label>
-            <label className="text-xs text-muted">
-              Pace/500m (optional)
-              <input
-                type="text"
-                value={paceInput}
-                onChange={(e) => handlePaceInputChange(e.target.value)}
-                onBlur={normalizePaceInput}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
-              />
-            </label>
-            <label className="text-xs text-muted">
-              Stroke rate (spm)
-              <input
-                type="number"
-                inputMode="numeric"
-                value={value.stroke_rate ?? ""}
-                onChange={(e) => updateNumber("stroke_rate", e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
-              />
-            </label>
-            <label className="text-xs text-muted">
-              Calories
-              <input
-                type="number"
-                inputMode="numeric"
-                value={value.calories ?? ""}
-                onChange={(e) => updateNumber("calories", e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
-              />
-            </label>
-            <label className="text-xs text-muted">
-              Avg watts
-              <input
-                type="number"
-                inputMode="numeric"
-                value={value.avg_watts ?? ""}
-                onChange={(e) => updateNumber("avg_watts", e.target.value)}
-                className="mt-1 w-full rounded border border-border bg-zinc-900 px-2 py-1 text-white"
+                className="mt-1.5 w-full rounded-xl border border-border bg-zinc-900 px-4 py-3 text-white text-base"
               />
             </label>
           </div>
