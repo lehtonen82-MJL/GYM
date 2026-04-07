@@ -1371,6 +1371,68 @@ export async function getExerciseProgress(exerciseId: string) {
     .map(([date, vals]) => ({ date, ...vals }));
 }
 
+// ════════════════════════════════════════════════════════
+// ROWING HISTORY
+// ════════════════════════════════════════════════════════
+
+export type RowingDataPoint = {
+  date: string;
+  pace_per_500_seconds: number;
+  distance_m: number | null;
+  duration_seconds: number | null;
+  calories: number | null;
+};
+
+export async function getRowingHistory(): Promise<RowingDataPoint[]> {
+  if (DEMO_MODE) return getRowingHistoryMock();
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("workout_bonus_cardio")
+    .select(
+      "pace_per_500_seconds, distance_m, duration_seconds, calories, workout:workouts!inner(started_at, completed_at)"
+    )
+    .eq("user_id", userId)
+    .eq("machine_type", "rower")
+    .not("pace_per_500_seconds", "is", null);
+
+  if (!data || data.length === 0) return [];
+
+  return (data as unknown as Array<{
+    pace_per_500_seconds: number;
+    distance_m: number | null;
+    duration_seconds: number | null;
+    calories: number | null;
+    workout: { started_at: string; completed_at: string | null };
+  }>)
+    .filter((row) => !!row.workout?.completed_at)
+    .map((row) => ({
+      date: row.workout.started_at.split("T")[0],
+      pace_per_500_seconds: row.pace_per_500_seconds,
+      distance_m: row.distance_m,
+      duration_seconds: row.duration_seconds,
+      calories: row.calories,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function getRowingHistoryMock(): RowingDataPoint[] {
+  return [
+    { date: "2026-01-06", pace_per_500_seconds: 132, distance_m: 5000, duration_seconds: 1320, calories: 280 },
+    { date: "2026-01-13", pace_per_500_seconds: 130, distance_m: 5000, duration_seconds: 1300, calories: 275 },
+    { date: "2026-01-20", pace_per_500_seconds: 129, distance_m: 6000, duration_seconds: 1548, calories: 330 },
+    { date: "2026-01-27", pace_per_500_seconds: 127, distance_m: 5000, duration_seconds: 1270, calories: 268 },
+    { date: "2026-02-03", pace_per_500_seconds: 126, distance_m: 5000, duration_seconds: 1260, calories: 265 },
+    { date: "2026-02-10", pace_per_500_seconds: 124, distance_m: 6000, duration_seconds: 1488, calories: 310 },
+    { date: "2026-02-17", pace_per_500_seconds: 125, distance_m: 5000, duration_seconds: 1250, calories: 260 },
+    { date: "2026-03-03", pace_per_500_seconds: 122, distance_m: 6000, duration_seconds: 1464, calories: 305 },
+    { date: "2026-03-17", pace_per_500_seconds: 121, distance_m: 5000, duration_seconds: 1210, calories: 252 },
+    { date: "2026-03-31", pace_per_500_seconds: 119, distance_m: 6000, duration_seconds: 1428, calories: 298 },
+  ];
+}
+
 function getExerciseProgressMock(exerciseId: string) {
   const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
     "ex-bench": [
