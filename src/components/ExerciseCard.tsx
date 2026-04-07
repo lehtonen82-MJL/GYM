@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import SetRow from "./SetRow";
@@ -114,30 +114,32 @@ export default function ExerciseCard({
       }`}
     >
       {/* Header */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        className="flex items-center justify-between px-4 py-3 active:bg-card-hover"
-      >
-        <div className="min-w-0">
+      <div className="flex items-center justify-between px-4 py-3">
+        {/* Toggle area */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 min-w-0 text-left active:opacity-70"
+        >
           <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
             {entry.exercise?.name}
           </h3>
           {(!allDone || isActive) && (
             <p className="text-muted text-sm">
-              {targetSets}×{targetReps}
+              {targetSets}Ã—{targetReps}
               {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
+                <span className="ml-2 text-accent">â†’ {suggestedWeight} kg</span>
               )}
             </p>
           )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+        </button>
+
+        {/* Right controls */}
+        <div className="flex items-center gap-2 shrink-0 ml-2">
           {isActive && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setIsEditMode((v) => !v); }}
+              onClick={() => setIsEditMode((v) => !v)}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
                 isEditMode
                   ? "text-accent border-accent/40 bg-accent/10"
@@ -147,14 +149,16 @@ export default function ExerciseCard({
               {isEditMode ? "Done" : "Edit"}
             </button>
           )}
-          {allDone ? (
-            <span className="text-success text-lg">✓</span>
-          ) : (
-            <span className="text-muted text-sm font-medium">
-              {completedCount}/{targetSets}
-            </span>
-          )}
-          <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
+          <button type="button" onClick={onToggle} className="flex items-center gap-1 active:opacity-70">
+            {allDone ? (
+              <span className="text-success text-lg">âœ“</span>
+            ) : (
+              <span className="text-muted text-sm font-medium">
+                {completedCount}/{targetSets}
+              </span>
+            )}
+            <span className="text-muted text-xs">{isActive ? "â–²" : "â–¼"}</span>
+          </button>
         </div>
       </div>
 
@@ -163,7 +167,7 @@ export default function ExerciseCard({
         <div className="px-4 pb-2">
           <p className="text-xs text-muted">
             Last:{" "}
-            {prevResults.map((r) => `${r.weight_kg}kg×${r.reps}`).join(", ")}
+            {prevResults.map((r) => `${r.weight_kg}kgÃ—${r.reps}`).join(", ")}
           </p>
         </div>
       )}
@@ -193,7 +197,7 @@ export default function ExerciseCard({
             />
           ))}
 
-          {/* Add Set — only in edit mode */}
+          {/* Add Set â€” only in edit mode */}
           {isEditMode && (
             <button
               type="button"
@@ -204,144 +208,17 @@ export default function ExerciseCard({
             </button>
           )}
 
-          {/* Interval Timer — hidden during edit mode */}
+          {/* Interval Timer â€” hidden during edit mode */}
           {!isEditMode && (
             <button
               type="button"
               onClick={() => setShowTimer(true)}
               className="w-full mt-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
             >
-              <span>⏱</span>
+              <span>â±</span>
               <span>Interval Timer</span>
             </button>
           )}
-        </div>
-      )}
-
-      {showTimer && (
-        <IntervalTimer
-          defaultRounds={targetSets}
-          exerciseId={entry.exercise_id}
-          sets={sets}
-          targetReps={targetReps}
-          onSetsChange={onSetsChange}
-          onClose={() => setShowTimer(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-
-  useEffect(() => {
-    getPreviousResults(entry.exercise_id).then(setPrevResults);
-  }, [entry.exercise_id]);
-
-  // Scroll this card into view when it becomes active
-  useEffect(() => {
-    if (isActive && cardRef.current) {
-      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [isActive]);
-
-  function updateSet(setId: string, changes: Partial<SetEntry>) {
-    onSetsChange(sets.map((s) => (s.id === setId ? { ...s, ...changes } : s)));
-  }
-
-  function handleWeightChange(setId: string, weight: number) {
-    updateSet(setId, { weight_kg: weight });
-  }
-
-  function handleRepsChange(setId: string, reps: number) {
-    updateSet(setId, { reps });
-  }
-
-  function handleToggleComplete(setId: string) {
-    const set = sets.find((s) => s.id === setId);
-    if (set) updateSet(setId, { completed: !set.completed });
-  }
-
-  const completedCount = sets.filter((s) => s.completed).length;
-  const targetSets = entry.workout_day_exercise?.target_sets ?? sets.length;
-  const targetReps = entry.workout_day_exercise?.target_reps ?? 5;
-  const allDone = completedCount === targetSets && targetSets > 0;
-
-  return (
-    <div
-      ref={cardRef}
-      className={`rounded-2xl border overflow-hidden transition-colors ${
-        allDone && !isActive
-          ? "bg-zinc-900 border-zinc-800 opacity-60"
-          : "bg-card border-border"
-      }`}
-    >
-      {/* Header */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 active:bg-card-hover"
-      >
-        <div className="text-left">
-          <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
-            {entry.exercise?.name}
-          </h3>
-          {(!allDone || isActive) && (
-            <p className="text-muted text-sm">
-              {targetSets}×{targetReps}
-              {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
-              )}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {allDone ? (
-            <span className="text-success text-lg">✓</span>
-          ) : (
-            <span className="text-muted text-sm font-medium">
-              {completedCount}/{targetSets}
-            </span>
-          )}
-          <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
-        </div>
-      </button>
-
-      {/* Previous results */}
-      {isActive && prevResults.length > 0 && (
-        <div className="px-4 pb-2">
-          <p className="text-xs text-muted">
-            Last:{" "}
-            {prevResults.map((r) => `${r.weight_kg}kg×${r.reps}`).join(", ")}
-          </p>
-        </div>
-      )}
-
-      {/* Sets */}
-      {isActive && (
-        <div className="px-3 pb-3 space-y-2">
-          {sets.map((set) => (
-            <SetRow
-              key={set.id}
-              setNumber={set.set_number}
-              weightKg={set.weight_kg}
-              reps={set.reps}
-              targetReps={targetReps}
-              completed={set.completed}
-              onWeightChange={(w) => handleWeightChange(set.id, w)}
-              onRepsChange={(r) => handleRepsChange(set.id, r)}
-              onToggleComplete={() => handleToggleComplete(set.id)}
-            />
-          ))}
-
-          {/* Interval Timer button */}
-          <button
-            type="button"
-            onClick={() => setShowTimer(true)}
-            className="w-full mt-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
-          >
-            <span>⏱</span>
-            <span>Interval Timer</span>
-          </button>
         </div>
       )}
 
