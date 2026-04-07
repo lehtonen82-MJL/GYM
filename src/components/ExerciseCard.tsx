@@ -126,9 +126,9 @@ export default function ExerciseCard({
           </h3>
           {(!allDone || isActive) && (
             <p className="text-muted text-sm">
-              {targetSets}Ã—{targetReps}
+              {targetSets}×{targetReps}
               {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">â†’ {suggestedWeight} kg</span>
+                <span className="ml-2 text-accent">↑ {suggestedWeight} kg</span>
               )}
             </p>
           )}
@@ -151,13 +151,13 @@ export default function ExerciseCard({
           )}
           <button type="button" onClick={onToggle} className="flex items-center gap-1 active:opacity-70">
             {allDone ? (
-              <span className="text-success text-lg">âœ“</span>
+              <span className="text-success text-lg">✔</span>
             ) : (
               <span className="text-muted text-sm font-medium">
                 {completedCount}/{targetSets}
               </span>
             )}
-            <span className="text-muted text-xs">{isActive ? "â–²" : "â–¼"}</span>
+            <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
           </button>
         </div>
       </div>
@@ -167,7 +167,7 @@ export default function ExerciseCard({
         <div className="px-4 pb-2">
           <p className="text-xs text-muted">
             Last:{" "}
-            {prevResults.map((r) => `${r.weight_kg}kgÃ—${r.reps}`).join(", ")}
+            {prevResults.map((r) => `${r.weight_kg}kg×${r.reps}`).join(", ")}
           </p>
         </div>
       )}
@@ -197,7 +197,7 @@ export default function ExerciseCard({
             />
           ))}
 
-          {/* Add Set â€” only in edit mode */}
+          {/* Add Set — only in edit mode */}
           {isEditMode && (
             <button
               type="button"
@@ -208,14 +208,14 @@ export default function ExerciseCard({
             </button>
           )}
 
-          {/* Interval Timer â€” hidden during edit mode */}
+          {/* Interval Timer — hidden during edit mode */}
           {!isEditMode && (
             <button
               type="button"
               onClick={() => setShowTimer(true)}
               className="w-full mt-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
             >
-              <span>â±</span>
+              <span>⏱</span>
               <span>Interval Timer</span>
             </button>
           )}
