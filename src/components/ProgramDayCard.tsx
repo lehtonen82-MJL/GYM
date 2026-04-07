@@ -3,11 +3,14 @@
 import { useState } from "react";
 import type { ProgramDay } from "@/lib/types";
 
+const WEEKDAYS = ["SU", "MO", "TI", "WO", "TO", "FR", "LA"] as const;
+
 interface ProgramDayCardProps {
   day: ProgramDay;
   isExpanded?: boolean;
   onToggle?: () => void;
   onRename?: (newName: string) => void;
+  onWeekdayChange?: (dayOfWeek: number) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDelete?: () => void;
@@ -21,6 +24,7 @@ export function ProgramDayCard({
   isExpanded = false,
   onToggle,
   onRename,
+  onWeekdayChange,
   onMoveUp,
   onMoveDown,
   onDelete,
@@ -114,7 +118,33 @@ export function ProgramDayCard({
         </div>
       </div>
 
-      {isExpanded && children && <div className="border-t border-border bg-zinc-900/40 p-4">{children}</div>}
+      {isExpanded && (
+        <div className="border-t border-border bg-zinc-900/40 p-4 space-y-4">
+          {/* Weekday picker */}
+          {onWeekdayChange && (
+            <div>
+              <p className="text-xs text-muted mb-2">Weekday</p>
+              <div className="flex gap-1">
+                {WEEKDAYS.map((label, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onWeekdayChange(i)}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                      day.day_of_week === i
+                        ? "bg-accent text-white"
+                        : "bg-zinc-800 text-zinc-400 active:bg-zinc-700"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {children && <div>{children}</div>}
+        </div>
+      )}
     </div>
   );
 }

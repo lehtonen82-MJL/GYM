@@ -124,6 +124,19 @@ export default function ProgramEditorPage({ params }: PageProps) {
     }
   };
 
+  const handleWeekdayChange = async (dayId: string, dayOfWeek: number) => {
+    const labels = ["SU", "MO", "TI", "WO", "TO", "FR", "LA"];
+    const dayLabel = labels[dayOfWeek];
+    setDays((prev) =>
+      prev.map((d) => (d.id === dayId ? { ...d, day_of_week: dayOfWeek, day_label: dayLabel } : d))
+    );
+    try {
+      await updateProgramDay(dayId, { day_of_week: dayOfWeek, day_label: dayLabel });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update weekday");
+    }
+  };
+
   const handleDeleteDay = async (dayId: string) => {
     if (!confirm("Delete this day and all its exercises?")) return;
     try {
@@ -730,6 +743,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
               isExpanded={expandedDays.has(day.id)}
               onToggle={() => toggleDay(day.id)}
               onRename={(newName) => handleRenameDay(day.id, newName)}
+              onWeekdayChange={(dow) => handleWeekdayChange(day.id, dow)}
               onMoveUp={() => handleMoveDayUp(day.id)}
               onMoveDown={() => handleMoveDayDown(day.id)}
               onDelete={() => handleDeleteDay(day.id)}
