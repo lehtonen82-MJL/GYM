@@ -150,14 +150,14 @@ export default function ExerciseCard({
           <button
             type="button"
             onClick={() => setIsEditMode((v) => !v)}
-            className={`shrink-0 h-full px-3 py-3 text-sm font-semibold transition-colors ${
+            className={`shrink-0 mr-3 px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
               isEditMode
-                ? "text-accent"
-                : "text-zinc-500 active:text-zinc-300"
+                ? "text-accent border-accent/40 bg-accent/10"
+                : "text-zinc-400 border-zinc-700 bg-zinc-800 active:bg-zinc-700"
             }`}
             aria-label={isEditMode ? "Done editing" : "Edit sets"}
           >
-            {isEditMode ? "Done" : "⋯"}
+            {isEditMode ? "Done" : "Edit"}
           </button>
         )}
       </div>
