@@ -455,12 +455,6 @@ export default function WorkoutClient({
           <p className="text-muted text-sm">{workout.workout_day?.day_label}</p>
           <h1 className="text-2xl font-bold text-white">{workout.workout_day?.name}</h1>
         </div>
-        <button
-          onClick={handleFinishClick}
-          className="px-4 py-2 rounded-xl bg-success text-white font-semibold text-sm active:opacity-80"
-        >
-          Finish
-        </button>
       </div>
 
       {entries.map((entry) => (
