@@ -31,7 +31,6 @@ export default function ExerciseCard({
   const [showTimer, setShowTimer] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     getPreviousResults(entry.exercise_id).then(setPrevResults);
@@ -47,19 +46,6 @@ export default function ExerciseCard({
   useEffect(() => {
     if (!isActive) setIsEditMode(false);
   }, [isActive]);
-
-  function startLongPress() {
-    longPressRef.current = setTimeout(() => {
-      setIsEditMode(true);
-    }, 500);
-  }
-
-  function cancelLongPress() {
-    if (longPressRef.current) {
-      clearTimeout(longPressRef.current);
-      longPressRef.current = null;
-    }
-  }
 
   function updateSet(setId: string, changes: Partial<SetEntry>) {
     onSetsChange(sets.map((s) => (s.id === setId ? { ...s, ...changes } : s)));
@@ -127,53 +113,54 @@ export default function ExerciseCard({
           : "bg-card border-border"
       }`}
     >
-      {/* Header — long-press to enter edit mode */}
-      <button
-        type="button"
-        onClick={onToggle}
-        onPointerDown={startLongPress}
-        onPointerUp={cancelLongPress}
-        onPointerLeave={cancelLongPress}
-        onPointerCancel={cancelLongPress}
-        className="w-full flex items-center justify-between px-4 py-3 active:bg-card-hover select-none"
-      >
-        <div className="text-left">
-          <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
-            {entry.exercise?.name}
-          </h3>
-          {(!allDone || isActive) && (
-            <p className="text-muted text-sm">
-              {targetSets}×{targetReps}
-              {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
-              )}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {isEditMode && isActive && (
-            <span
-              role="button"
-              className="text-xs font-semibold text-accent border border-accent/40 rounded-lg px-2 py-1"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsEditMode(false);
-              }}
-            >
-              Done
-            </span>
-          )}
-          {allDone ? (
-            <span className="text-success text-lg">✓</span>
-          ) : (
-            <span className="text-muted text-sm font-medium">
-              {completedCount}/{targetSets}
-            </span>
-          )}
-          <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
-        </div>
-      </button>
+      {/* Header */}
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 flex items-center justify-between px-4 py-3 active:bg-card-hover text-left"
+        >
+          <div className="text-left">
+            <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
+              {entry.exercise?.name}
+            </h3>
+            {(!allDone || isActive) && (
+              <p className="text-muted text-sm">
+                {targetSets}×{targetReps}
+                {suggestedWeight !== null && (
+                  <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
+                )}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {allDone ? (
+              <span className="text-success text-lg">✓</span>
+            ) : (
+              <span className="text-muted text-sm font-medium">
+                {completedCount}/{targetSets}
+              </span>
+            )}
+            <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
+          </div>
+        </button>
+
+        {/* Edit / Done button — only visible when card is open */}
+        {isActive && (
+          <button
+            type="button"
+            onClick={() => setIsEditMode((v) => !v)}
+            className={`shrink-0 h-full px-3 py-3 text-sm font-semibold transition-colors ${
+              isEditMode
+                ? "text-accent"
+                : "text-zinc-500 active:text-zinc-300"
+            }`}
+            aria-label={isEditMode ? "Done editing" : "Edit sets"}
+          >
+            {isEditMode ? "Done" : "⋯"}
+          </button>
+        )}
+      </div>
 
       {/* Previous results */}
       {isActive && prevResults.length > 0 && (
