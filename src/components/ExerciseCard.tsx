@@ -114,52 +114,48 @@ export default function ExerciseCard({
       }`}
     >
       {/* Header */}
-      <div className="flex items-center">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex-1 flex items-center justify-between px-4 py-3 active:bg-card-hover text-left"
-        >
-          <div className="text-left">
-            <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
-              {entry.exercise?.name}
-            </h3>
-            {(!allDone || isActive) && (
-              <p className="text-muted text-sm">
-                {targetSets}×{targetReps}
-                {suggestedWeight !== null && (
-                  <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
-                )}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {allDone ? (
-              <span className="text-success text-lg">✓</span>
-            ) : (
-              <span className="text-muted text-sm font-medium">
-                {completedCount}/{targetSets}
-              </span>
-            )}
-            <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
-          </div>
-        </button>
-
-        {/* Edit / Done button — only visible when card is open */}
-        {isActive && (
-          <button
-            type="button"
-            onClick={() => setIsEditMode((v) => !v)}
-            className={`shrink-0 mr-3 px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-              isEditMode
-                ? "text-accent border-accent/40 bg-accent/10"
-                : "text-zinc-400 border-zinc-700 bg-zinc-800 active:bg-zinc-700"
-            }`}
-            aria-label={isEditMode ? "Done editing" : "Edit sets"}
-          >
-            {isEditMode ? "Done" : "Edit"}
-          </button>
-        )}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        className="flex items-center justify-between px-4 py-3 active:bg-card-hover"
+      >
+        <div className="min-w-0">
+          <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
+            {entry.exercise?.name}
+          </h3>
+          {(!allDone || isActive) && (
+            <p className="text-muted text-sm">
+              {targetSets}×{targetReps}
+              {suggestedWeight !== null && (
+                <span className="ml-2 text-accent">→ {suggestedWeight} kg</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {isActive && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsEditMode((v) => !v); }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                isEditMode
+                  ? "text-accent border-accent/40 bg-accent/10"
+                  : "text-zinc-400 border-zinc-700 bg-zinc-800 active:bg-zinc-700"
+              }`}
+            >
+              {isEditMode ? "Done" : "Edit"}
+            </button>
+          )}
+          {allDone ? (
+            <span className="text-success text-lg">✓</span>
+          ) : (
+            <span className="text-muted text-sm font-medium">
+              {completedCount}/{targetSets}
+            </span>
+          )}
+          <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
+        </div>
       </div>
 
       {/* Previous results */}
