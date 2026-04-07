@@ -11,7 +11,7 @@ import type {
 } from "@/lib/types";
 import {
   completeWorkout,
-  saveSets,
+  syncWorkoutSets,
   saveWorkoutBonusCardio,
   deleteWorkoutFromHistory,
 } from "@/lib/actions";
@@ -22,7 +22,7 @@ import BonusCardioCapture, {
 } from "./BonusCardioCapture";
 
 type SetMap = Record<string, SetEntry[]>;
-type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed">;
+type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup">;
 type WorkoutDraftSnapshot = {
   version: 1;
   setsByEntryId: Record<string, DraftSetPatch[]>;
@@ -75,6 +75,7 @@ function mergeSetsWithDraft(current: SetMap, draft: Record<string, DraftSetPatch
         weight_kg: patch.weight_kg,
         reps: patch.reps,
         completed: patch.completed,
+        is_warmup: patch.is_warmup ?? set.is_warmup,
       };
     });
   }
@@ -96,6 +97,9 @@ export default function WorkoutClient({
     }
     return map;
   });
+
+  // Track which set IDs existed in DB when this workout was loaded
+  const originalSetIds = entries.flatMap((e) => (e.set_entries ?? []).map((s) => s.id));
 
   const [activeEntryId, setActiveEntryId] = useState<string | null>(entries[0]?.id ?? null);
   const [notes, setNotes] = useState("");
@@ -179,6 +183,7 @@ export default function WorkoutClient({
             weight_kg: set.weight_kg,
             reps: set.reps,
             completed: set.completed,
+            is_warmup: set.is_warmup ?? false,
           })),
         ])
       ),
@@ -259,16 +264,21 @@ export default function WorkoutClient({
   async function handleFinish() {
     setSaving(true);
     try {
-      const allSets = Object.values(setsMap)
-        .flat()
-        .map((s) => ({
+      const entriesData = entries.map((entry) => ({
+        entryId: entry.id,
+        workoutDayExerciseId: entry.workout_day_exercise_id ?? null,
+        userId: entry.user_id,
+        sets: (setsMap[entry.id] ?? []).map((s) => ({
           id: s.id,
+          set_number: s.set_number,
           weight_kg: s.weight_kg,
           reps: s.reps,
           completed: s.completed,
-        }));
+          is_warmup: s.is_warmup ?? false,
+        })),
+      }));
 
-      await saveSets(allSets);
+      await syncWorkoutSets(entriesData, originalSetIds);
 
       if (hasBonusCardioData(bonusCardioDraft)) {
         try {

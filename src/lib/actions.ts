@@ -877,6 +877,97 @@ export async function updateSet(
 }
 
 // ════════════════════════════════════════════════════════
+// SYNC WORKOUT SETS (insert new, update existing, delete removed)
+// ════════════════════════════════════════════════════════
+
+export type SetSyncEntry = {
+  entryId: string;
+  workoutDayExerciseId: string | null;
+  userId: string;
+  sets: Array<{
+    id: string;
+    set_number: number;
+    weight_kg: number | null;
+    reps: number | null;
+    completed: boolean;
+    is_warmup: boolean;
+  }>;
+};
+
+export async function syncWorkoutSets(
+  entriesData: SetSyncEntry[],
+  originalSetIds: string[]
+): Promise<void> {
+  if (DEMO_MODE) {
+    // Update mock store in-place
+    for (const { entryId, userId: entryUserId, sets } of entriesData) {
+      for (const stored of mockStore.values()) {
+        const entry = stored.entries.find((e) => e.id === entryId);
+        if (entry) {
+          entry.set_entries = sets.map((s) => ({
+            ...s,
+            workout_exercise_entry_id: entryId,
+            user_id: entryUserId,
+            created_at: new Date().toISOString(),
+          }));
+        }
+      }
+    }
+    return;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const currentSetIds = new Set(entriesData.flatMap((e) => e.sets.map((s) => s.id)));
+  const originalIdsSet = new Set(originalSetIds);
+
+  // 1. Delete sets that existed originally but are no longer present
+  const toDelete = originalSetIds.filter((id) => !currentSetIds.has(id));
+  if (toDelete.length > 0) {
+    await supabase.from("set_entries").delete().in("id", toDelete).eq("user_id", userId);
+  }
+
+  // 2. For each entry: upsert all current sets
+  for (const { entryId, workoutDayExerciseId, sets } of entriesData) {
+    for (const set of sets) {
+      const isNew = !originalIdsSet.has(set.id);
+      if (isNew) {
+        await supabase.from("set_entries").insert({
+          id: set.id,
+          workout_exercise_entry_id: entryId,
+          user_id: userId,
+          set_number: set.set_number,
+          weight_kg: set.weight_kg,
+          reps: set.reps,
+          completed: set.completed,
+          is_warmup: set.is_warmup,
+        });
+      } else {
+        await supabase.from("set_entries").update({
+          set_number: set.set_number,
+          weight_kg: set.weight_kg,
+          reps: set.reps,
+          completed: set.completed,
+          is_warmup: set.is_warmup,
+        }).eq("id", set.id).eq("user_id", userId);
+      }
+    }
+
+    // 3. Update workout_day_exercises.target_sets to work set count
+    if (workoutDayExerciseId) {
+      const workSetCount = sets.filter((s) => !s.is_warmup).length;
+      if (workSetCount > 0) {
+        await supabase.from("workout_day_exercises")
+          .update({ target_sets: workSetCount })
+          .eq("id", workoutDayExerciseId)
+          .eq("user_id", userId);
+      }
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════
 // COMPLETE WORKOUT
 // ════════════════════════════════════════════════════════
 
