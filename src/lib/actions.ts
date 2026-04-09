@@ -1420,15 +1420,17 @@ export async function getExerciseProgress(exerciseId: string) {
   const supabase = await db();
   const userId = await getUserId();
 
-  // Get all completed sets for this exercise, grouped by workout date
+  // Get all completed sets for this exercise, grouped by workout date.
+  // We rely on weight_kg IS NOT NULL (data was entered) and workout.completed_at IS NOT NULL
+  // (whole workout was finished) rather than per-set completed flag, because sets may have
+  // been saved with completed=false if the user didn't tap each checkmark.
   const { data } = await supabase
     .from("set_entries")
     .select(
-      "weight_kg, reps, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, workout:workouts!inner(started_at, completed_at))"
+      "weight_kg, reps, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, workout_day_exercise:workout_day_exercises(target_reps), workout:workouts!inner(started_at, completed_at))"
     )
     .eq("workout_exercise_entry.exercise_id", exerciseId)
     .eq("user_id", userId)
-    .eq("completed", true)
     .not("weight_kg", "is", null);
 
   if (!data || data.length === 0) return [];
@@ -1438,12 +1440,13 @@ export async function getExerciseProgress(exerciseId: string) {
   for (const row of data) {
     const we = row.workout_exercise_entry as unknown as {
       workout: { started_at: string; completed_at: string | null };
+      workout_day_exercise: { target_reps: number } | null;
     };
     if (!we?.workout?.completed_at) continue;
     const date = we.workout.started_at.split("T")[0];
     const existing = byDate.get(date);
     const w = row.weight_kg ?? 0;
-    const r = row.reps ?? 0;
+    const r = row.reps ?? we.workout_day_exercise?.target_reps ?? 0;
     const setVolume = w * r;
     if (!existing) {
       byDate.set(date, { weight_kg: w, reps: r, sets: 1, volume: setVolume });
