@@ -36,6 +36,7 @@ eng.traineddata
 .tmp-*
 /tmp/
 build-output.txt
+build_out*.txt
 build_output*.txt
 
 # env files (can opt-in for committing if needed)
