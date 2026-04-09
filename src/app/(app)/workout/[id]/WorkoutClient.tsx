@@ -278,7 +278,14 @@ export default function WorkoutClient({
         })),
       }));
 
-      await syncWorkoutSets(entriesData, originalSetIds);
+      try {
+        await syncWorkoutSets(entriesData, originalSetIds);
+      } catch (syncError) {
+        // Show the error but keep localStorage intact so no data is lost
+        const msg = syncError instanceof Error ? syncError.message : String(syncError);
+        alert(`Could not save all sets to server — your workout data is preserved locally.\n\nDetails: ${msg}\n\nPlease make sure the database migration has been applied (add is_warmup column) and try again.`);
+        return;
+      }
 
       if (hasBonusCardioData(bonusCardioDraft)) {
         try {

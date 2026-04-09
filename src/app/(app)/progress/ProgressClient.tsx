@@ -143,6 +143,8 @@ export default function ProgressClient({
   }, [tab, rowingFetched]);
 
   const hasVolume = data.some((d) => d.volume > 0);
+  // Bodyweight exercise: all data points have weight_kg = 0 (no weight entered)
+  const isBodyweight = data.length > 0 && data.every((d) => d.weight_kg === 0);
 
   return (
     <div className="space-y-4">
@@ -191,16 +193,19 @@ export default function ProgressClient({
           ) : (
             <>
               <div className="bg-card rounded-2xl border border-border p-4">
-                <p className="text-sm font-semibold text-muted mb-2">Top Set</p>
+                <p className="text-sm font-semibold text-muted mb-2">
+                  {isBodyweight ? "Top Set (reps)" : "Top Set"}
+                </p>
                 <MiniChart
                   data={data}
-                  getValue={(d) => (d as DataPoint).weight_kg}
+                  getValue={(d) => isBodyweight ? (d as DataPoint).reps : (d as DataPoint).weight_kg}
                   color="#3b82f6"
-                  unit=""
+                  unit={isBodyweight ? "" : ""}
+                  formatLabel={isBodyweight ? (v) => `${Math.round(v)} reps` : undefined}
                 />
               </div>
 
-              {hasVolume && (
+              {hasVolume && !isBodyweight && (
                 <div className="bg-card rounded-2xl border border-border p-4">
                   <p className="text-sm font-semibold text-muted mb-2">Total Volume</p>
                   <MiniChart
@@ -226,7 +231,9 @@ export default function ProgressClient({
                         })}
                       </span>
                       <span className="text-white font-mono">
-                        {d.weight_kg}kg × {d.reps}
+                        {isBodyweight
+                          ? `× ${d.reps} reps`
+                          : `${d.weight_kg}kg × ${d.reps}`}
                         {d.sets > 0 && <span className="text-muted ml-2">· {d.sets} sets</span>}
                         {d.volume > 0 && (
                           <span className="text-muted ml-2">· {Math.round(d.volume)}kg vol</span>

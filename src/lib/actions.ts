@@ -820,11 +820,13 @@ async function getPreviousResultsInternal(
         set_number: number;
         completed: boolean;
       }[];
-      const completed = sets
-        .filter((s) => s.completed)
+      // Use sets that have any data entered (don't require completed=true,
+      // because sets can have completed=false if user didn't tap checkmark)
+      const withData = sets
+        .filter((s) => s.weight_kg !== null || s.reps !== null)
         .sort((a, b) => a.set_number - b.set_number)
         .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0 }));
-      if (completed.length > 0) return completed;
+      if (withData.length > 0) return withData;
     }
   }
   return [];
@@ -918,6 +920,7 @@ export async function syncWorkoutSets(
 
   const supabase = await db();
   const userId = await getUserId();
+  const errors: string[] = [];
 
   const currentSetIds = new Set(entriesData.flatMap((e) => e.sets.map((s) => s.id)));
   const originalIdsSet = new Set(originalSetIds);
@@ -925,7 +928,8 @@ export async function syncWorkoutSets(
   // 1. Delete sets that existed originally but are no longer present
   const toDelete = originalSetIds.filter((id) => !currentSetIds.has(id));
   if (toDelete.length > 0) {
-    await supabase.from("set_entries").delete().in("id", toDelete).eq("user_id", userId);
+    const { error } = await supabase.from("set_entries").delete().in("id", toDelete).eq("user_id", userId);
+    if (error) errors.push(`delete: ${error.message}`);
   }
 
   // 2. For each entry: upsert all current sets
@@ -933,7 +937,7 @@ export async function syncWorkoutSets(
     for (const set of sets) {
       const isNew = !originalIdsSet.has(set.id);
       if (isNew) {
-        await supabase.from("set_entries").insert({
+        const { error } = await supabase.from("set_entries").insert({
           id: set.id,
           workout_exercise_entry_id: entryId,
           user_id: userId,
@@ -943,14 +947,16 @@ export async function syncWorkoutSets(
           completed: set.completed,
           is_warmup: set.is_warmup,
         });
+        if (error) errors.push(`insert set ${set.set_number}: ${error.message}`);
       } else {
-        await supabase.from("set_entries").update({
+        const { error } = await supabase.from("set_entries").update({
           set_number: set.set_number,
           weight_kg: set.weight_kg,
           reps: set.reps,
           completed: set.completed,
           is_warmup: set.is_warmup,
         }).eq("id", set.id).eq("user_id", userId);
+        if (error) errors.push(`update set ${set.set_number}: ${error.message}`);
       }
     }
 
@@ -964,6 +970,10 @@ export async function syncWorkoutSets(
           .eq("user_id", userId);
       }
     }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Failed to save sets: ${errors.join("; ")}`);
   }
 }
 
@@ -1420,10 +1430,9 @@ export async function getExerciseProgress(exerciseId: string) {
   const supabase = await db();
   const userId = await getUserId();
 
-  // Get all completed sets for this exercise, grouped by workout date.
-  // We rely on weight_kg IS NOT NULL (data was entered) and workout.completed_at IS NOT NULL
-  // (whole workout was finished) rather than per-set completed flag, because sets may have
-  // been saved with completed=false if the user didn't tap each checkmark.
+  // Get all sets for this exercise, grouped by workout date.
+  // Include sets with weight entered (weighted exercises) OR reps entered (bodyweight exercises).
+  // Rely on workout.completed_at IS NOT NULL (whole workout was finished).
   const { data } = await supabase
     .from("set_entries")
     .select(
@@ -1431,7 +1440,7 @@ export async function getExerciseProgress(exerciseId: string) {
     )
     .eq("workout_exercise_entry.exercise_id", exerciseId)
     .eq("user_id", userId)
-    .not("weight_kg", "is", null);
+    .or("weight_kg.not.is.null,reps.not.is.null");
 
   if (!data || data.length === 0) return [];
 
