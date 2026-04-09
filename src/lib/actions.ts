@@ -1562,8 +1562,6 @@ export async function getRowingHistory(): Promise<RowingDataPoint[]> {
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 }
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
 
 function getRowingHistoryMock(): RowingDataPoint[] {
   return [
