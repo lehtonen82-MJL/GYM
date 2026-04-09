@@ -1505,11 +1505,10 @@ export async function getRowingHistory(): Promise<RowingDataPoint[]> {
   const { data } = await supabase
     .from("workout_bonus_cardio")
     .select(
-      "pace_per_500_seconds, distance_m, duration_seconds, calories, extra_metrics, workout:workouts!inner(started_at, completed_at)"
+      "pace_per_500_seconds, distance_m, duration_seconds, calories, extra_metrics, workout:workouts(started_at, completed_at)"
     )
     .eq("user_id", userId)
-    .eq("machine_type", "rower")
-    .or("pace_per_500_seconds.not.is.null,extra_metrics->>avg_pace_per_500_seconds.not.is.null");
+    .eq("machine_type", "rower");
 
   if (!data || data.length === 0) return [];
 
@@ -1519,16 +1518,25 @@ export async function getRowingHistory(): Promise<RowingDataPoint[]> {
     duration_seconds: number | null;
     calories: number | null;
     extra_metrics: Record<string, number | null> | null;
-    workout: { started_at: string; completed_at: string | null };
+    workout: { started_at: string; completed_at: string | null } | null;
   }>)
-    .filter((row) => !!row.workout?.completed_at)
+    .filter((row) => {
+      // Include sessions from completed workouts OR orphaned rows (no workout join)
+      if (row.workout && !row.workout.completed_at) return false;
+      // Must have at least a pace or distance value
+      const pace =
+        row.pace_per_500_seconds ??
+        (row.extra_metrics?.avg_pace_per_500_seconds as number | null);
+      return pace != null || row.distance_m != null || row.duration_seconds != null;
+    })
     .map((row) => {
       const pace =
         row.pace_per_500_seconds ??
         (row.extra_metrics?.avg_pace_per_500_seconds as number | null) ??
         0;
+      const started = row.workout?.started_at ?? new Date().toISOString();
       return {
-        date: row.workout.started_at.split("T")[0],
+        date: started.split("T")[0],
         pace_per_500_seconds: pace,
         distance_m: row.distance_m,
         duration_seconds: row.duration_seconds,
