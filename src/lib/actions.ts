@@ -699,11 +699,18 @@ export async function saveWorkoutBonusCardio(
   workoutId: string,
   input: SaveWorkoutBonusCardioInput
 ): Promise<WorkoutBonusCardio> {
+  // The form stores avg pace in extra_metrics.avg_pace_per_500_seconds.
+  // Promote it to the canonical pace_per_500_seconds column so history queries work.
+  const resolvedPace =
+    input.pace_per_500_seconds ??
+    (input.extra_metrics?.avg_pace_per_500_seconds as number | null | undefined) ??
+    null;
+
   const payload = {
     machine_type: "rower" as const,
     distance_m: input.distance_m ?? null,
     duration_seconds: input.duration_seconds ?? null,
-    pace_per_500_seconds: input.pace_per_500_seconds ?? null,
+    pace_per_500_seconds: resolvedPace,
     calories: input.calories ?? null,
     stroke_rate: input.stroke_rate ?? null,
     avg_watts: input.avg_watts ?? null,
@@ -1498,29 +1505,36 @@ export async function getRowingHistory(): Promise<RowingDataPoint[]> {
   const { data } = await supabase
     .from("workout_bonus_cardio")
     .select(
-      "pace_per_500_seconds, distance_m, duration_seconds, calories, workout:workouts!inner(started_at, completed_at)"
+      "pace_per_500_seconds, distance_m, duration_seconds, calories, extra_metrics, workout:workouts!inner(started_at, completed_at)"
     )
     .eq("user_id", userId)
     .eq("machine_type", "rower")
-    .not("pace_per_500_seconds", "is", null);
+    .or("pace_per_500_seconds.not.is.null,extra_metrics->>avg_pace_per_500_seconds.not.is.null");
 
   if (!data || data.length === 0) return [];
 
   return (data as unknown as Array<{
-    pace_per_500_seconds: number;
+    pace_per_500_seconds: number | null;
     distance_m: number | null;
     duration_seconds: number | null;
     calories: number | null;
+    extra_metrics: Record<string, number | null> | null;
     workout: { started_at: string; completed_at: string | null };
   }>)
     .filter((row) => !!row.workout?.completed_at)
-    .map((row) => ({
-      date: row.workout.started_at.split("T")[0],
-      pace_per_500_seconds: row.pace_per_500_seconds,
-      distance_m: row.distance_m,
-      duration_seconds: row.duration_seconds,
-      calories: row.calories,
-    }))
+    .map((row) => {
+      const pace =
+        row.pace_per_500_seconds ??
+        (row.extra_metrics?.avg_pace_per_500_seconds as number | null) ??
+        0;
+      return {
+        date: row.workout.started_at.split("T")[0],
+        pace_per_500_seconds: pace,
+        distance_m: row.distance_m,
+        duration_seconds: row.duration_seconds,
+        calories: row.calories,
+      };
+    })
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
