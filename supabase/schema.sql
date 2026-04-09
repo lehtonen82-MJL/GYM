@@ -138,6 +138,7 @@ create table if not exists workout_exercise_entries (
   exercise_id uuid not null references exercises(id) on delete cascade,
   workout_day_exercise_id uuid references workout_day_exercises(id) on delete cascade, -- nullable: imported entries have no program slot
   user_id uuid not null references auth.users(id) on delete cascade,
+  too_heavy boolean default false,
   created_at timestamptz default now()
 );
 

@@ -13,6 +13,9 @@ type ExerciseCardProps = {
   suggestedWeight: number | null;
   isActive: boolean;
   onToggle: () => void;
+  isTooHeavy: boolean;
+  wasTooHeavyLastTime: boolean;
+  onToggleTooHeavy: () => void;
 };
 
 function renumber(sets: SetEntry[]): SetEntry[] {
@@ -26,6 +29,9 @@ export default function ExerciseCard({
   suggestedWeight,
   isActive,
   onToggle,
+  isTooHeavy,
+  wasTooHeavyLastTime,
+  onToggleTooHeavy,
 }: ExerciseCardProps) {
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
   const [showTimer, setShowTimer] = useState(false);
@@ -126,9 +132,23 @@ export default function ExerciseCard({
           onClick={onToggle}
           className="flex-1 min-w-0 text-left active:opacity-70"
         >
-          <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
-            {entry.exercise?.name}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
+              {entry.exercise?.name}
+            </h3>
+            {/* Weight recommendation pill based on last workout's too_heavy flag */}
+            {prevResults.length > 0 && (
+              wasTooHeavyLastTime ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 leading-tight">
+                  Same weight
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 leading-tight">
+                  Add weight
+                </span>
+              )
+            )}
+          </div>
           {(!allDone || isActive) && (
             <p className="text-muted text-sm">
               {targetSets}×{targetReps}
@@ -215,14 +235,28 @@ export default function ExerciseCard({
 
           {/* Interval Timer — hidden during edit mode */}
           {!isEditMode && (
-            <button
-              type="button"
-              onClick={() => setShowTimer(true)}
-              className="w-full mt-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
-            >
-              <span>⏱</span>
-              <span>Interval Timer</span>
-            </button>
+            <div className="flex gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => setShowTimer(true)}
+                className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
+              >
+                <span>⏱</span>
+                <span>Interval Timer</span>
+              </button>
+              <button
+                type="button"
+                onClick={onToggleTooHeavy}
+                className={`px-3 py-2 rounded-xl text-sm font-semibold active:opacity-80 flex items-center gap-1.5 ${
+                  isTooHeavy
+                    ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40"
+                    : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                }`}
+              >
+                <span className="text-base">{isTooHeavy ? "⚠️" : "🏋️"}</span>
+                <span>{isTooHeavy ? "Too Heavy" : "Too Heavy"}</span>
+              </button>
+            </div>
           )}
         </div>
       )}

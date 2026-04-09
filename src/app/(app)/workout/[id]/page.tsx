@@ -49,6 +49,7 @@ export default function WorkoutPage() {
           workout: result.workout,
           entries: result.entries,
           suggestions: {},
+          tooHeavyFlags: {},
         });
         setBonusCardio(bonus);
         setReadOnly(Boolean(result.workout.completed_at));
@@ -75,6 +76,7 @@ export default function WorkoutPage() {
       workout={data.workout}
       entries={data.entries}
       suggestions={data.suggestions}
+      tooHeavyFlags={data.tooHeavyFlags}
       readOnly={readOnly}
       bonusCardio={bonusCardio}
     />

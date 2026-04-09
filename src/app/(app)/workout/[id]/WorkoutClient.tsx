@@ -14,6 +14,7 @@ import {
   syncWorkoutSets,
   saveWorkoutBonusCardio,
   deleteWorkoutFromHistory,
+  toggleTooHeavy,
 } from "@/lib/actions";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
@@ -37,6 +38,7 @@ type Props = {
   workout: Workout;
   entries: WorkoutExerciseEntry[];
   suggestions: Record<string, number | null>;
+  tooHeavyFlags: Record<string, boolean>;
   readOnly?: boolean;
   bonusCardio?: WorkoutBonusCardio | null;
 };
@@ -87,6 +89,7 @@ export default function WorkoutClient({
   workout,
   entries,
   suggestions,
+  tooHeavyFlags,
   readOnly = false,
   bonusCardio = null,
 }: Props) {
@@ -109,6 +112,14 @@ export default function WorkoutClient({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [hydratedDraft, setHydratedDraft] = useState(false);
+  const [tooHeavyMap, setTooHeavyMap] = useState<Record<string, boolean>>(() => {
+    // Initialize from current entries' too_heavy column
+    const map: Record<string, boolean> = {};
+    for (const entry of entries) {
+      if (entry.too_heavy) map[entry.id] = true;
+    }
+    return map;
+  });
   const [bonusCardioDraft, setBonusCardioDraft] = useState<BonusCardioDraft>(
     bonusCardio
       ? {
@@ -248,6 +259,15 @@ export default function WorkoutClient({
     },
     [entries]
   );
+
+  function handleToggleTooHeavy(entryId: string) {
+    const newValue = !tooHeavyMap[entryId];
+    setTooHeavyMap((prev) => ({ ...prev, [entryId]: newValue }));
+    toggleTooHeavy(entryId, newValue).catch(() => {
+      // Revert on failure
+      setTooHeavyMap((prev) => ({ ...prev, [entryId]: !newValue }));
+    });
+  }
 
   function handleFinishClick() {
     const hasIncomplete = entries.some((entry) => {
@@ -493,6 +513,9 @@ export default function WorkoutClient({
           suggestedWeight={suggestions[entry.exercise_id] ?? null}
           isActive={activeEntryId === entry.id}
           onToggle={() => setActiveEntryId((prev) => (prev === entry.id ? null : entry.id))}
+          isTooHeavy={!!tooHeavyMap[entry.id]}
+          wasTooHeavyLastTime={tooHeavyFlags[entry.exercise_id] ?? false}
+          onToggleTooHeavy={() => handleToggleTooHeavy(entry.id)}
         />
       ))}
 

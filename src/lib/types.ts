@@ -140,6 +140,7 @@ export type WorkoutExerciseEntry = {
   exercise_id: string;
   workout_day_exercise_id: string | null;
   user_id: string;
+  too_heavy?: boolean;
   created_at: string;
   exercise?: Exercise;
   workout_day_exercise?: WorkoutDayExercise;

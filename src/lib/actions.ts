@@ -225,6 +225,7 @@ export type StartWorkoutResult = {
   workout: Workout;
   entries: WorkoutExerciseEntry[];
   suggestions: Record<string, number | null>;
+  tooHeavyFlags: Record<string, boolean>;
 };
 
 async function buildStartWorkoutResultFromExisting(
@@ -265,11 +266,19 @@ async function buildStartWorkoutResultFromExisting(
     suggestions[exerciseId] = weight;
   }
 
+  // Fetch too_heavy flags from previous completed workouts for these exercises
+  const tooHeavyFlags = await getLastTooHeavyFlags(
+    supabase,
+    userId,
+    entries.map((e) => e.exercise_id)
+  );
+
   return {
     id: workout.id,
     workout,
     entries,
     suggestions,
+    tooHeavyFlags,
   };
 }
 
@@ -548,6 +557,7 @@ function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
       workout: existing.workout,
       entries: existing.entries,
       suggestions,
+      tooHeavyFlags: {},
     };
   }
 
@@ -612,7 +622,7 @@ function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
   }
 
   mockStore.set(workoutId, { workout, entries });
-  return { id: workoutId, workout, entries, suggestions };
+  return { id: workoutId, workout, entries, suggestions, tooHeavyFlags: {} };
 }
 
 // ════════════════════════════════════════════════════════
@@ -2667,6 +2677,82 @@ export async function validateProgram(
   }
 
   return { valid: warnings.length === 0, warnings };
+}
+
+// ────────────────────────────────────────────
+// TOO HEAVY FLAG
+// ────────────────────────────────────────────
+
+/**
+ * Check the most recent completed workout for each exercise and return
+ * whether it was marked "too heavy".
+ */
+async function getLastTooHeavyFlags(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  exerciseIds: string[]
+): Promise<Record<string, boolean>> {
+  if (exerciseIds.length === 0) return {};
+
+  // Get the 30 most recent completed workouts
+  const { data: recentWorkouts } = await supabase
+    .from("workouts")
+    .select("id")
+    .eq("user_id", userId)
+    .not("completed_at", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(30);
+
+  if (!recentWorkouts || recentWorkouts.length === 0) return {};
+
+  const workoutIds = (recentWorkouts as { id: string }[]).map((w) => w.id);
+
+  // Fetch exercise entries for those workouts
+  const { data: entryRows } = await supabase
+    .from("workout_exercise_entries")
+    .select("exercise_id, workout_id, too_heavy")
+    .eq("user_id", userId)
+    .in("exercise_id", exerciseIds)
+    .in("workout_id", workoutIds);
+
+  if (!entryRows || entryRows.length === 0) return {};
+
+  const rows = entryRows as { exercise_id: string; workout_id: string; too_heavy: boolean | null }[];
+
+  // For each exercise, find the most recent entry (by workout order)
+  const flags: Record<string, boolean> = {};
+  for (const exId of exerciseIds) {
+    const matching = rows.filter((r) => r.exercise_id === exId);
+    if (matching.length === 0) continue;
+    // Pick the one from the most recent workout
+    for (const wId of workoutIds) {
+      const entry = matching.find((r) => r.workout_id === wId);
+      if (entry) {
+        flags[exId] = entry.too_heavy === true;
+        break;
+      }
+    }
+  }
+  return flags;
+}
+
+/**
+ * Toggle the too_heavy flag on a workout exercise entry.
+ */
+export async function toggleTooHeavy(
+  entryId: string,
+  value: boolean
+): Promise<void> {
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { error } = await supabase
+    .from("workout_exercise_entries")
+    .update({ too_heavy: value })
+    .eq("id", entryId)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(`Failed to update too_heavy: ${error.message}`);
 }
 
 
