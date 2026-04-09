@@ -47,6 +47,9 @@ export default function ExerciseCard({
     if (!isActive) setIsEditMode(false);
   }, [isActive]);
 
+  const targetSets = entry.workout_day_exercise?.target_sets ?? sets.length;
+  const targetReps = entry.workout_day_exercise?.target_reps ?? 5;
+
   function updateSet(setId: string, changes: Partial<SetEntry>) {
     onSetsChange(sets.map((s) => (s.id === setId ? { ...s, ...changes } : s)));
   }
@@ -61,7 +64,11 @@ export default function ExerciseCard({
 
   function handleToggleComplete(setId: string) {
     const set = sets.find((s) => s.id === setId);
-    if (set) updateSet(setId, { completed: !set.completed });
+    if (!set) return;
+    const completing = !set.completed;
+    // When completing a set, if reps was never entered, treat the placeholder (targetReps) as achieved
+    const repsUpdate = completing && set.reps === null ? { reps: targetReps } : {};
+    updateSet(setId, { completed: completing, ...repsUpdate });
   }
 
   function handleTypeToggle(setId: string) {
@@ -100,8 +107,6 @@ export default function ExerciseCard({
   }
 
   const completedCount = sets.filter((s) => s.completed).length;
-  const targetSets = entry.workout_day_exercise?.target_sets ?? sets.length;
-  const targetReps = entry.workout_day_exercise?.target_reps ?? 5;
   const allDone = completedCount === targetSets && targetSets > 0;
 
   return (
