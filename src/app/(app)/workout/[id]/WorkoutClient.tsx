@@ -356,7 +356,7 @@ export default function WorkoutClient({
                   <div key={s.id} className="flex justify-between text-sm">
                     <span className="text-muted">Set {s.set_number}</span>
                     <span className="text-white font-mono">
-                      {s.weight_kg ?? 0}kg x {s.reps ?? 0}
+                      {s.weight_kg ?? 0}kg x {s.reps ?? entry.workout_day_exercise?.target_reps ?? 0}
                       {s.completed && <span className="text-success ml-2">OK</span>}
                     </span>
                   </div>
@@ -398,7 +398,7 @@ export default function WorkoutClient({
               >
                 <span className="text-white">{entry.exercise?.name}</span>
                 <span className="text-muted font-mono">
-                  {topSet.weight_kg}kg x {topSet.reps}
+                  {topSet.weight_kg}kg x {topSet.reps ?? entry.workout_day_exercise?.target_reps ?? 0}
                 </span>
               </div>
             );
