@@ -353,21 +353,27 @@ export default function WorkoutClient({
 
         {entries.map((entry) => {
           const sets = setsMap[entry.id] ?? [];
-          const completedSets = sets.filter((s) => s.completed);
-          if (completedSets.length === 0 && sets.every((s) => !s.weight_kg)) return null;
+          const setsWithData = sets.filter((s) => s.weight_kg || s.reps || s.completed);
+          if (setsWithData.length === 0) return null;
+          const entryIsBodyweight = setsWithData.every((s) => !s.weight_kg);
           return (
             <div key={entry.id} className="bg-card rounded-2xl border border-border p-4">
               <h3 className="font-semibold text-white mb-2">{entry.exercise?.name}</h3>
               <div className="space-y-1">
-                {sets.filter((s) => s.weight_kg || s.completed).map((s) => (
-                  <div key={s.id} className="flex justify-between text-sm">
-                    <span className="text-muted">Set {s.set_number}</span>
-                    <span className="text-white font-mono">
-                      {s.weight_kg ?? 0}kg x {s.reps ?? entry.workout_day_exercise?.target_reps ?? 0}
-                      {s.completed && <span className="text-success ml-2">OK</span>}
-                    </span>
-                  </div>
-                ))}
+                {setsWithData.map((s) => {
+                  const reps = s.reps ?? entry.workout_day_exercise?.target_reps ?? 0;
+                  return (
+                    <div key={s.id} className="flex justify-between text-sm">
+                      <span className="text-muted">Set {s.set_number}</span>
+                      <span className="text-white font-mono">
+                        {entryIsBodyweight
+                          ? `× ${reps} reps`
+                          : `${s.weight_kg ?? 0}kg × ${reps}`}
+                        {s.completed && <span className="text-success ml-2">✓</span>}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -393,11 +399,13 @@ export default function WorkoutClient({
           <h2 className="text-lg font-semibold text-white">{workout.workout_day?.name}</h2>
 
           {entries.map((entry) => {
-            const completedSets = (setsMap[entry.id] ?? []).filter((s) => s.completed);
-            if (completedSets.length === 0) return null;
-            const topSet = completedSets.reduce((max, s) =>
-              (s.weight_kg ?? 0) > (max.weight_kg ?? 0) ? s : max
-            );
+            const allSets = (setsMap[entry.id] ?? []).filter((s) => s.weight_kg || s.reps || s.completed);
+            if (allSets.length === 0) return null;
+            const summaryIsBodyweight = allSets.every((s) => !s.weight_kg);
+            const topSet = summaryIsBodyweight
+              ? allSets.reduce((max, s) => ((s.reps ?? 0) > (max.reps ?? 0) ? s : max))
+              : allSets.reduce((max, s) => ((s.weight_kg ?? 0) > (max.weight_kg ?? 0) ? s : max));
+            const topReps = topSet.reps ?? entry.workout_day_exercise?.target_reps ?? 0;
             return (
               <div
                 key={entry.id}
@@ -405,7 +413,9 @@ export default function WorkoutClient({
               >
                 <span className="text-white">{entry.exercise?.name}</span>
                 <span className="text-muted font-mono">
-                  {topSet.weight_kg}kg x {topSet.reps ?? entry.workout_day_exercise?.target_reps ?? 0}
+                  {summaryIsBodyweight
+                    ? `× ${topReps} reps`
+                    : `${topSet.weight_kg}kg × ${topReps}`}
                 </span>
               </div>
             );

@@ -1462,7 +1462,10 @@ export async function getExerciseProgress(exerciseId: string) {
     } else {
       existing.sets += 1;
       existing.volume += setVolume;
-      if (w > existing.weight_kg) {
+      // For weighted exercises: top set = highest weight
+      // For bodyweight exercises (w=0): top set = highest reps
+      const isBodyweight = w === 0 && existing.weight_kg === 0;
+      if (isBodyweight ? r > existing.reps : w > existing.weight_kg) {
         existing.weight_kg = w;
         existing.reps = r;
       }
