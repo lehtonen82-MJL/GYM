@@ -133,12 +133,19 @@ export default function ProgressClient({
     if (tab !== "rowing" || rowingFetched) return;
     let cancelled = false;
     setRowingLoading(true);
-    getRowingHistory().then((d) => {
-      if (cancelled) return;
-      setRowingData(d ?? []);
-      setRowingLoading(false);
-      setRowingFetched(true);
-    });
+    getRowingHistory()
+      .then((d) => {
+        if (cancelled) return;
+        setRowingData(d ?? []);
+        setRowingLoading(false);
+        setRowingFetched(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("[ProgressClient] getRowingHistory error:", err);
+        setRowingLoading(false);
+        setRowingFetched(true);
+      });
     return () => { cancelled = true; };
   }, [tab, rowingFetched]);
 

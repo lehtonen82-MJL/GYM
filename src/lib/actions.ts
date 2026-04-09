@@ -1502,47 +1502,66 @@ export async function getRowingHistory(): Promise<RowingDataPoint[]> {
   const supabase = await db();
   const userId = await getUserId();
 
-  const { data } = await supabase
+  // Step 1: fetch bonus cardio rows — no join, avoids any join/RLS complications
+  const { data: cardioRows, error: cardioError } = await supabase
     .from("workout_bonus_cardio")
-    .select(
-      "pace_per_500_seconds, distance_m, duration_seconds, calories, extra_metrics, workout:workouts(started_at, completed_at)"
-    )
+    .select("workout_id, pace_per_500_seconds, distance_m, duration_seconds, calories, extra_metrics")
     .eq("user_id", userId)
     .eq("machine_type", "rower");
 
-  if (!data || data.length === 0) return [];
+  if (cardioError) {
+    console.error("[getRowingHistory] cardio query error:", cardioError.message);
+    return [];
+  }
+  if (!cardioRows || cardioRows.length === 0) return [];
 
-  return (data as unknown as Array<{
+  // Step 2: fetch corresponding workouts to get started_at (and optionally completed_at)
+  const workoutIds = (cardioRows as { workout_id: string }[]).map((r) => r.workout_id);
+  const { data: workoutRows } = await supabase
+    .from("workouts")
+    .select("id, started_at, completed_at")
+    .eq("user_id", userId)
+    .in("id", workoutIds);
+
+  const workoutMap = new Map<string, { started_at: string; completed_at: string | null }>(
+    ((workoutRows ?? []) as { id: string; started_at: string; completed_at: string | null }[])
+      .map((w) => [w.id, { started_at: w.started_at, completed_at: w.completed_at }])
+  );
+
+  return (cardioRows as unknown as Array<{
+    workout_id: string;
     pace_per_500_seconds: number | null;
     distance_m: number | null;
     duration_seconds: number | null;
     calories: number | null;
     extra_metrics: Record<string, number | null> | null;
-    workout: { started_at: string; completed_at: string | null } | null;
   }>)
     .filter((row) => {
-      // Include sessions from completed workouts OR orphaned rows (no workout join)
-      if (row.workout && !row.workout.completed_at) return false;
-      // Must have at least a pace or distance value
+      const w = workoutMap.get(row.workout_id);
+      // Exclude sessions from workouts that were started but never completed
+      if (w && !w.completed_at) return false;
+      // Must have pace, distance or duration
       const pace =
         row.pace_per_500_seconds ??
         (row.extra_metrics?.avg_pace_per_500_seconds as number | null);
       return pace != null || row.distance_m != null || row.duration_seconds != null;
     })
     .map((row) => {
+      const w = workoutMap.get(row.workout_id);
       const pace =
         row.pace_per_500_seconds ??
         (row.extra_metrics?.avg_pace_per_500_seconds as number | null) ??
         0;
-      const started = row.workout?.started_at ?? new Date().toISOString();
       return {
-        date: started.split("T")[0],
+        date: (w?.started_at ?? new Date().toISOString()).split("T")[0],
         pace_per_500_seconds: pace,
         distance_m: row.distance_m,
         duration_seconds: row.duration_seconds,
         calories: row.calories,
       };
     })
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
