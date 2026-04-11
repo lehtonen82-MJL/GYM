@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SetEntry } from "@/lib/types";
 
-type Phase = "config" | "running" | "paused" | "done";
+type Phase = "config" | "countdown" | "running" | "paused" | "done";
 
 type Props = {
   defaultRounds: number;
@@ -68,6 +68,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
   const [currentRound, setCurrentRound] = useState(1);
   const [secondsLeft, setSecondsLeft] = useState(intervalMins * 60);
   const [showGo, setShowGo] = useState(false);
+  const [countdownLeft, setCountdownLeft] = useState(10);
 
   // Snapshot of config at start — used for display during run (no ref-in-render)
   const [activeRounds, setActiveRounds] = useState(rounds);
@@ -96,7 +97,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
       wakeLockRef.current = null;
     }
 
-    if (phase === "running") {
+    if (phase === "running" || phase === "countdown") {
       acquireWakeLock();
     } else {
       releaseWakeLock();
@@ -150,8 +151,8 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
     setActiveIntervalSecs(secs);
     setCurrentRound(1);
     setSecondsLeft(secs);
-    setPhase("running");
-    triggerGo();
+    setCountdownLeft(10);
+    setPhase("countdown");
   }
 
   function pauseTimer() {
@@ -167,6 +168,22 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
     setCurrentRound(1);
     setSecondsLeft(intervalMins * 60);
   }
+
+  // 10-second get-ready countdown
+  useEffect(() => {
+    if (phase !== "countdown") return;
+    const id = setInterval(() => {
+      setCountdownLeft((prev) => {
+        if (prev <= 1) {
+          setPhase("running");
+          triggerGo();
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase]); // triggerGo is stable
 
   useEffect(() => {
     if (phase !== "running") {
@@ -203,6 +220,39 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
   const secs = secondsLeft % 60;
   const progress = activeIntervalSecs > 0 ? 1 - secondsLeft / activeIntervalSecs : 0;
   const circumference = 2 * Math.PI * 54;
+
+  // ── Countdown screen ────────────────────────────────────────
+  if (phase === "countdown") {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-6">
+        <p className="text-zinc-400 text-lg tracking-widest uppercase">Get ready</p>
+        <div className="relative w-44 h-44 sm:w-60 sm:h-60">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="54" fill="none" stroke="#27272a" strokeWidth="8" />
+            <circle
+              cx="60" cy="60" r="54" fill="none"
+              stroke="#f59e0b"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - countdownLeft / 10)}
+              style={{ transition: "stroke-dashoffset 1s linear" }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-white text-6xl sm:text-7xl font-mono font-bold">{countdownLeft}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={stopTimer}
+          className="w-28 h-14 bg-red-900/50 rounded-2xl text-red-400 font-bold active:bg-red-900/70"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
   const strokeDashoffset = circumference * (1 - progress);
 
   // ── Config screen ────────────────────────────────────────────
@@ -411,7 +461,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
       </p>
 
       {/* Circular countdown */}
-      <div className="relative w-36 h-36 sm:w-48 sm:h-48">
+      <div className="relative w-44 h-44 sm:w-60 sm:h-60">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
           <circle
             cx="60"
@@ -435,7 +485,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <span className="text-white text-3xl sm:text-4xl font-mono font-bold tracking-tight">
+          <span className="text-white text-4xl sm:text-5xl font-mono font-bold tracking-tight">
             {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
           </span>
           {phase === "paused" && (
