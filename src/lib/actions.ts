@@ -474,12 +474,14 @@ export async function startWorkout(
     const prescription = parseSchemePrescription(wde.scheme_text);
     const setCount = prescription.length > 0 ? prescription.length : wde.target_sets;
     const prevResults = prevResultsAll[i] ?? [];
+    // Use only work sets (non-warmup) from previous results for weight prefill
+    const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
     for (let j = 0; j < setCount; j++) {
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,
         user_id: userId,
         set_number: j + 1,
-        weight_kg: prescription[j]?.weightKg ?? prevResults[j]?.weight_kg ?? null,
+        weight_kg: prescription[j]?.weightKg ?? prevWorkSets[j]?.weight_kg ?? null,
         reps: prescription[j]?.reps ?? null,
         completed: false,
       });
@@ -509,12 +511,14 @@ export async function startWorkout(
   for (let i = 0; i < entryWdeMap.length; i++) {
     const { entry, wde } = entryWdeMap[i];
     const prevResults = prevResultsAll[i] ?? [];
-    if (prevResults.length === 0) {
+    // Only consider work sets for suggestion
+    const workSets = prevResults.filter((s) => !s.is_warmup);
+    if (workSets.length === 0) {
       suggestions[wde.exercise_id] = null;
     } else {
-      const maxWeight = Math.max(...prevResults.map((s) => s.weight_kg ?? 0));
+      const maxWeight = Math.max(...workSets.map((s) => s.weight_kg ?? 0));
       suggestions[wde.exercise_id] =
-        prevResults.length >= wde.target_sets ? maxWeight + 2.5 : maxWeight;
+        workSets.length >= wde.target_sets ? maxWeight + 2.5 : maxWeight;
     }
     entries.push({
       ...(entry as WorkoutExerciseEntry),
@@ -524,7 +528,14 @@ export async function startWorkout(
     });
   }
 
-  return { id: workout.id, workout, entries, suggestions };
+  // Fetch too_heavy flags from previous workouts
+  const tooHeavyFlags = await getLastTooHeavyFlags(
+    supabase,
+    userId,
+    entries.map((e) => e.exercise_id)
+  );
+
+  return { id: workout.id, workout, entries, suggestions, tooHeavyFlags };
 }
 
 function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
@@ -793,7 +804,8 @@ export async function getPreviousResults(
 
   const supabase = await db();
   const userId = await getUserId();
-  return getPreviousResultsInternal(supabase, userId, exerciseId);
+  const results = await getPreviousResultsInternal(supabase, userId, exerciseId);
+  return results.map((r) => ({ weight_kg: r.weight_kg, reps: r.reps }));
 }
 
 // Internal version that reuses an existing client — avoids repeated auth round-trips
@@ -801,7 +813,7 @@ async function getPreviousResultsInternal(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
   exerciseId: string
-): Promise<{ weight_kg: number; reps: number }[]> {
+): Promise<{ weight_kg: number; reps: number; is_warmup: boolean }[]> {
   // Step 1: get recent completed workout IDs ordered by actual workout date
   const { data: recentWorkouts } = await supabase
     .from("workouts")
@@ -818,7 +830,7 @@ async function getPreviousResultsInternal(
   // Step 2: find exercise entries matching those workout IDs
   const { data: entries } = await supabase
     .from("workout_exercise_entries")
-    .select("id, workout_id, set_entries(weight_kg, reps, completed, set_number)")
+    .select("id, workout_id, set_entries(weight_kg, reps, completed, set_number, is_warmup)")
     .eq("exercise_id", exerciseId)
     .eq("user_id", userId)
     .in("workout_id", workoutIds);
@@ -836,13 +848,14 @@ async function getPreviousResultsInternal(
         reps: number;
         set_number: number;
         completed: boolean;
+        is_warmup: boolean;
       }[];
       // Use sets that have any data entered (don't require completed=true,
       // because sets can have completed=false if user didn't tap checkmark)
       const withData = sets
         .filter((s) => s.weight_kg !== null || s.reps !== null)
         .sort((a, b) => a.set_number - b.set_number)
-        .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0 }));
+        .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false }));
       if (withData.length > 0) return withData;
     }
   }
@@ -868,9 +881,11 @@ async function getSuggestedWeightInternal(
   targetSets: number
 ): Promise<number | null> {
   const prev = await getPreviousResultsInternal(supabase, userId, exerciseId);
-  if (prev.length === 0) return null;
-  const maxWeight = Math.max(...prev.map((s) => s.weight_kg ?? 0));
-  return prev.length >= targetSets ? maxWeight + 2.5 : maxWeight;
+  // Only consider work sets for weight suggestion
+  const workSets = prev.filter((s) => !s.is_warmup);
+  if (workSets.length === 0) return null;
+  const maxWeight = Math.max(...workSets.map((s) => s.weight_kg ?? 0));
+  return workSets.length >= targetSets ? maxWeight + 2.5 : maxWeight;
 }
 
 // ════════════════════════════════════════════════════════
