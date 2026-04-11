@@ -463,6 +463,7 @@ export async function startWorkout(
     weight_kg: number | null;
     reps: number | null;
     completed: boolean;
+    is_warmup: boolean;
   };
   const allSetRows: SetRow[] = [];
   const entryWdeMap: Array<{ entry: Record<string, unknown>; wde: WdeRow }> = [];
@@ -472,18 +473,20 @@ export async function startWorkout(
     if (!entry) continue;
     const wde = resolvedWdes[i];
     const prescription = parseSchemePrescription(wde.scheme_text);
-    const setCount = prescription.length > 0 ? prescription.length : wde.target_sets;
+    const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
     const prevResults = prevResultsAll[i] ?? [];
-    // Use only work sets (non-warmup) from previous results for weight prefill
-    const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
+    // Create as many sets as the larger of: program target or previous workout sets
+    const setCount = Math.max(baseCount, prevResults.length);
     for (let j = 0; j < setCount; j++) {
+      const prev = prevResults[j];
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,
         user_id: userId,
         set_number: j + 1,
-        weight_kg: prescription[j]?.weightKg ?? prevWorkSets[j]?.weight_kg ?? null,
+        weight_kg: prescription[j]?.weightKg ?? prev?.weight_kg ?? null,
         reps: prescription[j]?.reps ?? null,
         completed: false,
+        is_warmup: prev?.is_warmup ?? false,
       });
     }
     entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });
