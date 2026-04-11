@@ -23,11 +23,17 @@ export default function WorkoutPage() {
         if (!raw) continue;
         try {
           const parsed = JSON.parse(raw);
-          // Normalize: old stored data may be missing fields added later
+          // Normalize: old stored data may have tooHeavyFlags as Record<string, boolean>
+          // Convert to Record<string, number[]> format
+          const rawFlags = parsed.tooHeavyFlags ?? {};
+          const normalizedFlags: Record<string, number[]> = {};
+          for (const [key, val] of Object.entries(rawFlags)) {
+            normalizedFlags[key] = Array.isArray(val) ? val as number[] : [];
+          }
           return {
             ...parsed,
             suggestions: parsed.suggestions ?? {},
-            tooHeavyFlags: parsed.tooHeavyFlags ?? {},
+            tooHeavyFlags: normalizedFlags,
           } as StartWorkoutResult;
         } catch {
           // Keep trying next source.
