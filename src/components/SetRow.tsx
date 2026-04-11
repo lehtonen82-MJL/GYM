@@ -9,6 +9,8 @@ type SetRowProps = {
   targetReps: number;
   completed: boolean;
   isWarmup?: boolean;
+  isTooHeavy?: boolean;
+  wasTooHeavyLastTime?: boolean;
   isEditMode?: boolean;
   isFirst?: boolean;
   isLast?: boolean;
@@ -28,6 +30,8 @@ export default function SetRow({
   targetReps,
   completed,
   isWarmup = false,
+  isTooHeavy = false,
+  wasTooHeavyLastTime = false,
   isEditMode = false,
   isFirst = false,
   isLast = false,
@@ -39,7 +43,11 @@ export default function SetRow({
   onMoveDown,
   onDelete,
 }: SetRowProps) {
-  const bg = isWarmup
+  const bg = isTooHeavy
+    ? "bg-yellow-950/40 border border-yellow-700/50"
+    : wasTooHeavyLastTime
+    ? "bg-yellow-950/20 border border-dashed border-yellow-800/40"
+    : isWarmup
     ? "bg-yellow-950/30 border border-yellow-800/40"
     : completed
     ? "bg-green-950/30 border border-green-900/50"
@@ -70,7 +78,11 @@ export default function SetRow({
       )}
 
       <span className="text-zinc-500 text-sm font-medium w-4 shrink-0 text-center">
-        {setNumber}
+        {wasTooHeavyLastTime ? (
+          <span className="text-yellow-500" title="Was too heavy last time">⚠</span>
+        ) : (
+          setNumber
+        )}
       </span>
 
       <WeightStepper value={weightKg} onChange={onWeightChange} />

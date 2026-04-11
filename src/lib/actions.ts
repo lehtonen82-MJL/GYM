@@ -225,7 +225,8 @@ export type StartWorkoutResult = {
   workout: Workout;
   entries: WorkoutExerciseEntry[];
   suggestions: Record<string, number | null>;
-  tooHeavyFlags: Record<string, boolean>;
+  /** Maps exercise_id → array of set_numbers that were too heavy last time */
+  tooHeavyFlags: Record<string, number[]>;
 };
 
 async function buildStartWorkoutResultFromExisting(
@@ -928,6 +929,7 @@ export type SetSyncEntry = {
     reps: number | null;
     completed: boolean;
     is_warmup: boolean;
+    too_heavy: boolean;
   }>;
 };
 
@@ -981,6 +983,7 @@ export async function syncWorkoutSets(
           reps: set.reps,
           completed: set.completed,
           is_warmup: set.is_warmup,
+          too_heavy: set.too_heavy,
         });
         if (error) errors.push(`insert set ${set.set_number}: ${error.message}`);
       } else {
@@ -990,6 +993,7 @@ export async function syncWorkoutSets(
           reps: set.reps,
           completed: set.completed,
           is_warmup: set.is_warmup,
+          too_heavy: set.too_heavy,
         }).eq("id", set.id).eq("user_id", userId);
         if (error) errors.push(`update set ${set.set_number}: ${error.message}`);
       }
@@ -2698,18 +2702,19 @@ export async function validateProgram(
 }
 
 // ────────────────────────────────────────────
-// TOO HEAVY FLAG
+// TOO HEAVY FLAG (per-set)
 // ────────────────────────────────────────────
 
 /**
  * Check the most recent completed workout for each exercise and return
- * whether it was marked "too heavy".
+ * which set_numbers were marked "too heavy".
+ * Returns Record<exercise_id, set_number[]>
  */
 async function getLastTooHeavyFlags(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
   exerciseIds: string[]
-): Promise<Record<string, boolean>> {
+): Promise<Record<string, number[]>> {
   if (exerciseIds.length === 0) return {};
 
   // Get the 30 most recent completed workouts
@@ -2725,28 +2730,34 @@ async function getLastTooHeavyFlags(
 
   const workoutIds = (recentWorkouts as { id: string }[]).map((w) => w.id);
 
-  // Fetch exercise entries for those workouts
+  // Fetch exercise entries with their sets for those workouts
   const { data: entryRows } = await supabase
     .from("workout_exercise_entries")
-    .select("exercise_id, workout_id, too_heavy")
+    .select("exercise_id, workout_id, set_entries(set_number, too_heavy)")
     .eq("user_id", userId)
     .in("exercise_id", exerciseIds)
     .in("workout_id", workoutIds);
 
   if (!entryRows || entryRows.length === 0) return {};
 
-  const rows = entryRows as { exercise_id: string; workout_id: string; too_heavy: boolean | null }[];
+  const rows = entryRows as {
+    exercise_id: string;
+    workout_id: string;
+    set_entries: { set_number: number; too_heavy: boolean | null }[];
+  }[];
 
-  // For each exercise, find the most recent entry (by workout order)
-  const flags: Record<string, boolean> = {};
+  // For each exercise, find the most recent entry and extract too_heavy set numbers
+  const flags: Record<string, number[]> = {};
   for (const exId of exerciseIds) {
     const matching = rows.filter((r) => r.exercise_id === exId);
     if (matching.length === 0) continue;
-    // Pick the one from the most recent workout
     for (const wId of workoutIds) {
       const entry = matching.find((r) => r.workout_id === wId);
       if (entry) {
-        flags[exId] = entry.too_heavy === true;
+        const heavySets = (entry.set_entries ?? [])
+          .filter((s) => s.too_heavy === true)
+          .map((s) => s.set_number);
+        flags[exId] = heavySets;
         break;
       }
     }
@@ -2755,19 +2766,21 @@ async function getLastTooHeavyFlags(
 }
 
 /**
- * Toggle the too_heavy flag on a workout exercise entry.
+ * Save too_heavy flags for specific sets in a workout exercise entry.
  */
-export async function toggleTooHeavy(
-  entryId: string,
+export async function saveTooHeavySets(
+  setIds: string[],
   value: boolean
 ): Promise<void> {
   const supabase = await db();
   const userId = await getUserId();
 
+  if (setIds.length === 0) return;
+
   const { error } = await supabase
-    .from("workout_exercise_entries")
+    .from("set_entries")
     .update({ too_heavy: value })
-    .eq("id", entryId)
+    .in("id", setIds)
     .eq("user_id", userId);
 
   if (error) throw new Error(`Failed to update too_heavy: ${error.message}`);

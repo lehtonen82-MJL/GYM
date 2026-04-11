@@ -156,6 +156,7 @@ export type SetEntry = {
   reps: number | null;
   completed: boolean;
   is_warmup?: boolean;
+  too_heavy?: boolean;
   created_at: string;
 };
 

@@ -14,7 +14,7 @@ import {
   syncWorkoutSets,
   saveWorkoutBonusCardio,
   deleteWorkoutFromHistory,
-  toggleTooHeavy,
+  saveTooHeavySets,
 } from "@/lib/actions";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
@@ -23,7 +23,7 @@ import BonusCardioCapture, {
 } from "./BonusCardioCapture";
 
 type SetMap = Record<string, SetEntry[]>;
-type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup">;
+type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy">;
 type WorkoutDraftSnapshot = {
   version: 1;
   setsByEntryId: Record<string, DraftSetPatch[]>;
@@ -38,7 +38,7 @@ type Props = {
   workout: Workout;
   entries: WorkoutExerciseEntry[];
   suggestions: Record<string, number | null>;
-  tooHeavyFlags: Record<string, boolean>;
+  tooHeavyFlags: Record<string, number[]>;
   readOnly?: boolean;
   bonusCardio?: WorkoutBonusCardio | null;
 };
@@ -78,6 +78,7 @@ function mergeSetsWithDraft(current: SetMap, draft: Record<string, DraftSetPatch
         reps: patch.reps,
         completed: patch.completed,
         is_warmup: patch.is_warmup ?? set.is_warmup,
+        too_heavy: patch.too_heavy ?? set.too_heavy,
       };
     });
   }
@@ -112,14 +113,6 @@ export default function WorkoutClient({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [hydratedDraft, setHydratedDraft] = useState(false);
-  const [tooHeavyMap, setTooHeavyMap] = useState<Record<string, boolean>>(() => {
-    // Initialize from current entries' too_heavy column
-    const map: Record<string, boolean> = {};
-    for (const entry of entries) {
-      if (entry.too_heavy) map[entry.id] = true;
-    }
-    return map;
-  });
   const [bonusCardioDraft, setBonusCardioDraft] = useState<BonusCardioDraft>(
     bonusCardio
       ? {
@@ -260,12 +253,23 @@ export default function WorkoutClient({
     [entries]
   );
 
-  function handleToggleTooHeavy(entryId: string) {
-    const newValue = !tooHeavyMap[entryId];
-    setTooHeavyMap((prev) => ({ ...prev, [entryId]: newValue }));
-    toggleTooHeavy(entryId, newValue).catch(() => {
+  function handleTooHeavySetsChange(entryId: string, setIds: string[], value: boolean) {
+    // Update local state
+    setSetsMap((prev) => ({
+      ...prev,
+      [entryId]: (prev[entryId] ?? []).map((s) =>
+        setIds.includes(s.id) ? { ...s, too_heavy: value } : s
+      ),
+    }));
+    // Persist to DB
+    saveTooHeavySets(setIds, value).catch(() => {
       // Revert on failure
-      setTooHeavyMap((prev) => ({ ...prev, [entryId]: !newValue }));
+      setSetsMap((prev) => ({
+        ...prev,
+        [entryId]: (prev[entryId] ?? []).map((s) =>
+          setIds.includes(s.id) ? { ...s, too_heavy: !value } : s
+        ),
+      }));
     });
   }
 
@@ -295,6 +299,7 @@ export default function WorkoutClient({
           reps: s.reps,
           completed: s.completed,
           is_warmup: s.is_warmup ?? false,
+          too_heavy: s.too_heavy ?? false,
         })),
       }));
 
@@ -513,9 +518,8 @@ export default function WorkoutClient({
           suggestedWeight={suggestions[entry.exercise_id] ?? null}
           isActive={activeEntryId === entry.id}
           onToggle={() => setActiveEntryId((prev) => (prev === entry.id ? null : entry.id))}
-          isTooHeavy={!!tooHeavyMap[entry.id]}
-          wasTooHeavyLastTime={tooHeavyFlags[entry.exercise_id] ?? false}
-          onToggleTooHeavy={() => handleToggleTooHeavy(entry.id)}
+          tooHeavyLastSetNumbers={tooHeavyFlags[entry.exercise_id] ?? []}
+          onTooHeavySetsChange={(setIds, value) => handleTooHeavySetsChange(entry.id, setIds, value)}
         />
       ))}
 
