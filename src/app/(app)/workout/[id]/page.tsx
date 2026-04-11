@@ -22,7 +22,13 @@ export default function WorkoutPage() {
       for (const raw of candidates) {
         if (!raw) continue;
         try {
-          return JSON.parse(raw) as StartWorkoutResult;
+          const parsed = JSON.parse(raw);
+          // Normalize: old stored data may be missing fields added later
+          return {
+            ...parsed,
+            suggestions: parsed.suggestions ?? {},
+            tooHeavyFlags: parsed.tooHeavyFlags ?? {},
+          } as StartWorkoutResult;
         } catch {
           // Keep trying next source.
         }
