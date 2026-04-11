@@ -461,7 +461,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
       </p>
 
       {/* Circular countdown */}
-      <div className="relative w-44 h-44 sm:w-60 sm:h-60">
+      <div className="relative w-64 h-64 sm:w-80 sm:h-80">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
           <circle
             cx="60"
@@ -485,7 +485,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <span className="text-white text-4xl sm:text-5xl font-mono font-bold tracking-tight">
+          <span className="text-white text-5xl sm:text-6xl font-mono font-bold tracking-tight">
             {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
           </span>
           {phase === "paused" && (
