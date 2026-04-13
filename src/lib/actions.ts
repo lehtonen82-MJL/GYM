@@ -2795,7 +2795,20 @@ export async function saveTooHeavySets(
     .in("id", setIds)
     .eq("user_id", userId);
 
-  if (error) throw new Error(`Failed to update too_heavy: ${error.message}`);
+  if (error) {
+    // If the error is about too_heavy_reps column missing (migration 008 not yet run),
+    // fall back to saving just the too_heavy flag without reps
+    if (error.message?.includes("too_heavy_reps") || error.code === "42703") {
+      const { error: fallbackError } = await supabase
+        .from("set_entries")
+        .update({ too_heavy: value })
+        .in("id", setIds)
+        .eq("user_id", userId);
+      if (fallbackError) throw new Error(`Failed to update too_heavy: ${fallbackError.message}`);
+      return;
+    }
+    throw new Error(`Failed to update too_heavy: ${error.message}`);
+  }
 }
 
 
