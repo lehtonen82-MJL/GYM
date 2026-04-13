@@ -485,7 +485,7 @@ export async function startWorkout(
         user_id: userId,
         set_number: j + 1,
         weight_kg: prescription[j]?.weightKg ?? prev?.weight_kg ?? null,
-        reps: prescription[j]?.reps ?? null,
+        reps: prescription[j]?.reps ?? prev?.reps ?? null,
         completed: false,
         is_warmup: prev?.is_warmup ?? false,
       });
