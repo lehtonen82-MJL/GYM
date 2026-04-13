@@ -23,7 +23,7 @@ import BonusCardioCapture, {
 } from "./BonusCardioCapture";
 
 type SetMap = Record<string, SetEntry[]>;
-type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy">;
+type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy" | "set_number" | "workout_exercise_entry_id" | "user_id">;
 type WorkoutDraftSnapshot = {
   version: 1;
   setsByEntryId: Record<string, DraftSetPatch[]>;
@@ -68,8 +68,11 @@ function mergeSetsWithDraft(current: SetMap, draft: Record<string, DraftSetPatch
       continue;
     }
 
+    const serverIds = new Set(sets.map((s) => s.id));
     const draftById = new Map(draftSets.map((set) => [set.id, set]));
-    next[entryId] = sets.map((set) => {
+
+    // Patch existing server sets with draft values
+    const merged = sets.map((set) => {
       const patch = draftById.get(set.id);
       if (!patch) return { ...set };
       return {
@@ -81,6 +84,26 @@ function mergeSetsWithDraft(current: SetMap, draft: Record<string, DraftSetPatch
         too_heavy: patch.too_heavy ?? set.too_heavy,
       };
     });
+
+    // Append sets from draft that don't exist on server (added during workout)
+    for (const draftSet of draftSets) {
+      if (!serverIds.has(draftSet.id) && draftSet.workout_exercise_entry_id && draftSet.user_id) {
+        merged.push({
+          id: draftSet.id,
+          workout_exercise_entry_id: draftSet.workout_exercise_entry_id,
+          user_id: draftSet.user_id,
+          set_number: draftSet.set_number ?? merged.length + 1,
+          weight_kg: draftSet.weight_kg,
+          reps: draftSet.reps,
+          completed: draftSet.completed,
+          is_warmup: draftSet.is_warmup ?? false,
+          too_heavy: draftSet.too_heavy ?? false,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    next[entryId] = merged;
   }
 
   return next;
@@ -188,6 +211,10 @@ export default function WorkoutClient({
             reps: set.reps,
             completed: set.completed,
             is_warmup: set.is_warmup ?? false,
+            too_heavy: set.too_heavy ?? false,
+            set_number: set.set_number,
+            workout_exercise_entry_id: set.workout_exercise_entry_id,
+            user_id: set.user_id,
           })),
         ])
       ),
