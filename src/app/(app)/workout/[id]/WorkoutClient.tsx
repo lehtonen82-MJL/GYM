@@ -415,12 +415,13 @@ export default function WorkoutClient({
                 {setsWithData.map((s) => {
                   const reps = s.reps ?? entry.workout_day_exercise?.target_reps ?? 0;
                   return (
-                    <div key={s.id} className="flex justify-between text-sm">
+                    <div key={s.id} className={`flex justify-between text-sm ${s.too_heavy ? "bg-red-950/30 border border-red-800/40 rounded-lg px-2 py-0.5" : ""}`}>
                       <span className="text-muted">Set {s.set_number}</span>
-                      <span className="text-white font-mono">
+                      <span className={`font-mono ${s.too_heavy ? "text-red-400" : "text-white"}`}>
                         {entryIsBodyweight
                           ? `× ${reps} reps`
                           : `${s.weight_kg ?? 0}kg × ${reps}`}
+                        {s.too_heavy && <span className="ml-1" title="Too heavy">⚠</span>}
                         {s.completed && <span className="text-success ml-2">✓</span>}
                       </span>
                     </div>
