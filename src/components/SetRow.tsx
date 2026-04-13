@@ -44,9 +44,9 @@ export default function SetRow({
   onDelete,
 }: SetRowProps) {
   const bg = isTooHeavy
-    ? "bg-yellow-950/40 border border-yellow-700/50"
+    ? "bg-red-950/40 border border-red-700/50"
     : wasTooHeavyLastTime
-    ? "bg-yellow-950/20 border border-dashed border-yellow-800/40"
+    ? "bg-red-950/20 border border-dashed border-red-800/40"
     : isWarmup
     ? "bg-yellow-950/30 border border-yellow-800/40"
     : completed
@@ -79,7 +79,7 @@ export default function SetRow({
 
       <span className="text-zinc-500 text-sm font-medium w-4 shrink-0 text-center">
         {wasTooHeavyLastTime ? (
-          <span className="text-yellow-500" title="Was too heavy last time">⚠</span>
+          <span className="text-red-500" title="Was too heavy last time">⚠</span>
         ) : (
           setNumber
         )}
