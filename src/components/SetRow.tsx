@@ -11,6 +11,8 @@ type SetRowProps = {
   isWarmup?: boolean;
   isTooHeavy?: boolean;
   wasTooHeavyLastTime?: boolean;
+  tooHeavyLastAchievedReps?: number | null;
+  tooHeavyTargetReps?: number;
   isEditMode?: boolean;
   isFirst?: boolean;
   isLast?: boolean;
@@ -32,6 +34,8 @@ export default function SetRow({
   isWarmup = false,
   isTooHeavy = false,
   wasTooHeavyLastTime = false,
+  tooHeavyLastAchievedReps = null,
+  tooHeavyTargetReps,
   isEditMode = false,
   isFirst = false,
   isLast = false,
@@ -54,6 +58,7 @@ export default function SetRow({
     : "bg-zinc-900";
 
   return (
+    <div className="space-y-0.5">
     <div className={`flex items-center gap-2 py-2 px-2 rounded-xl transition-colors ${bg}`}>
       {/* Edit mode: reorder arrows */}
       {isEditMode && (
@@ -138,6 +143,16 @@ export default function SetRow({
           </button>
         </div>
       )}
+    </div>
+    {/* Last time too-heavy achieved reps hint */}
+    {wasTooHeavyLastTime && tooHeavyTargetReps !== undefined && (
+      <p className="text-xs text-red-400/80 pl-3">
+        ⚠ Last time:{" "}
+        {tooHeavyLastAchievedReps !== null
+          ? `${tooHeavyLastAchievedReps}/${tooHeavyTargetReps} reps`
+          : "too heavy"}
+      </p>
+    )}
     </div>
   );
 }

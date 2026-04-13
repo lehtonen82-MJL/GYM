@@ -156,6 +156,7 @@ create table if not exists set_entries (
   completed boolean default false,
   is_warmup boolean default false,
   too_heavy boolean default false,
+  too_heavy_reps integer default null,
   created_at timestamptz default now()
 );
 

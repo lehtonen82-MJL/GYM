@@ -226,7 +226,7 @@ export type StartWorkoutResult = {
   entries: WorkoutExerciseEntry[];
   suggestions: Record<string, number | null>;
   /** Maps exercise_id → array of set_numbers that were too heavy last time */
-  tooHeavyFlags: Record<string, number[]>;
+  tooHeavyFlags: Record<string, { setNumber: number; achievedReps: number | null }[]>;
 };
 
 async function buildStartWorkoutResultFromExisting(
@@ -930,6 +930,7 @@ export type SetSyncEntry = {
     completed: boolean;
     is_warmup: boolean;
     too_heavy: boolean;
+    too_heavy_reps?: number | null;
   }>;
 };
 
@@ -984,6 +985,7 @@ export async function syncWorkoutSets(
           completed: set.completed,
           is_warmup: set.is_warmup,
           too_heavy: set.too_heavy,
+          too_heavy_reps: set.too_heavy_reps ?? null,
         });
         if (error) errors.push(`insert set ${set.set_number}: ${error.message}`);
       } else {
@@ -994,6 +996,7 @@ export async function syncWorkoutSets(
           completed: set.completed,
           is_warmup: set.is_warmup,
           too_heavy: set.too_heavy,
+          too_heavy_reps: set.too_heavy_reps ?? null,
         }).eq("id", set.id).eq("user_id", userId);
         if (error) errors.push(`update set ${set.set_number}: ${error.message}`);
       }
@@ -2714,7 +2717,7 @@ async function getLastTooHeavyFlags(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
   exerciseIds: string[]
-): Promise<Record<string, number[]>> {
+): Promise<Record<string, { setNumber: number; achievedReps: number | null }[]>> {
   if (exerciseIds.length === 0) return {};
 
   // Get the 30 most recent completed workouts
@@ -2733,7 +2736,7 @@ async function getLastTooHeavyFlags(
   // Fetch exercise entries with their sets for those workouts
   const { data: entryRows } = await supabase
     .from("workout_exercise_entries")
-    .select("exercise_id, workout_id, set_entries(set_number, too_heavy)")
+    .select("exercise_id, workout_id, set_entries(set_number, too_heavy, too_heavy_reps)")
     .eq("user_id", userId)
     .in("exercise_id", exerciseIds)
     .in("workout_id", workoutIds);
@@ -2743,11 +2746,11 @@ async function getLastTooHeavyFlags(
   const rows = entryRows as {
     exercise_id: string;
     workout_id: string;
-    set_entries: { set_number: number; too_heavy: boolean | null }[];
+    set_entries: { set_number: number; too_heavy: boolean | null; too_heavy_reps: number | null }[];
   }[];
 
-  // For each exercise, find the most recent entry and extract too_heavy set numbers
-  const flags: Record<string, number[]> = {};
+  // For each exercise, find the most recent entry and extract too_heavy set info
+  const flags: Record<string, { setNumber: number; achievedReps: number | null }[]> = {};
   for (const exId of exerciseIds) {
     const matching = rows.filter((r) => r.exercise_id === exId);
     if (matching.length === 0) continue;
@@ -2756,7 +2759,7 @@ async function getLastTooHeavyFlags(
       if (entry) {
         const heavySets = (entry.set_entries ?? [])
           .filter((s) => s.too_heavy === true)
-          .map((s) => s.set_number);
+          .map((s) => ({ setNumber: s.set_number, achievedReps: s.too_heavy_reps ?? null }));
         flags[exId] = heavySets;
         break;
       }
@@ -2767,19 +2770,28 @@ async function getLastTooHeavyFlags(
 
 /**
  * Save too_heavy flags for specific sets in a workout exercise entry.
+ * When marking as too heavy, optionally record how many reps were actually achieved.
  */
 export async function saveTooHeavySets(
   setIds: string[],
-  value: boolean
+  value: boolean,
+  achievedReps?: number | null
 ): Promise<void> {
   const supabase = await db();
   const userId = await getUserId();
 
   if (setIds.length === 0) return;
 
+  const updatePayload: Record<string, unknown> = { too_heavy: value };
+  if (value) {
+    updatePayload.too_heavy_reps = achievedReps ?? null;
+  } else {
+    updatePayload.too_heavy_reps = null;
+  }
+
   const { error } = await supabase
     .from("set_entries")
-    .update({ too_heavy: value })
+    .update(updatePayload)
     .in("id", setIds)
     .eq("user_id", userId);
 

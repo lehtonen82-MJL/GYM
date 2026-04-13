@@ -23,12 +23,20 @@ export default function WorkoutPage() {
         if (!raw) continue;
         try {
           const parsed = JSON.parse(raw);
-          // Normalize: old stored data may have tooHeavyFlags as Record<string, boolean>
-          // Convert to Record<string, number[]> format
+          // Normalize: old stored tooHeavyFlags may be bool, number[], or new {setNumber,achievedReps}[]
           const rawFlags = parsed.tooHeavyFlags ?? {};
-          const normalizedFlags: Record<string, number[]> = {};
+          const normalizedFlags: Record<string, { setNumber: number; achievedReps: number | null }[]> = {};
           for (const [key, val] of Object.entries(rawFlags)) {
-            normalizedFlags[key] = Array.isArray(val) ? val as number[] : [];
+            if (!Array.isArray(val)) {
+              normalizedFlags[key] = [];
+            } else if (val.length === 0) {
+              normalizedFlags[key] = [];
+            } else if (typeof val[0] === "number") {
+              // Old format: number[] → convert to new shape with null achievedReps
+              normalizedFlags[key] = (val as number[]).map((n) => ({ setNumber: n, achievedReps: null }));
+            } else {
+              normalizedFlags[key] = val as { setNumber: number; achievedReps: number | null }[];
+            }
           }
           return {
             ...parsed,

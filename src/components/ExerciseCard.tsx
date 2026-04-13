@@ -13,10 +13,10 @@ type ExerciseCardProps = {
   suggestedWeight: number | null;
   isActive: boolean;
   onToggle: () => void;
-  /** Set numbers that were marked too_heavy in the previous workout */
-  tooHeavyLastSetNumbers: number[];
+  /** Sets that were too heavy last time: { setNumber, achievedReps } */
+  tooHeavyLastSets: { setNumber: number; achievedReps: number | null }[];
   /** Save too_heavy flag for specific set IDs */
-  onTooHeavySetsChange: (setIds: string[], value: boolean) => void;
+  onTooHeavySetsChange: (setIds: string[], value: boolean, achievedReps?: number | null) => void;
 };
 
 function renumber(sets: SetEntry[]): SetEntry[] {
@@ -30,13 +30,17 @@ export default function ExerciseCard({
   suggestedWeight,
   isActive,
   onToggle,
-  tooHeavyLastSetNumbers,
+  tooHeavyLastSets,
   onTooHeavySetsChange,
 }: ExerciseCardProps) {
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showTooHeavyPicker, setShowTooHeavyPicker] = useState(false);
+  const [showRepsStep, setShowRepsStep] = useState(false);
+  // Temporary state for the reps-entry step: setId -> achieved reps
+  const [pendingReps, setPendingReps] = useState<Record<string, number | null>>({});
+  const [pendingTooHeavyIds, setPendingTooHeavyIds] = useState<string[]>([]);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,7 +120,8 @@ export default function ExerciseCard({
   const completedCount = sets.filter((s) => s.completed).length;
   const allDone = completedCount === targetSets && targetSets > 0;
   const hasTooHeavySets = sets.some((s) => s.too_heavy);
-  const hadTooHeavyLastTime = tooHeavyLastSetNumbers.length > 0;
+  const hadTooHeavyLastTime = tooHeavyLastSets.length > 0;
+  const tooHeavyLastBySetNumber = new Map(tooHeavyLastSets.map((s) => [s.setNumber, s]));
 
   return (
     <div
@@ -213,7 +218,9 @@ export default function ExerciseCard({
               completed={set.completed}
               isWarmup={set.is_warmup ?? false}
               isTooHeavy={set.too_heavy ?? false}
-              wasTooHeavyLastTime={tooHeavyLastSetNumbers.includes(set.set_number)}
+              wasTooHeavyLastTime={tooHeavyLastBySetNumber.has(set.set_number)}
+              tooHeavyLastAchievedReps={tooHeavyLastBySetNumber.get(set.set_number)?.achievedReps ?? null}
+              tooHeavyTargetReps={targetReps}
               isEditMode={isEditMode}
               isFirst={idx === 0}
               isLast={idx === sets.length - 1}
@@ -266,8 +273,8 @@ export default function ExerciseCard({
         </div>
       )}
 
-      {/* Too Heavy set picker bottom sheet */}
-      {showTooHeavyPicker && (
+      {/* Too Heavy — step 1: pick which sets */}
+      {showTooHeavyPicker && !showRepsStep && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
           <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
             <h2 className="text-white text-lg font-bold">Which sets were too heavy?</h2>
@@ -279,11 +286,17 @@ export default function ExerciseCard({
                   type="button"
                   onClick={() => {
                     const newValue = !set.too_heavy;
-                    onTooHeavySetsChange([set.id], newValue);
+                    // If unmarking, save immediately with no reps
+                    if (!newValue) {
+                      onTooHeavySetsChange([set.id], false, null);
+                    } else {
+                      // Just toggle local state; reps will be gathered in step 2
+                      onTooHeavySetsChange([set.id], true, set.too_heavy_reps ?? null);
+                    }
                   }}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-colors ${
                     set.too_heavy
-                      ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400"
+                      ? "bg-red-500/20 border-red-500/40 text-red-400"
                       : "bg-zinc-800 border-zinc-700 text-zinc-300"
                   }`}
                 >
@@ -301,10 +314,82 @@ export default function ExerciseCard({
             </div>
             <button
               type="button"
-              onClick={() => setShowTooHeavyPicker(false)}
+              onClick={() => {
+                const heavySets = sets.filter((s) => !s.is_warmup && s.too_heavy);
+                if (heavySets.length > 0) {
+                  // Move to step 2 — gather how many reps were achieved
+                  const initial: Record<string, number | null> = {};
+                  heavySets.forEach((s) => { initial[s.id] = s.too_heavy_reps ?? null; });
+                  setPendingReps(initial);
+                  setPendingTooHeavyIds(heavySets.map((s) => s.id));
+                  setShowRepsStep(true);
+                } else {
+                  setShowTooHeavyPicker(false);
+                }
+              }}
               className="w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80"
             >
-              Done
+              {sets.filter((s) => !s.is_warmup && s.too_heavy).length > 0 ? "Next →" : "Done"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Too Heavy — step 2: how many reps did you achieve? */}
+      {showRepsStep && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
+          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+            <h2 className="text-white text-lg font-bold">How many reps did you achieve?</h2>
+            <p className="text-zinc-400 text-sm">Enter the reps you actually completed for each failed set.</p>
+            <div className="space-y-3">
+              {sets.filter((s) => pendingTooHeavyIds.includes(s.id)).map((set) => (
+                <div key={set.id} className="flex items-center justify-between bg-zinc-800 rounded-xl px-4 py-3">
+                  <span className="text-white font-semibold">
+                    Set {set.set_number}
+                    <span className="ml-2 text-sm font-normal text-zinc-400">
+                      {set.weight_kg != null ? `${set.weight_kg} kg` : ""}
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 text-sm">/ {targetReps}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={targetReps}
+                      value={pendingReps[set.id] ?? ""}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value);
+                        setPendingReps((prev) => ({ ...prev, [set.id]: isNaN(v) ? null : v }));
+                      }}
+                      placeholder="0"
+                      className="w-14 h-10 text-center text-base font-bold bg-zinc-700 rounded-xl text-white border border-zinc-600 focus:border-red-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                // Save each set individually with its achieved reps
+                // Group sets that share the same achievedReps value to batch calls
+                const grouped = new Map<number | null, string[]>();
+                for (const setId of pendingTooHeavyIds) {
+                  const r = pendingReps[setId] ?? null;
+                  const key = r;
+                  if (!grouped.has(key)) grouped.set(key, []);
+                  grouped.get(key)!.push(setId);
+                }
+                for (const [achievedReps, ids] of grouped) {
+                  onTooHeavySetsChange(ids, true, achievedReps);
+                }
+                setShowRepsStep(false);
+                setShowTooHeavyPicker(false);
+              }}
+              className="w-full py-3 rounded-xl bg-red-600 text-white font-bold text-base active:opacity-80"
+            >
+              Save
             </button>
           </div>
         </div>
