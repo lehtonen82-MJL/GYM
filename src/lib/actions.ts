@@ -1118,6 +1118,189 @@ export async function getWorkoutHistory(): Promise<Workout[]> {
 
   return data ?? [];
 }
+
+/**
+ * Export complete workout history as structured JSON for AI analysis.
+ */
+export async function exportWorkoutHistory(): Promise<string> {
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Fetch ALL completed workouts (no limit)
+  const { data: workouts } = await supabase
+    .from("workouts")
+    .select("id, started_at, completed_at, notes, workout_day:workout_days(name, day_label)")
+    .eq("user_id", userId)
+    .not("completed_at", "is", null)
+    .order("started_at", { ascending: true });
+
+  if (!workouts || workouts.length === 0) return JSON.stringify({ workouts: [], summary: {} }, null, 2);
+
+  const workoutIds = workouts.map((w: { id: string }) => w.id);
+
+  // Fetch all exercise entries with sets in one query
+  const { data: entries } = await supabase
+    .from("workout_exercise_entries")
+    .select("id, workout_id, exercise_id, exercise:exercises(name), set_entries(set_number, weight_kg, reps, completed, is_warmup, too_heavy, too_heavy_reps)")
+    .eq("user_id", userId)
+    .in("workout_id", workoutIds);
+
+  // Fetch bonus cardio
+  const { data: cardioRows } = await supabase
+    .from("workout_bonus_cardio")
+    .select("workout_id, machine_type, distance_m, duration_seconds, pace_per_500_seconds, calories, stroke_rate, avg_watts")
+    .eq("user_id", userId)
+    .in("workout_id", workoutIds);
+
+  // Group entries by workout
+  type RawEntry = {
+    id: string;
+    workout_id: string;
+    exercise_id: string;
+    exercise: { name: string } | null;
+    set_entries: {
+      set_number: number;
+      weight_kg: number | null;
+      reps: number | null;
+      completed: boolean;
+      is_warmup: boolean | null;
+      too_heavy: boolean | null;
+      too_heavy_reps: number | null;
+    }[];
+  };
+  const entriesByWorkout = new Map<string, RawEntry[]>();
+  for (const e of (entries ?? []) as unknown as RawEntry[]) {
+    const list = entriesByWorkout.get(e.workout_id) ?? [];
+    list.push(e);
+    entriesByWorkout.set(e.workout_id, list);
+  }
+
+  type CardioRow = { workout_id: string; machine_type: string; distance_m: number | null; duration_seconds: number | null; pace_per_500_seconds: number | null; calories: number | null; stroke_rate: number | null; avg_watts: number | null };
+  const cardioByWorkout = new Map<string, CardioRow>();
+  for (const c of (cardioRows ?? []) as CardioRow[]) {
+    cardioByWorkout.set(c.workout_id, c);
+  }
+
+  // Build per-exercise progression tracking
+  const exerciseProgression: Record<string, { date: string; topWeight: number; topSetReps: number; totalVolume: number; workSets: number; tooHeavySets: number }[]> = {};
+  const exercisePRs: Record<string, { weight: number; reps: number; date: string }> = {};
+
+  // Build workout records
+  type RawWorkout = { id: string; started_at: string; completed_at: string | null; notes: string | null; workout_day: { name: string; day_label: string } | null };
+  const workoutRecords = (workouts as unknown as RawWorkout[]).map((w) => {
+    const wEntries = entriesByWorkout.get(w.id) ?? [];
+    const startDate = new Date(w.started_at);
+    const endDate = w.completed_at ? new Date(w.completed_at) : null;
+    const durationMin = endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
+
+    const exercises = wEntries.map((e) => {
+      const sets = (e.set_entries ?? []).sort((a, b) => a.set_number - b.set_number);
+      const workSets = sets.filter((s) => !s.is_warmup);
+      const warmupSets = sets.filter((s) => s.is_warmup);
+
+      // Volume = sum(weight * reps) for work sets
+      const totalVolume = workSets.reduce((sum, s) => sum + ((s.weight_kg ?? 0) * (s.reps ?? 0)), 0);
+      const topWorkSet = workSets.reduce((best, s) => ((s.weight_kg ?? 0) > (best.weight_kg ?? 0) ? s : best), workSets[0]);
+      const tooHeavyCount = workSets.filter((s) => s.too_heavy).length;
+
+      const exName = e.exercise?.name ?? "Unknown";
+      const dateStr = startDate.toISOString().split("T")[0];
+
+      // Track progression
+      if (!exerciseProgression[exName]) exerciseProgression[exName] = [];
+      if (workSets.length > 0) {
+        exerciseProgression[exName].push({
+          date: dateStr,
+          topWeight: topWorkSet?.weight_kg ?? 0,
+          topSetReps: topWorkSet?.reps ?? 0,
+          totalVolume,
+          workSets: workSets.length,
+          tooHeavySets: tooHeavyCount,
+        });
+      }
+
+      // Track PRs (heaviest weight successfully lifted)
+      const completedWorkSets = workSets.filter((s) => s.completed && !s.too_heavy);
+      if (completedWorkSets.length > 0) {
+        const best = completedWorkSets.reduce((b, s) => ((s.weight_kg ?? 0) > (b.weight_kg ?? 0) ? s : b));
+        const currentPR = exercisePRs[exName];
+        if (!currentPR || (best.weight_kg ?? 0) > currentPR.weight) {
+          exercisePRs[exName] = { weight: best.weight_kg ?? 0, reps: best.reps ?? 0, date: dateStr };
+        }
+      }
+
+      return {
+        exercise: exName,
+        warmup_sets: warmupSets.map((s) => ({
+          weight_kg: s.weight_kg,
+          reps: s.reps,
+        })),
+        work_sets: workSets.map((s) => ({
+          set: s.set_number,
+          weight_kg: s.weight_kg,
+          reps: s.reps,
+          completed: s.completed,
+          ...(s.too_heavy ? { too_heavy: true, achieved_reps: s.too_heavy_reps } : {}),
+        })),
+        summary: {
+          work_sets: workSets.length,
+          total_volume_kg: totalVolume,
+          top_set: topWorkSet ? `${topWorkSet.weight_kg}kg × ${topWorkSet.reps}` : null,
+          too_heavy_sets: tooHeavyCount || undefined,
+        },
+      };
+    });
+
+    const cardio = cardioByWorkout.get(w.id);
+
+    return {
+      date: startDate.toISOString().split("T")[0],
+      day_of_week: startDate.toLocaleDateString("en-US", { weekday: "long" }),
+      program_day: w.workout_day?.name ?? null,
+      day_label: w.workout_day?.day_label ?? null,
+      duration_minutes: durationMin,
+      exercises,
+      ...(cardio ? {
+        bonus_cardio: {
+          machine: cardio.machine_type,
+          distance_m: cardio.distance_m,
+          duration_seconds: cardio.duration_seconds,
+          pace_per_500: cardio.pace_per_500_seconds,
+          calories: cardio.calories,
+          stroke_rate: cardio.stroke_rate,
+          avg_watts: cardio.avg_watts,
+        },
+      } : {}),
+      ...(w.notes ? { notes: w.notes } : {}),
+    };
+  });
+
+  // Overall stats
+  const firstDate = (workouts as unknown as RawWorkout[])[0]?.started_at;
+  const lastDate = (workouts as unknown as RawWorkout[])[workouts.length - 1]?.started_at;
+  const totalDays = firstDate && lastDate
+    ? Math.max(1, Math.round((new Date(lastDate).getTime() - new Date(firstDate).getTime()) / 86400000))
+    : 0;
+
+  const summary = {
+    total_workouts: workouts.length,
+    date_range: {
+      first: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
+      last: lastDate ? new Date(lastDate).toISOString().split("T")[0] : null,
+      total_days: totalDays,
+    },
+    avg_workouts_per_week: totalDays > 0 ? Math.round((workouts.length / totalDays) * 7 * 10) / 10 : 0,
+    personal_records: Object.entries(exercisePRs).map(([exercise, pr]) => ({
+      exercise,
+      weight_kg: pr.weight,
+      reps: pr.reps,
+      date: pr.date,
+    })),
+    exercise_progression: exerciseProgression,
+  };
+
+  return JSON.stringify({ exported_at: new Date().toISOString(), workouts: workoutRecords, summary }, null, 2);
+}
 export async function deleteWorkoutFromHistory(workoutId: string): Promise<void> {
   if (DEMO_MODE) {
     mockStore.delete(workoutId);

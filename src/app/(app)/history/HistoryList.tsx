@@ -7,6 +7,7 @@ import {
   deleteWorkoutFromHistory,
   deleteWorkoutsBulk,
   deleteAllImportedWorkouts,
+  exportWorkoutHistory,
 } from "@/lib/actions";
 import type { Workout } from "@/lib/types";
 import ImportWorkoutModal from "./ImportWorkoutModal";
@@ -25,6 +26,7 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Select-mode state
   const [selectMode, setSelectMode] = useState(false);
@@ -115,6 +117,24 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
     }
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const json = await exportWorkoutHistory();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `workout-history-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to export.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* Toolbar */}
@@ -126,7 +146,15 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
               onClick={() => setShowImport(true)}
               className="flex-1 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-accent font-semibold text-sm active:bg-zinc-800"
             >
-              + Import Past Workouts
+              + Import
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={exporting}
+              className="flex-1 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-accent font-semibold text-sm active:bg-zinc-800 disabled:opacity-50"
+            >
+              {exporting ? "Exporting…" : "📤 Export"}
             </button>
             <button
               type="button"
