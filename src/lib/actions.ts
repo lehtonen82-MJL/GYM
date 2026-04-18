@@ -1182,7 +1182,7 @@ export async function exportWorkoutHistory(): Promise<string> {
   }
 
   // Build per-exercise progression tracking
-  const exerciseProgression: Record<string, { date: string; topWeight: number; topSetReps: number; totalVolume: number; workSets: number; tooHeavySets: number }[]> = {};
+  const exerciseProgression: Record<string, string[]> = {};
   const exercisePRs: Record<string, { weight: number; reps: number; date: string }> = {};
 
   // Build workout records
@@ -1206,17 +1206,12 @@ export async function exportWorkoutHistory(): Promise<string> {
       const exName = e.exercise?.name ?? "Unknown";
       const dateStr = startDate.toISOString().split("T")[0];
 
-      // Track progression
+      // Track progression — compact: "date:topWeight×reps:vol:sets(:⚠N)"
       if (!exerciseProgression[exName]) exerciseProgression[exName] = [];
       if (workSets.length > 0) {
-        exerciseProgression[exName].push({
-          date: dateStr,
-          topWeight: topWorkSet?.weight_kg ?? 0,
-          topSetReps: topWorkSet?.reps ?? 0,
-          totalVolume,
-          workSets: workSets.length,
-          tooHeavySets: tooHeavyCount,
-        });
+        let entry = `${dateStr}:${topWorkSet?.weight_kg ?? 0}×${topWorkSet?.reps ?? 0}:${totalVolume}:${workSets.length}`;
+        if (tooHeavyCount > 0) entry += `:⚠${tooHeavyCount}`;
+        exerciseProgression[exName].push(entry);
       }
 
       // Track PRs (heaviest weight successfully lifted with at least 1 rep)
@@ -1229,25 +1224,23 @@ export async function exportWorkoutHistory(): Promise<string> {
         }
       }
 
+      // Compact set notation: "80×5", "80×4/5⚠" (too heavy, achieved 4 of target 5)
+      const fmtSet = (s: typeof sets[number]) => {
+        const w = s.weight_kg ?? 0;
+        const r = s.reps ?? 0;
+        if (s.too_heavy) {
+          const achieved = s.too_heavy_reps;
+          return achieved != null ? `${w}×${achieved}/${r}⚠` : `${w}×${r}⚠`;
+        }
+        return `${w}×${r}`;
+      };
+
       return {
         exercise: exName,
-        warmup_sets: warmupSets.map((s) => ({
-          weight_kg: s.weight_kg,
-          reps: s.reps,
-        })),
-        work_sets: workSets.map((s) => ({
-          set: s.set_number,
-          weight_kg: s.weight_kg,
-          reps: s.reps,
-          completed: s.completed,
-          ...(s.too_heavy ? { too_heavy: true, achieved_reps: s.too_heavy_reps } : {}),
-        })),
-        summary: {
-          work_sets: workSets.length,
-          total_volume_kg: totalVolume,
-          top_set: topWorkSet ? `${topWorkSet.weight_kg}kg × ${topWorkSet.reps}` : null,
-          too_heavy_sets: tooHeavyCount || undefined,
-        },
+        ...(warmupSets.length > 0 ? { warmup: warmupSets.map(fmtSet) } : {}),
+        sets: workSets.map(fmtSet),
+        volume: totalVolume,
+        top: topWorkSet ? `${topWorkSet.weight_kg}×${topWorkSet.reps}` : null,
       };
     });
 
@@ -1255,21 +1248,11 @@ export async function exportWorkoutHistory(): Promise<string> {
 
     return {
       date: startDate.toISOString().split("T")[0],
-      day_of_week: startDate.toLocaleDateString("en-US", { weekday: "long" }),
-      program_day: w.workout_day?.name ?? null,
-      day_label: w.workout_day?.day_label ?? null,
-      duration_minutes: durationMin,
+      day: w.workout_day?.name ?? null,
+      ...(durationMin ? { mins: durationMin } : {}),
       exercises,
       ...(cardio ? {
-        bonus_cardio: {
-          machine: cardio.machine_type,
-          distance_m: cardio.distance_m,
-          duration_seconds: cardio.duration_seconds,
-          pace_per_500: cardio.pace_per_500_seconds,
-          calories: cardio.calories,
-          stroke_rate: cardio.stroke_rate,
-          avg_watts: cardio.avg_watts,
-        },
+        cardio: `${cardio.machine_type} ${cardio.distance_m}m ${cardio.duration_seconds}s${cardio.pace_per_500_seconds ? ` pace:${cardio.pace_per_500_seconds}` : ""}${cardio.calories ? ` cal:${cardio.calories}` : ""}${cardio.avg_watts ? ` watts:${cardio.avg_watts}` : ""}`,
       } : {}),
       ...(w.notes ? { notes: w.notes } : {}),
     };
@@ -1284,18 +1267,10 @@ export async function exportWorkoutHistory(): Promise<string> {
 
   const summary = {
     total_workouts: workouts.length,
-    date_range: {
-      first: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
-      last: lastDate ? new Date(lastDate).toISOString().split("T")[0] : null,
-      total_days: totalDays,
-    },
+    date_range: `${firstDate ? new Date(firstDate).toISOString().split("T")[0] : "?"} to ${lastDate ? new Date(lastDate).toISOString().split("T")[0] : "?"} (${totalDays}d)`,
     avg_workouts_per_week: totalDays > 0 ? Math.round((workouts.length / totalDays) * 7 * 10) / 10 : 0,
-    personal_records: Object.entries(exercisePRs).map(([exercise, pr]) => ({
-      exercise,
-      weight_kg: pr.weight,
-      reps: pr.reps,
-      date: pr.date,
-    })),
+    personal_records: Object.entries(exercisePRs).map(([ex, pr]) => `${ex}: ${pr.weight}kg×${pr.reps} (${pr.date})`),
+    progression_format: "date:topWeight×reps:volume:sets(:⚠tooHeavyCount)",
     exercise_progression: exerciseProgression,
   };
 
