@@ -480,12 +480,14 @@ export async function startWorkout(
     const setCount = Math.max(baseCount, prevResults.length);
     for (let j = 0; j < setCount; j++) {
       const prev = prevResults[j];
+      // If previous set was too_heavy, use the program's target reps instead of the reduced achieved reps
+      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,
         user_id: userId,
         set_number: j + 1,
         weight_kg: prescription[j]?.weightKg ?? prev?.weight_kg ?? null,
-        reps: prescription[j]?.reps ?? prev?.reps ?? null,
+        reps: prescription[j]?.reps ?? prevReps ?? null,
         completed: false,
         is_warmup: prev?.is_warmup ?? false,
       });
@@ -817,7 +819,7 @@ async function getPreviousResultsInternal(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
   exerciseId: string
-): Promise<{ weight_kg: number; reps: number; is_warmup: boolean }[]> {
+): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean }[]> {
   // Step 1: get recent completed workout IDs ordered by actual workout date
   const { data: recentWorkouts } = await supabase
     .from("workouts")
@@ -834,7 +836,7 @@ async function getPreviousResultsInternal(
   // Step 2: find exercise entries matching those workout IDs
   const { data: entries } = await supabase
     .from("workout_exercise_entries")
-    .select("id, workout_id, set_entries(weight_kg, reps, completed, set_number, is_warmup)")
+    .select("id, workout_id, set_entries(weight_kg, reps, completed, set_number, is_warmup, too_heavy)")
     .eq("exercise_id", exerciseId)
     .eq("user_id", userId)
     .in("workout_id", workoutIds);
@@ -853,13 +855,14 @@ async function getPreviousResultsInternal(
         set_number: number;
         completed: boolean;
         is_warmup: boolean;
+        too_heavy: boolean;
       }[];
       // Use sets that have any data entered (don't require completed=true,
       // because sets can have completed=false if user didn't tap checkmark)
       const withData = sets
         .filter((s) => s.weight_kg !== null || s.reps !== null)
         .sort((a, b) => a.set_number - b.set_number)
-        .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false }));
+        .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false, too_heavy: s.too_heavy ?? false }));
       if (withData.length > 0) return withData;
     }
   }

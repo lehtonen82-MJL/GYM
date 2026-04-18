@@ -306,7 +306,12 @@ export default function WorkoutClient({
   function handleFinishClick() {
     const hasIncomplete = entries.some((entry) => {
       const sets = setsMap[entry.id] ?? [];
-      return sets.some((s) => !s.completed);
+      return sets.some((s) => {
+        // Skip empty/unused sets (added but never filled in)
+        if (s.weight_kg === null && s.reps === null && !s.completed) return false;
+        // A set with data is considered incomplete only if not checked off
+        return !s.completed;
+      });
     });
     if (hasIncomplete) {
       setShowIncompleteWarning(true);
