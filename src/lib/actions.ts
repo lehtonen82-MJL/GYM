@@ -1219,8 +1219,8 @@ export async function exportWorkoutHistory(): Promise<string> {
         });
       }
 
-      // Track PRs (heaviest weight successfully lifted)
-      const completedWorkSets = workSets.filter((s) => s.completed && !s.too_heavy);
+      // Track PRs (heaviest weight successfully lifted with at least 1 rep)
+      const completedWorkSets = workSets.filter((s) => s.completed && !s.too_heavy && (s.weight_kg ?? 0) > 0 && (s.reps ?? 0) > 0);
       if (completedWorkSets.length > 0) {
         const best = completedWorkSets.reduce((b, s) => ((s.weight_kg ?? 0) > (b.weight_kg ?? 0) ? s : b));
         const currentPR = exercisePRs[exName];
