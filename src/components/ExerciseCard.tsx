@@ -117,7 +117,7 @@ export default function ExerciseCard({
     onSetsChange([...sets, newSet]);
   }
 
-  const completedCount = sets.filter((s) => s.completed).length;
+  const completedCount = sets.filter((s) => s.completed && !s.is_warmup).length;
   const allDone = completedCount === targetSets && targetSets > 0;
   const hasTooHeavySets = sets.some((s) => s.too_heavy);
   const hadTooHeavyLastTime = tooHeavyLastSets.length > 0;
