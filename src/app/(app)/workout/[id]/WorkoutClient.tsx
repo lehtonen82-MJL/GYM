@@ -284,12 +284,24 @@ export default function WorkoutClient({
   );
 
   function handleTooHeavySetsChange(entryId: string, setIds: string[], value: boolean, achievedReps?: number | null) {
-    // Update local state
+    // Update local state — mark completed and set achieved reps when flagging as too heavy
     setSetsMap((prev) => ({
       ...prev,
-      [entryId]: (prev[entryId] ?? []).map((s) =>
-        setIds.includes(s.id) ? { ...s, too_heavy: value, too_heavy_reps: value ? (achievedReps ?? null) : null } : s
-      ),
+      [entryId]: (prev[entryId] ?? []).map((s) => {
+        if (!setIds.includes(s.id)) return s;
+        if (value) {
+          return {
+            ...s,
+            too_heavy: true,
+            too_heavy_reps: achievedReps ?? null,
+            completed: true,
+            // Show achieved reps in the input (if provided), otherwise keep existing
+            reps: achievedReps != null ? achievedReps : s.reps,
+          };
+        } else {
+          return { ...s, too_heavy: false, too_heavy_reps: null };
+        }
+      }),
     }));
     // Persist to DB
     saveTooHeavySets(setIds, value, achievedReps).catch(() => {
