@@ -1909,7 +1909,6 @@ export async function getExerciseListForSwap(): Promise<Array<{
 
   if (userResult.error) console.error("[getExerciseListForSwap] exercises error:", userResult.error);
   if (libraryResult.error) console.error("[getExerciseListForSwap] exercise_definitions error:", libraryResult.error);
-  console.log(`[getExerciseListForSwap] user=${userResult.data?.length ?? "err"}, library=${libraryResult.data?.length ?? "err"}`);
 
   const userExercises = userResult.data;
   const libraryExercises = libraryResult.data;
