@@ -54,10 +54,12 @@ export async function GET() {
       .order("name");
 
     return NextResponse.json({
+      version: "v3",
       before_count: before?.length ?? 0,
       linked,
+      defs_found: defs?.length ?? 0,
       still_unlinked: after ?? [],
-      rpc_error: rpcError?.message ?? null,
+      rpc_error: rpcError,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) });
