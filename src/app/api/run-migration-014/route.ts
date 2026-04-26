@@ -16,28 +16,35 @@ export async function GET() {
       .is("exercise_definition_id", null)
       .order("name");
 
-    // 2. Auto-link by normalized_name match using rpc (raw SQL)
-    const { error: rpcError } = await supabase.rpc("run_link_exercises" as never);
+    // Manual mappings: user exercise id → library definition normalized_name
+    const MANUAL_MAP: Record<string, string> = {
+      "a6d92761-cbf8-4508-b51f-90b2e2705b3e": "calf raise",           // Calves
+      "e5c45abf-c36c-4ed2-8297-2c454fc148cc": "db fly",               // Fly
+      "0a259b9b-6e55-4725-89b3-5e630c7ad6bd": "seated cable row",     // Row
+      "c06511f1-70f0-440b-a3dc-d32183d079bb": "triceps pushdown (bar)", // Triceps
+      // Light Row (fe46279e) has no library match — left unlinked intentionally
+    };
 
-    // rpc won't work for arbitrary SQL — use the update approach via JS instead
-    // Fetch all definitions and match manually
     const { data: defs } = await supabase
       .from("exercise_definitions")
-      .select("id, normalized_name");
+      .select("id, normalized_name")
+      .in("normalized_name", Object.values(MANUAL_MAP));
 
     const defMap = new Map((defs ?? []).map((d) => [d.normalized_name as string, d.id as string]));
 
     let linked = 0;
-    for (const ex of before ?? []) {
-      const defId = defMap.get(ex.normalized_name as string);
+    for (const [exerciseId, defNormalizedName] of Object.entries(MANUAL_MAP)) {
+      const defId = defMap.get(defNormalizedName);
       if (defId) {
         await supabase
           .from("exercises")
           .update({ exercise_definition_id: defId })
-          .eq("id", ex.id as string);
+          .eq("id", exerciseId);
         linked++;
       }
     }
+
+    const rpcError = null;
 
     // 3. Find still-unlinked AFTER
     const { data: after } = await supabase
