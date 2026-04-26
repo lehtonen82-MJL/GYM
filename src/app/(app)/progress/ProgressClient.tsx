@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getExerciseProgress, getRowingHistory, type RowingDataPoint } from "@/lib/actions";
+import { getExerciseProgress, getExercisePRs, getRowingHistory, type RowingDataPoint } from "@/lib/actions";
+import type { ExercisePR } from "@/lib/types";
 
 type Exercise = { id: string; name: string };
 type DataPoint = { date: string; weight_kg: number; reps: number; sets: number; volume: number };
@@ -111,6 +112,7 @@ export default function ProgressClient({
   const [selectedId, setSelectedId] = useState(exercises[0]?.id ?? "");
   const [data, setData] = useState<DataPoint[]>([]);
   const [liftingLoading, setLiftingLoading] = useState(!!exercises[0]?.id);
+  const [prs, setPRs] = useState<ExercisePR[]>([]);
 
   // Rowing state
   const [rowingData, setRowingData] = useState<RowingDataPoint[]>([]);
@@ -121,9 +123,14 @@ export default function ProgressClient({
     if (!selectedId) return;
     let cancelled = false;
     setLiftingLoading(true);
-    getExerciseProgress(selectedId).then((d) => {
+    setPRs([]);
+    Promise.all([
+      getExerciseProgress(selectedId),
+      getExercisePRs(selectedId),
+    ]).then(([progressData, prData]) => {
       if (cancelled) return;
-      setData((d ?? []).filter(Boolean) as DataPoint[]);
+      setData((progressData ?? []).filter(Boolean) as DataPoint[]);
+      setPRs(prData);
       setLiftingLoading(false);
     });
     return () => { cancelled = true; };
@@ -199,6 +206,29 @@ export default function ProgressClient({
             </div>
           ) : (
             <>
+              {/* PR summary strip */}
+              {prs.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {(["max_weight", "1rm_estimate", "max_volume"] as const).map((type) => {
+                    const pr = prs.find((p) => p.pr_type === type);
+                    if (!pr) return null;
+                    const labels = { max_weight: "Best Set", "1rm_estimate": "Est. 1RM", max_volume: "Best Vol" };
+                    const formatted =
+                      type === "max_volume"
+                        ? `${Math.round(pr.value)} kg`
+                        : `${pr.value.toFixed(1)} kg`;
+                    return (
+                      <div key={type} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-zinc-500 uppercase tracking-wide">{labels[type]}</p>
+                        <p className="text-white font-bold text-base mt-0.5">{formatted}</p>
+                        <p className="text-[10px] text-zinc-600 mt-0.5">
+                          {new Date(pr.achieved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="bg-card rounded-2xl border border-border p-4">
                 <p className="text-sm font-semibold text-muted mb-2">
                   {isBodyweight ? "Top Set (reps)" : "Top Set"}

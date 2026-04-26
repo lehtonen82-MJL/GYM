@@ -4,6 +4,80 @@ export type Profile = {
   created_at: string;
 };
 
+// ── Exercise Library Types ─────────────────────
+
+export type ExerciseEquipmentType =
+  | "barbell"
+  | "dumbbell"
+  | "cable"
+  | "machine_plate"
+  | "machine_stack"
+  | "smith"
+  | "bodyweight"
+  | "kettlebell"
+  | "trap_bar"
+  | "band"
+  | "suspension"
+  | "cardio_machine"
+  | "other";
+
+export type PrimaryMuscle =
+  | "chest"
+  | "back_lats"
+  | "back_upper"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "forearms"
+  | "core"
+  | "glutes"
+  | "quads"
+  | "hamstrings"
+  | "calves";
+
+export type MovementPattern =
+  | "horizontal_push"
+  | "vertical_push"
+  | "horizontal_pull"
+  | "vertical_pull"
+  | "squat"
+  | "hinge"
+  | "lunge"
+  | "carry"
+  | "olympic"
+  | "isolation"
+  | "core"
+  | "cardio";
+
+export type ExerciseDefinition = {
+  id: string;
+  name: string;
+  normalized_name: string;
+  aliases: string[];
+  equipment_type: ExerciseEquipmentType;
+  primary_muscle: PrimaryMuscle;
+  secondary_muscles: string[];
+  movement_pattern: MovementPattern | null;
+  is_bodyweight: boolean;
+  is_cardio: boolean;
+  is_bilateral: boolean;
+  is_main_lift: boolean;
+  created_at: string;
+};
+
+export type ExercisePRType = "max_weight" | "1rm_estimate" | "max_volume";
+
+export type ExercisePR = {
+  id: string;
+  user_id: string;
+  exercise_id: string;
+  pr_type: ExercisePRType;
+  value: number;
+  achieved_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
 // ── Program Builder Types ──────────────────────
 
 export type ProgramMode = "weekday" | "session";
@@ -90,8 +164,12 @@ export type Exercise = {
   normalized_name?: string;
   category?: string;
   is_main_lift?: boolean;
+  exercise_definition_id?: string;
+  is_bodyweight?: boolean;
   created_at: string;
   updated_at?: string;
+  // Optional join from exercise_definitions
+  definition?: ExerciseDefinition;
 };
 
 export type WorkoutDayExercise = {

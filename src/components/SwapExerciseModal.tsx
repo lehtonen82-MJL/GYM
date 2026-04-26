@@ -3,9 +3,51 @@
 import { useEffect, useState } from "react";
 import {
   getExerciseAlternatives,
-  getExerciseList,
+  getExerciseListForSwap,
+  getOrCreateExerciseFromLibrary,
 } from "@/lib/actions";
 import type { ProgramExerciseAlternative } from "@/lib/types";
+
+// Human-readable labels for equipment types
+const EQUIPMENT_LABELS: Record<string, string> = {
+  barbell: "Barbell",
+  dumbbell: "DB",
+  cable: "Cable",
+  machine_plate: "Machine",
+  machine_stack: "Machine",
+  smith: "Smith",
+  bodyweight: "BW",
+  kettlebell: "KB",
+  trap_bar: "Trap Bar",
+  band: "Band",
+  suspension: "TRX",
+  cardio_machine: "Cardio",
+  other: "Other",
+};
+
+const MUSCLE_LABELS: Record<string, string> = {
+  chest: "Chest",
+  back_lats: "Lats",
+  back_upper: "Back",
+  shoulders: "Shoulders",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  forearms: "Forearms",
+  core: "Core",
+  glutes: "Glutes",
+  quads: "Quads",
+  hamstrings: "Hamstrings",
+  calves: "Calves",
+};
+
+type SwapExercise = {
+  id: string;
+  name: string;
+  equipment_type?: string;
+  primary_muscle?: string;
+  is_bodyweight?: boolean;
+  source: "user" | "library";
+};
 
 type Props = {
   /** The program_exercises.id for this slot (null for unlinked/imported entries) */
@@ -23,15 +65,16 @@ export default function SwapExerciseModal({
   onClose,
 }: Props) {
   const [alternatives, setAlternatives] = useState<ProgramExerciseAlternative[]>([]);
-  const [allExercises, setAllExercises] = useState<{ id: string; name: string }[]>([]);
+  const [allExercises, setAllExercises] = useState<SwapExercise[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [swapping, setSwapping] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       const [alts, all] = await Promise.all([
         programExerciseId ? getExerciseAlternatives(programExerciseId) : Promise.resolve([]),
-        getExerciseList(),
+        getExerciseListForSwap(),
       ]);
       setAlternatives(alts);
       setAllExercises(all);
@@ -40,10 +83,41 @@ export default function SwapExerciseModal({
     void load();
   }, [programExerciseId]);
 
-  // Saved alternatives (excluding current exercise)
-  const savedAlts = alternatives.filter((a) => a.exercise_id !== currentExerciseId);
+  async function handleSwap(ex: SwapExercise) {
+    if (swapping) return;
+    setSwapping(ex.id);
+    if (ex.source === "library") {
+      const userExerciseId = await getOrCreateExerciseFromLibrary(ex.id, ex.name);
+      if (userExerciseId) onSwap(userExerciseId, ex.name);
+    } else {
+      onSwap(ex.id, ex.name);
+    }
+    setSwapping(null);
+  }
 
-  // Full library filtered by search, excluding current and already shown alternatives
+  function Badges({ ex }: { ex: Pick<SwapExercise, "equipment_type" | "primary_muscle" | "source"> }) {
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        {ex.equipment_type && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+            {EQUIPMENT_LABELS[ex.equipment_type] ?? ex.equipment_type}
+          </span>
+        )}
+        {ex.primary_muscle && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300">
+            {MUSCLE_LABELS[ex.primary_muscle] ?? ex.primary_muscle}
+          </span>
+        )}
+        {ex.source === "library" && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-500">
+            lib
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  const savedAlts = alternatives.filter((a) => a.exercise_id !== currentExerciseId);
   const altIds = new Set(savedAlts.map((a) => a.exercise_id));
   const filtered = allExercises.filter(
     (ex) =>
@@ -92,19 +166,25 @@ export default function SwapExerciseModal({
                     Saved alternatives
                   </p>
                   <div className="space-y-1">
-                    {savedAlts.map((alt) => (
-                      <button
-                        key={alt.exercise_id}
-                        type="button"
-                        onClick={() =>
-                          onSwap(alt.exercise_id, alt.exercise?.name ?? "Unknown")
-                        }
-                        className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 border border-blue-500/30 text-white font-medium text-sm active:bg-zinc-700 flex items-center justify-between"
-                      >
-                        <span>{alt.exercise?.name ?? "Unknown"}</span>
-                        <span className="text-blue-400 text-xs">⭐</span>
-                      </button>
-                    ))}
+                    {savedAlts.map((alt) => {
+                      const enriched = allExercises.find((ex) => ex.id === alt.exercise_id);
+                      return (
+                        <button
+                          key={alt.exercise_id}
+                          type="button"
+                          onClick={() => onSwap(alt.exercise_id, alt.exercise?.name ?? "Unknown")}
+                          className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 border border-blue-500/30 text-white font-medium text-sm active:bg-zinc-700"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{alt.exercise?.name ?? "Unknown"}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {enriched && <Badges ex={enriched} />}
+                              <span className="text-blue-400 text-xs ml-1">⭐</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -124,10 +204,14 @@ export default function SwapExerciseModal({
                       <button
                         key={ex.id}
                         type="button"
-                        onClick={() => onSwap(ex.id, ex.name)}
-                        className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 text-white text-sm active:bg-zinc-700"
+                        onClick={() => handleSwap(ex)}
+                        disabled={swapping === ex.id}
+                        className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 text-white text-sm active:bg-zinc-700 disabled:opacity-50"
                       >
-                        {ex.name}
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{ex.name}</span>
+                          <Badges ex={ex} />
+                        </div>
                       </button>
                     ))}
                   </div>

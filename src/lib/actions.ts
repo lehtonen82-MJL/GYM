@@ -1,6 +1,8 @@
 "use server";
 
 import type {
+  ExerciseDefinition,
+  ExercisePR,
   Program,
   ProgramDay,
   ProgramExercise,
@@ -385,6 +387,10 @@ export async function startWorkout(
             .select("id")
             .single();
           exerciseId = created?.id ?? null;
+          // Link new exercise to global library for enriched metadata
+          if (exerciseId) {
+            await linkExerciseToLibraryInternal(supabase, userId, exerciseId, pe.exercise_name_snapshot as string);
+          }
         }
       }
 
@@ -1041,10 +1047,37 @@ export async function completeWorkout(
   }
 
   const supabase = await db();
-  await supabase
+
+  // Mark workout complete
+  const { data: workout } = await supabase
     .from("workouts")
     .update({ completed_at: new Date().toISOString(), notes })
-    .eq("id", workoutId);
+    .eq("id", workoutId)
+    .select("started_at")
+    .single();
+
+  // Refresh PRs for every exercise in this workout
+  if (workout?.started_at) {
+    const userId = await getUserId();
+    const { data: entries } = await supabase
+      .from("workout_exercise_entries")
+      .select("exercise_id")
+      .eq("workout_id", workoutId)
+      .eq("user_id", userId)
+      .not("exercise_id", "is", null);
+
+    if (entries?.length) {
+      await Promise.all(
+        entries.map((e) =>
+          supabase.rpc("upsert_exercise_prs", {
+            p_user_id: userId,
+            p_exercise_id: e.exercise_id,
+            p_workout_started_at: workout.started_at,
+          })
+        )
+      );
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════
@@ -1703,6 +1736,10 @@ export async function importPastWorkouts(
           .select("id")
           .single();
         exerciseId = created?.id ?? null;
+        // Link new exercise to global library for enriched metadata
+        if (exerciseId) {
+          await linkExerciseToLibraryInternal(supabase, userId, exerciseId, ex.name.trim());
+        }
       }
 
       if (!exerciseId) continue;
@@ -1793,6 +1830,150 @@ export async function getExerciseList() {
     .order("name");
 
   return data ?? [];
+}
+
+/** Like getExerciseList but includes linked library metadata for badge display. */
+export async function getExerciseListEnriched(): Promise<Array<{
+  id: string;
+  name: string;
+  equipment_type?: string;
+  primary_muscle?: string;
+  is_bodyweight?: boolean;
+}>> {
+  if (DEMO_MODE) {
+    const all = Object.values(MOCK_EXERCISES).flat();
+    const seen = new Set<string>();
+    return all
+      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+      .map((ex) => ({ id: ex.id, name: ex.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("exercises")
+    .select("id, name, is_bodyweight, exercise_definition_id, definition:exercise_definitions(equipment_type, primary_muscle)")
+    .eq("user_id", userId)
+    .order("name");
+
+  return (data ?? []).map((ex) => {
+    const def = Array.isArray(ex.definition) ? ex.definition[0] : ex.definition;
+    return {
+      id: ex.id as string,
+      name: ex.name as string,
+      is_bodyweight: (ex.is_bodyweight as boolean | null) ?? false,
+      equipment_type: (def as { equipment_type?: string } | null)?.equipment_type,
+      primary_muscle: (def as { primary_muscle?: string } | null)?.primary_muscle,
+    };
+  });
+}
+
+/**
+ * Merged exercise list for the Swap Exercise modal.
+ * Returns user's own exercises (source: "user") plus any library exercises
+ * they haven't logged yet (source: "library"), de-duped by normalized_name.
+ */
+export async function getExerciseListForSwap(): Promise<Array<{
+  id: string;
+  name: string;
+  equipment_type?: string;
+  primary_muscle?: string;
+  is_bodyweight?: boolean;
+  source: "user" | "library";
+}>> {
+  if (DEMO_MODE) {
+    const all = Object.values(MOCK_EXERCISES).flat();
+    const seen = new Set<string>();
+    return all
+      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+      .map((ex) => ({ id: ex.id, name: ex.name, source: "user" as const }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const [{ data: userExercises }, { data: libraryExercises }] = await Promise.all([
+    supabase
+      .from("exercises")
+      .select("id, name, is_bodyweight, definition:exercise_definitions(equipment_type, primary_muscle, normalized_name)")
+      .eq("user_id", userId)
+      .order("name"),
+    supabase
+      .from("exercise_definitions")
+      .select("id, name, normalized_name, equipment_type, primary_muscle, is_bodyweight")
+      .order("name"),
+  ]);
+
+  const userItems = (userExercises ?? []).map((ex) => {
+    const def = Array.isArray(ex.definition) ? ex.definition[0] : ex.definition;
+    const defTyped = def as { equipment_type?: string; primary_muscle?: string; normalized_name?: string } | null;
+    return {
+      id: ex.id as string,
+      name: ex.name as string,
+      is_bodyweight: (ex.is_bodyweight as boolean | null) ?? false,
+      equipment_type: defTyped?.equipment_type,
+      primary_muscle: defTyped?.primary_muscle,
+      _normalized: defTyped?.normalized_name ?? (ex.name as string).toLowerCase().trim(),
+      source: "user" as const,
+    };
+  });
+
+  const userNormalizedNames = new Set(userItems.map((u) => u._normalized));
+
+  const libraryItems = (libraryExercises ?? [])
+    .filter((lib) => !userNormalizedNames.has(lib.normalized_name as string))
+    .map((lib) => ({
+      id: lib.id as string,
+      name: lib.name as string,
+      is_bodyweight: (lib.is_bodyweight as boolean) ?? false,
+      equipment_type: lib.equipment_type as string,
+      primary_muscle: lib.primary_muscle as string,
+      source: "library" as const,
+    }));
+
+  return [
+    ...userItems.map(({ _normalized: _n, ...rest }) => rest),
+    ...libraryItems,
+  ];
+}
+
+/**
+ * When a user picks a library exercise they've never logged, we need a real
+ * row in their exercises table. This finds or creates it and links to the library.
+ * Returns the user-scoped exercise id to use in workout_exercise_entries.
+ */
+export async function getOrCreateExerciseFromLibrary(
+  libraryDefinitionId: string,
+  exerciseName: string
+): Promise<string | null> {
+  if (DEMO_MODE) return null;
+
+  const supabase = await db();
+  const userId = await getUserId();
+  const normalized = exerciseName.toLowerCase().trim();
+
+  // Check if already exists
+  const { data: existing } = await supabase
+    .from("exercises")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("normalized_name", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing.id as string;
+
+  // Create new exercise row linked to library
+  const { data: created } = await supabase
+    .from("exercises")
+    .insert({ user_id: userId, name: exerciseName, normalized_name: normalized, exercise_definition_id: libraryDefinitionId })
+    .select("id")
+    .single();
+
+  return created?.id ?? null;
 }
 
 
@@ -3141,6 +3322,200 @@ export async function saveTooHeavySets(
   }
 }
 
+// ════════════════════════════════════════════════════════
+// EXERCISE LIBRARY
+// ════════════════════════════════════════════════════════
 
+/**
+ * Fetch the full global exercise definitions library.
+ * Optionally filter by primary_muscle, equipment_type, or movement_pattern.
+ */
+export async function getExerciseDefinitions(filters?: {
+  primaryMuscle?: string;
+  equipmentType?: string;
+  movementPattern?: string;
+  search?: string;
+}): Promise<ExerciseDefinition[]> {
+  if (DEMO_MODE) return [];
 
+  const supabase = await db();
+  let query = supabase
+    .from("exercise_definitions")
+    .select("*")
+    .order("name");
+
+  if (filters?.primaryMuscle) {
+    query = query.eq("primary_muscle", filters.primaryMuscle);
+  }
+  if (filters?.equipmentType) {
+    query = query.eq("equipment_type", filters.equipmentType);
+  }
+  if (filters?.movementPattern) {
+    query = query.eq("movement_pattern", filters.movementPattern);
+  }
+  if (filters?.search) {
+    query = query.ilike("name", `%${filters.search}%`);
+  }
+
+  const { data } = await query;
+  return (data ?? []) as ExerciseDefinition[];
+}
+
+/**
+ * Given a display name, look up a matching exercise_definition by normalized_name
+ * or alias. Returns the definition id if found, otherwise null.
+ */
+export async function matchExerciseToLibrary(
+  name: string
+): Promise<ExerciseDefinition | null> {
+  if (DEMO_MODE) return null;
+
+  const supabase = await db();
+  const normalized = name.toLowerCase().trim().replace(/\s+/g, " ");
+
+  // Exact normalized_name match
+  const { data: exact } = await supabase
+    .from("exercise_definitions")
+    .select("*")
+    .eq("normalized_name", normalized)
+    .maybeSingle();
+
+  if (exact) return exact as ExerciseDefinition;
+
+  // Alias match: check if normalized appears in the aliases array
+  const { data: aliased } = await supabase
+    .from("exercise_definitions")
+    .select("*")
+    .contains("aliases", [normalized])
+    .maybeSingle();
+
+  return (aliased as ExerciseDefinition | null) ?? null;
+}
+
+/**
+ * Internal: link a newly created exercise to the library, reusing an existing supabase client.
+ * Only fires when exercise_definition_id is not already set.
+ * Silently skips if no matching definition is found.
+ */
+async function linkExerciseToLibraryInternal(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  exerciseId: string,
+  exerciseName: string
+): Promise<void> {
+  const normalized = exerciseName.toLowerCase().trim().replace(/\s+/g, " ");
+
+  // Exact normalized_name match first
+  let { data: def } = await supabase
+    .from("exercise_definitions")
+    .select("id, is_bodyweight, is_main_lift, equipment_type")
+    .eq("normalized_name", normalized)
+    .maybeSingle();
+
+  // Alias match fallback
+  if (!def) {
+    const { data: aliased } = await supabase
+      .from("exercise_definitions")
+      .select("id, is_bodyweight, is_main_lift, equipment_type")
+      .contains("aliases", [normalized])
+      .maybeSingle();
+    def = aliased;
+  }
+
+  if (!def) return;
+
+  await supabase
+    .from("exercises")
+    .update({
+      exercise_definition_id: def.id,
+      is_bodyweight: def.is_bodyweight,
+      is_main_lift: def.is_main_lift,
+      category: def.equipment_type,
+    })
+    .eq("id", exerciseId)
+    .eq("user_id", userId);
+}
+
+/**
+ * After creating or finding a user exercise, attempt to link it to the library.
+ * Updates exercise_definition_id and is_bodyweight if a match is found.
+ */
+export async function linkExerciseToLibrary(exerciseId: string, exerciseName: string): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+  await linkExerciseToLibraryInternal(supabase, userId, exerciseId, exerciseName);
+}
+
+// ════════════════════════════════════════════════════════
+// PERSONAL RECORDS
+// ════════════════════════════════════════════════════════
+
+/**
+ * Fetch all PRs for a specific exercise.
+ */
+export async function getExercisePRs(exerciseId: string): Promise<ExercisePR[]> {
+  if (DEMO_MODE) return [];
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("exercise_prs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("exercise_id", exerciseId);
+
+  return (data ?? []) as ExercisePR[];
+}
+
+/**
+ * Recompute and upsert PRs for a given exercise after a workout session.
+ * Calls the DB function upsert_exercise_prs which uses Epley formula for 1RM.
+ * Should be called from completeWorkout() for each exercise entry.
+ */
+export async function refreshExercisePRs(
+  exerciseId: string,
+  workoutStartedAt: string
+): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase.rpc("upsert_exercise_prs", {
+    p_user_id: userId,
+    p_exercise_id: exerciseId,
+    p_workout_started_at: workoutStartedAt,
+  });
+}
+
+/**
+ * Fetch PRs for all exercises the user has ever logged — useful for dashboard/progress overview.
+ * Returns a map of exercise_id → { max_weight, one_rm_estimate, max_volume }.
+ */
+export async function getAllExercisePRs(): Promise<
+  Record<string, Partial<Record<"max_weight" | "1rm_estimate" | "max_volume", { value: number; achieved_at: string }>>>
+> {
+  if (DEMO_MODE) return {};
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("exercise_prs")
+    .select("exercise_id, pr_type, value, achieved_at")
+    .eq("user_id", userId);
+
+  const result: Record<string, Partial<Record<"max_weight" | "1rm_estimate" | "max_volume", { value: number; achieved_at: string }>>> = {};
+  for (const row of data ?? []) {
+    if (!result[row.exercise_id]) result[row.exercise_id] = {};
+    result[row.exercise_id][row.pr_type as "max_weight" | "1rm_estimate" | "max_volume"] = {
+      value: row.value,
+      achieved_at: row.achieved_at,
+    };
+  }
+  return result;
+}
 
