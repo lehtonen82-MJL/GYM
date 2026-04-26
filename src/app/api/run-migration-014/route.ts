@@ -18,11 +18,11 @@ export async function GET() {
 
     // Manual mappings: user exercise id → library definition normalized_name
     const MANUAL_MAP: Record<string, string> = {
-      "a6d92761-cbf8-4508-b51f-90b2e2705b3e": "calf raise",           // Calves
-      "e5c45abf-c36c-4ed2-8297-2c454fc148cc": "db fly",               // Fly
-      "0a259b9b-6e55-4725-89b3-5e630c7ad6bd": "seated cable row",     // Row
-      "c06511f1-70f0-440b-a3dc-d32183d079bb": "triceps pushdown (bar)", // Triceps
-      // Light Row (fe46279e) has no library match — left unlinked intentionally
+      "a6d92761-cbf8-4508-b51f-90b2e2705b3e": "calf raise",             // Calves → Calf Raise (standing)
+      "e5c45abf-c36c-4ed2-8297-2c454fc148cc": "db incline fly",         // Fly → DB Incline Fly
+      "0a259b9b-6e55-4725-89b3-5e630c7ad6bd": "bent-over row",          // Row → Bent-over Barbell Row
+      "c06511f1-70f0-440b-a3dc-d32183d079bb": "triceps pushdown (bar)", // Triceps → Triceps Pushdown machine
+      "fe46279e-4102-4279-bd19-18be1002b8b0": "machine row",            // Light Row → Machine Row (seated)
     };
 
     const { data: defs } = await supabase
