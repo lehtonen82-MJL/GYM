@@ -1895,7 +1895,7 @@ export async function getExerciseListForSwap(): Promise<Array<{
   const supabase = await db();
   const userId = await getUserId();
 
-  const [{ data: userExercises }, { data: libraryExercises }] = await Promise.all([
+  const [userResult, libraryResult] = await Promise.all([
     supabase
       .from("exercises")
       .select("id, name, is_bodyweight, definition:exercise_definitions(equipment_type, primary_muscle, normalized_name)")
@@ -1906,6 +1906,13 @@ export async function getExerciseListForSwap(): Promise<Array<{
       .select("id, name, normalized_name, equipment_type, primary_muscle, is_bodyweight")
       .order("name"),
   ]);
+
+  if (userResult.error) console.error("[getExerciseListForSwap] exercises error:", userResult.error);
+  if (libraryResult.error) console.error("[getExerciseListForSwap] exercise_definitions error:", libraryResult.error);
+  console.log(`[getExerciseListForSwap] user=${userResult.data?.length ?? "err"}, library=${libraryResult.data?.length ?? "err"}`);
+
+  const userExercises = userResult.data;
+  const libraryExercises = libraryResult.data;
 
   const userItems = (userExercises ?? []).map((ex) => {
     const def = Array.isArray(ex.definition) ? ex.definition[0] : ex.definition;
