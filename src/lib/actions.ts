@@ -4,6 +4,7 @@ import type {
   Program,
   ProgramDay,
   ProgramExercise,
+  ProgramExerciseAlternative,
   ProgramMode,
   Workout,
   WorkoutBonusCardio,
@@ -237,7 +238,7 @@ async function buildStartWorkoutResultFromExisting(
   const { data: entriesData } = await supabase
     .from("workout_exercise_entries")
     .select(
-      "*, exercise:exercises(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
+      "*, exercise:exercises(*), original_exercise:exercises!workout_exercise_entries_original_exercise_id_fkey(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
     )
     .eq("workout_id", workout.id)
     .eq("user_id", userId)
@@ -665,7 +666,7 @@ export async function getWorkout(
   const { data: entries } = await supabase
     .from("workout_exercise_entries")
     .select(
-      "*, exercise:exercises(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
+      "*, exercise:exercises(*), original_exercise:exercises!workout_exercise_entries_original_exercise_id_fkey(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
     )
     .eq("workout_id", workoutId)
     .eq("user_id", userId)
@@ -1141,7 +1142,7 @@ export async function exportWorkoutHistory(): Promise<string> {
   // Fetch all exercise entries with sets in one query
   const { data: entries } = await supabase
     .from("workout_exercise_entries")
-    .select("id, workout_id, exercise_id, exercise:exercises(name), set_entries(set_number, weight_kg, reps, completed, is_warmup, too_heavy, too_heavy_reps)")
+    .select("id, workout_id, exercise_id, original_exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(name), original_exercise:exercises!workout_exercise_entries_original_exercise_id_fkey(name), set_entries(set_number, weight_kg, reps, completed, is_warmup, too_heavy, too_heavy_reps)")
     .eq("user_id", userId)
     .in("workout_id", workoutIds);
 
@@ -1157,7 +1158,9 @@ export async function exportWorkoutHistory(): Promise<string> {
     id: string;
     workout_id: string;
     exercise_id: string;
+    original_exercise_id: string | null;
     exercise: { name: string } | null;
+    original_exercise: { name: string } | null;
     set_entries: {
       set_number: number;
       weight_kg: number | null;
@@ -1237,6 +1240,7 @@ export async function exportWorkoutHistory(): Promise<string> {
 
       return {
         exercise: exName,
+        ...(e.original_exercise ? { swapped_from: e.original_exercise.name } : {}),
         ...(warmupSets.length > 0 ? { warmup: warmupSets.map(fmtSet) } : {}),
         sets: workSets.map(fmtSet),
         volume: totalVolume,
@@ -1300,6 +1304,171 @@ export async function deleteWorkoutFromHistory(workoutId: string): Promise<void>
   if (error) {
     throw new Error(`Failed to delete workout: ${error.message}`);
   }
+}
+
+// ════════════════════════════════════════════════════════
+// EXERCISE SWAP / ALTERNATIVES
+// ════════════════════════════════════════════════════════
+
+/** Fetch pre-defined alternatives for a program exercise slot */
+export async function getExerciseAlternatives(
+  programExerciseId: string
+): Promise<ProgramExerciseAlternative[]> {
+  if (DEMO_MODE) return [];
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("program_exercise_alternatives")
+    .select("*, exercise:exercises(id, name)")
+    .eq("program_exercise_id", programExerciseId)
+    .eq("user_id", userId)
+    .order("sort_order");
+
+  return (data ?? []) as ProgramExerciseAlternative[];
+}
+
+/** Add an alternative exercise to a program slot */
+export async function addProgramExerciseAlternative(
+  programExerciseId: string,
+  exerciseId: string
+): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase
+    .from("program_exercise_alternatives")
+    .upsert(
+      { program_exercise_id: programExerciseId, exercise_id: exerciseId, user_id: userId },
+      { onConflict: "program_exercise_id,exercise_id", ignoreDuplicates: true }
+    );
+}
+
+/** Remove an alternative exercise from a program slot */
+export async function removeProgramExerciseAlternative(
+  programExerciseId: string,
+  exerciseId: string
+): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase
+    .from("program_exercise_alternatives")
+    .delete()
+    .eq("program_exercise_id", programExerciseId)
+    .eq("exercise_id", exerciseId)
+    .eq("user_id", userId);
+}
+
+/**
+ * Swap the exercise on a workout_exercise_entry mid-workout.
+ * Records the original exercise_id in original_exercise_id (only if not already swapped).
+ * Returns the old exercise_id.
+ */
+export async function swapWorkoutExercise(
+  entryId: string,
+  newExerciseId: string
+): Promise<string> {
+  if (DEMO_MODE) return "";
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Get current state
+  const { data: current } = await supabase
+    .from("workout_exercise_entries")
+    .select("exercise_id, original_exercise_id")
+    .eq("id", entryId)
+    .eq("user_id", userId)
+    .single();
+
+  if (!current) throw new Error("Entry not found");
+
+  const oldExerciseId = current.exercise_id as string;
+
+  // Only record original_exercise_id on first swap (not on re-swap)
+  const originalId = (current.original_exercise_id as string | null) ?? oldExerciseId;
+
+  const { error } = await supabase
+    .from("workout_exercise_entries")
+    .update({ exercise_id: newExerciseId, original_exercise_id: originalId })
+    .eq("id", entryId)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(`Failed to swap exercise: ${error.message}`);
+
+  return oldExerciseId;
+}
+
+/**
+ * Returns the most recent alternative exercise used for a given program slot,
+ * i.e. the last time original_exercise_id was set on an entry for this slot.
+ */
+export async function getLastUsedAlternative(
+  programExerciseId: string
+): Promise<{ exercise_id: string; exercise_name: string; date: string } | null> {
+  if (DEMO_MODE) return null;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Find the most recent completed workout entry for this program slot that had a swap
+  const { data } = await supabase
+    .from("workout_exercise_entries")
+    .select(
+      "exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(name), workout:workouts!inner(started_at, completed_at), workout_day_exercise_id"
+    )
+    .eq("user_id", userId)
+    .eq("workout_day_exercise_id", programExerciseId)
+    .not("original_exercise_id", "is", null)
+    .not("workout.completed_at", "is", null)
+    .order("workout.started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const w = (data.workout as unknown as { started_at: string } | null);
+  const ex = (data.exercise as unknown as { name: string } | null);
+  return {
+    exercise_id: data.exercise_id as string,
+    exercise_name: ex?.name ?? "Unknown",
+    date: w ? new Date(w.started_at).toISOString().split("T")[0] : "",
+  };
+}
+
+/** Update a program exercise slot to permanently use a different exercise */
+export async function updateProgramExerciseDefault(
+  programExerciseId: string,
+  newExerciseId: string
+): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Get the new exercise name for the snapshot
+  const { data: ex } = await supabase
+    .from("exercises")
+    .select("name")
+    .eq("id", newExerciseId)
+    .eq("user_id", userId)
+    .single();
+
+  if (!ex) throw new Error("Exercise not found");
+
+  const { error } = await supabase
+    .from("program_exercises")
+    .update({ exercise_id: newExerciseId, exercise_name_snapshot: (ex as { name: string }).name })
+    .eq("id", programExerciseId)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(`Failed to update program exercise: ${error.message}`);
 }
 
 

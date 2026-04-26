@@ -141,10 +141,23 @@ export type WorkoutExerciseEntry = {
   workout_day_exercise_id: string | null;
   user_id: string;
   too_heavy?: boolean;
+  /** Non-null when the user swapped this slot to a different exercise mid-workout */
+  original_exercise_id?: string | null;
+  original_exercise?: Exercise;
   created_at: string;
   exercise?: Exercise;
   workout_day_exercise?: WorkoutDayExercise;
   set_entries?: SetEntry[];
+};
+
+export type ProgramExerciseAlternative = {
+  id: string;
+  program_exercise_id: string;
+  exercise_id: string;
+  sort_order: number;
+  user_id: string;
+  created_at: string;
+  exercise?: Exercise;
 };
 
 export type SetEntry = {

@@ -145,6 +145,9 @@ create table if not exists workout_exercise_entries (
 alter table workout_exercise_entries enable row level security;
 create policy "Users can manage own workout_exercise_entries" on workout_exercise_entries for all using (auth.uid() = user_id);
 
+-- original_exercise_id: records the programmed exercise when a mid-workout swap happens (NULL = no swap)
+-- (added via migration 009)
+
 -- Set Entries (individual sets within an exercise)
 create table if not exists set_entries (
   id uuid primary key default gen_random_uuid(),
@@ -192,6 +195,21 @@ create policy "Users can view own program_exercises" on program_exercises for se
 create policy "Users can manage own program_exercises" on program_exercises for all using (auth.uid() = user_id);
 create index if not exists idx_program_exercises_program on program_exercises(program_id);
 create index if not exists idx_program_exercises_day on program_exercises(program_day_id);
+
+-- Program Exercise Alternatives (pre-defined swap options per program exercise slot)
+create table if not exists program_exercise_alternatives (
+  id uuid primary key default gen_random_uuid(),
+  program_exercise_id uuid not null references program_exercises(id) on delete cascade,
+  exercise_id uuid not null references exercises(id) on delete cascade,
+  sort_order integer not null default 0,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(program_exercise_id, exercise_id)
+);
+
+alter table program_exercise_alternatives enable row level security;
+create policy "Users can manage own program_exercise_alternatives" on program_exercise_alternatives for all using (auth.uid() = user_id);
+create index if not exists idx_pea_program_exercise on program_exercise_alternatives(program_exercise_id);
 
 -- ============================================
 -- Triggers for updated_at timestamps

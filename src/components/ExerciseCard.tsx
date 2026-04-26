@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import SetRow from "./SetRow";
 import IntervalTimer from "./IntervalTimer";
+import SwapExerciseModal from "./SwapExerciseModal";
 import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
-import { getPreviousResults } from "@/lib/actions";
+import { getPreviousResults, getLastUsedAlternative } from "@/lib/actions";
 
 type ExerciseCardProps = {
   entry: WorkoutExerciseEntry;
@@ -17,6 +18,12 @@ type ExerciseCardProps = {
   tooHeavyLastSets: { setNumber: number; achievedReps: number | null }[];
   /** Save too_heavy flag for specific set IDs */
   onTooHeavySetsChange: (setIds: string[], value: boolean, achievedReps?: number | null) => void;
+  /** program_exercises.id for this slot (null for unlinked entries) */
+  programExerciseId?: string | null;
+  /** Original exercise name when a swap has occurred */
+  originalExerciseName?: string | null;
+  /** Called when user picks a replacement exercise */
+  onSwapExercise?: (newExerciseId: string, newExerciseName: string) => void;
 };
 
 function renumber(sets: SetEntry[]): SetEntry[] {
@@ -32,6 +39,9 @@ export default function ExerciseCard({
   onToggle,
   tooHeavyLastSets,
   onTooHeavySetsChange,
+  programExerciseId,
+  originalExerciseName,
+  onSwapExercise,
 }: ExerciseCardProps) {
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
   const [showTimer, setShowTimer] = useState(false);
@@ -41,11 +51,22 @@ export default function ExerciseCard({
   // Temporary state for the reps-entry step: setId -> achieved reps
   const [pendingReps, setPendingReps] = useState<Record<string, number | null>>({});
   const [pendingTooHeavyIds, setPendingTooHeavyIds] = useState<string[]>([]);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [lastAltHint, setLastAltHint] = useState<{ exercise_name: string; date: string } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getPreviousResults(entry.exercise_id).then(setPrevResults);
   }, [entry.exercise_id]);
+
+  useEffect(() => {
+    // Show "💡 Last time" hint only when there is no current swap
+    if (programExerciseId && !originalExerciseName) {
+      getLastUsedAlternative(programExerciseId).then((hint) => {
+        if (hint) setLastAltHint(hint);
+      });
+    }
+  }, [programExerciseId, originalExerciseName]);
 
   useEffect(() => {
     if (isActive && cardRef.current) {
@@ -144,6 +165,11 @@ export default function ExerciseCard({
             <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
               {entry.exercise?.name}
             </h3>
+            {originalExerciseName && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 leading-tight">
+                ↩ {originalExerciseName}
+              </span>
+            )}
             {/* Weight recommendation pill based on last workout's too_heavy flag */}
             {prevResults.length > 0 && (
               hadTooHeavyLastTime ? (
@@ -169,6 +195,16 @@ export default function ExerciseCard({
 
         {/* Right controls */}
         <div className="flex items-center gap-2 shrink-0 ml-2">
+          {isActive && onSwapExercise && (
+            <button
+              type="button"
+              onClick={() => setShowSwapModal(true)}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold border text-zinc-400 border-zinc-700 bg-zinc-800 active:bg-zinc-700"
+              title="Swap exercise"
+            >
+              🔄
+            </button>
+          )}
           {isActive && (
             <button
               type="button"
@@ -194,6 +230,15 @@ export default function ExerciseCard({
           </button>
         </div>
       </div>
+
+      {/* Swap / alt hints */}
+      {isActive && lastAltHint && !originalExerciseName && (
+        <div className="px-4 pb-1">
+          <p className="text-xs text-yellow-400">
+            💡 Last time: {lastAltHint.exercise_name} ({lastAltHint.date})
+          </p>
+        </div>
+      )}
 
       {/* Previous results */}
       {isActive && prevResults.length > 0 && (
@@ -403,6 +448,18 @@ export default function ExerciseCard({
           targetReps={targetReps}
           onSetsChange={onSetsChange}
           onClose={() => setShowTimer(false)}
+        />
+      )}
+
+      {showSwapModal && onSwapExercise && (
+        <SwapExerciseModal
+          programExerciseId={programExerciseId ?? null}
+          currentExerciseId={entry.exercise_id}
+          onSwap={(exId, exName) => {
+            setShowSwapModal(false);
+            onSwapExercise(exId, exName);
+          }}
+          onClose={() => setShowSwapModal(false)}
         />
       )}
     </div>

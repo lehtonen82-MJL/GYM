@@ -15,6 +15,9 @@ import {
   saveWorkoutBonusCardio,
   deleteWorkoutFromHistory,
   saveTooHeavySets,
+  swapWorkoutExercise,
+  updateProgramExerciseDefault,
+  getPreviousResults,
 } from "@/lib/actions";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
@@ -113,22 +116,34 @@ function mergeSetsWithDraft(current: SetMap, draft: Record<string, DraftSetPatch
 
 export default function WorkoutClient({
   workout,
-  entries,
+  entries: initialEntries,
   suggestions,
   tooHeavyFlags,
   readOnly = false,
   bonusCardio = null,
 }: Props) {
+  // Mutable copy of entries that updates on exercise swaps
+  const [entries, setEntries] = useState<WorkoutExerciseEntry[]>(initialEntries);
+
   const [setsMap, setSetsMap] = useState<SetMap>(() => {
     const map: SetMap = {};
-    for (const entry of entries) {
+    for (const entry of initialEntries) {
       map[entry.id] = (entry.set_entries ?? []).map((s) => ({ ...s }));
     }
     return map;
   });
 
   // Track which set IDs existed in DB when this workout was loaded
-  const originalSetIds = entries.flatMap((e) => (e.set_entries ?? []).map((s) => s.id));
+  const originalSetIds = initialEntries.flatMap((e) => (e.set_entries ?? []).map((s) => s.id));
+
+  // State for the "Update program?" dialog shown after a mid-workout swap
+  const [updateProgramDialog, setUpdateProgramDialog] = useState<{
+    entryId: string;
+    oldExerciseName: string;
+    newExerciseName: string;
+    newExerciseId: string;
+    programExerciseId: string | null;
+  } | null>(null);
 
   const [activeEntryId, setActiveEntryId] = useState<string | null>(entries[0]?.id ?? null);
   const [notes, setNotes] = useState("");
@@ -315,6 +330,64 @@ export default function WorkoutClient({
     });
   }
 
+  async function handleSwapExercise(entryId: string, newExerciseId: string, newExerciseName: string) {
+    try {
+      await swapWorkoutExercise(entryId, newExerciseId);
+    } catch (err) {
+      alert(`Swap failed: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+
+    // Update entry in state: swap exercise_id, set original_exercise
+    setEntries((prev) =>
+      prev.map((e) => {
+        if (e.id !== entryId) return e;
+        const original = e.original_exercise ?? e.exercise;
+        return {
+          ...e,
+          exercise_id: newExerciseId,
+          exercise: { ...e.exercise!, id: newExerciseId, name: newExerciseName },
+          original_exercise_id: original?.id ?? e.exercise_id,
+          original_exercise: original,
+        };
+      })
+    );
+
+    // Fetch history for the new exercise and rebuild sets
+    const prevResults = await getPreviousResults(newExerciseId);
+    setSetsMap((prev) => {
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry) return prev;
+      const targetSets = entry.workout_day_exercise?.target_sets ?? (prev[entryId] ?? []).length;
+      const newSets: SetEntry[] = Array.from({ length: targetSets }, (_, i) => ({
+        id: crypto.randomUUID(),
+        workout_exercise_entry_id: entryId,
+        user_id: entry.user_id,
+        set_number: i + 1,
+        weight_kg: prevResults[i]?.weight_kg ?? null,
+        reps: prevResults[i]?.reps ?? null,
+        completed: false,
+        is_warmup: false,
+        too_heavy: false,
+        too_heavy_reps: null,
+        created_at: new Date().toISOString(),
+      }));
+      return { ...prev, [entryId]: newSets };
+    });
+
+    // Prompt to update the program if this entry is linked to one
+    const entry = entries.find((e) => e.id === entryId);
+    const programExerciseId = entry?.workout_day_exercise_id ?? null;
+    const oldExerciseName = entry?.exercise?.name ?? "Previous exercise";
+    setUpdateProgramDialog({
+      entryId,
+      oldExerciseName,
+      newExerciseName,
+      newExerciseId,
+      programExerciseId,
+    });
+  }
+
   function handleFinishClick() {
     const hasIncomplete = entries.some((entry) => {
       const sets = setsMap[entry.id] ?? [];
@@ -431,7 +504,14 @@ export default function WorkoutClient({
           const entryIsBodyweight = setsWithData.every((s) => !s.weight_kg);
           return (
             <div key={entry.id} className="bg-card rounded-2xl border border-border p-4">
-              <h3 className="font-semibold text-white mb-2">{entry.exercise?.name}</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="font-semibold text-white">{entry.exercise?.name}</h3>
+                {entry.original_exercise && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 leading-tight">
+                    ↩ {entry.original_exercise.name}
+                  </span>
+                )}
+              </div>
               <div className="space-y-1">
                 {setsWithData.map((s) => {
                   const reps = s.reps ?? entry.workout_day_exercise?.target_reps ?? 0;
@@ -583,6 +663,9 @@ export default function WorkoutClient({
           onToggle={() => setActiveEntryId((prev) => (prev === entry.id ? null : entry.id))}
           tooHeavyLastSets={tooHeavyFlags[entry.exercise_id] ?? []}
           onTooHeavySetsChange={(setIds, value, achievedReps) => handleTooHeavySetsChange(entry.id, setIds, value, achievedReps)}
+          programExerciseId={entry.workout_day_exercise_id ?? null}
+          originalExerciseName={entry.original_exercise?.name ?? null}
+          onSwapExercise={(newId, newName) => void handleSwapExercise(entry.id, newId, newName)}
         />
       ))}
 
@@ -592,6 +675,45 @@ export default function WorkoutClient({
       >
         Finish Workout
       </button>
+
+      {/* Update Program dialog — shown after a mid-workout swap */}
+      {updateProgramDialog && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
+          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+            <h2 className="text-white text-lg font-bold">Update Program?</h2>
+            <p className="text-zinc-400 text-sm">
+              You swapped <span className="text-white font-semibold">{updateProgramDialog.oldExerciseName}</span>{" "}
+              → <span className="text-white font-semibold">{updateProgramDialog.newExerciseName}</span>.
+              Should this change be permanent in your program?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setUpdateProgramDialog(null)}
+                className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:bg-zinc-700"
+              >
+                Just this time
+              </button>
+              {updateProgramDialog.programExerciseId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!updateProgramDialog.programExerciseId) return;
+                    void updateProgramExerciseDefault(
+                      updateProgramDialog.programExerciseId,
+                      updateProgramDialog.newExerciseId
+                    );
+                    setUpdateProgramDialog(null);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm active:bg-blue-700"
+                >
+                  Update Program
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Incomplete sets warning modal */}
       {showIncompleteWarning && (

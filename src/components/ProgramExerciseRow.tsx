@@ -1,8 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ProgramExercise } from "@/lib/types";
+import type { ProgramExercise, ProgramExerciseAlternative } from "@/lib/types";
 import { parseSchemePrescription } from "@/lib/programParser";
+import {
+  getExerciseAlternatives,
+  getExerciseList,
+  addProgramExerciseAlternative,
+  removeProgramExerciseAlternative,
+} from "@/lib/actions";
 
 interface ProgramExerciseRowProps {
   exercise: ProgramExercise;
@@ -71,6 +77,14 @@ export function ProgramExerciseRow({
   const [notes, setNotes] = useState(exercise.notes || "");
   const [setRows, setSetRows] = useState<DraftSet[]>(() => buildInitialSets(exercise));
   const [formError, setFormError] = useState("");
+
+  // Alternatives panel state (view mode)
+  const [showAlts, setShowAlts] = useState(false);
+  const [alternatives, setAlternatives] = useState<ProgramExerciseAlternative[]>([]);
+  const [loadingAlts, setLoadingAlts] = useState(false);
+  const [showAddAlt, setShowAddAlt] = useState(false);
+  const [altSearch, setAltSearch] = useState("");
+  const [allExercises, setAllExercises] = useState<{ id: string; name: string }[]>([]);
 
   const previewScheme = useMemo(() => {
     return setRows
@@ -244,48 +258,156 @@ export function ProgramExerciseRow({
   }
 
   return (
-    <div className="group mb-2 flex items-stretch gap-2 rounded-lg border border-border bg-card p-3">
-      <div className="min-w-0 flex-1">
-        <h4 className="text-sm font-semibold text-white">{exercise.exercise_name_snapshot}</h4>
-        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
-          {exercise.target_sets && <span>{exercise.target_sets} sets</span>}
-          {exercise.scheme_text && <span>{exercise.scheme_text}</span>}
-          {exercise.notes && <span className="italic">{exercise.notes}</span>}
+    <div className="group mb-2 rounded-lg border border-border bg-card">
+      <div className="flex items-stretch gap-2 p-3">
+        <div className="min-w-0 flex-1">
+          <h4 className="text-sm font-semibold text-white">{exercise.exercise_name_snapshot}</h4>
+          <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
+            {exercise.target_sets && <span>{exercise.target_sets} sets</span>}
+            {exercise.scheme_text && <span>{exercise.scheme_text}</span>}
+            {exercise.notes && <span className="italic">{exercise.notes}</span>}
+          </div>
+          {/* Alternatives toggle */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (!showAlts) {
+                setLoadingAlts(true);
+                const [alts, exList] = await Promise.all([
+                  getExerciseAlternatives(exercise.id),
+                  allExercises.length === 0 ? getExerciseList() : Promise.resolve(allExercises),
+                ]);
+                setAlternatives(alts);
+                setAllExercises(exList);
+                setLoadingAlts(false);
+              }
+              setShowAlts((v) => !v);
+            }}
+            className="mt-2 text-xs text-blue-400 active:text-blue-300"
+          >
+            {showAlts ? "▲ Hide alternatives" : "▼ Alternatives"}
+            {alternatives.length > 0 && !showAlts && (
+              <span className="ml-1 text-zinc-500">({alternatives.length})</span>
+            )}
+          </button>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-1">
+          {canMoveUp && (
+            <button
+              onClick={onMoveUp}
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+              title="Move up"
+              aria-label="Move exercise up"
+            >
+              ^
+            </button>
+          )}
+          {canMoveDown && (
+            <button
+              onClick={onMoveDown}
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+              title="Move down"
+              aria-label="Move exercise down"
+            >
+              v
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="h-10 w-10 rounded text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
+              title="Delete exercise"
+              aria-label="Delete exercise"
+            >
+              x
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-1">
-        {canMoveUp && (
-          <button
-            onClick={onMoveUp}
-            className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
-            title="Move up"
-            aria-label="Move exercise up"
-          >
-            ^
-          </button>
-        )}
-        {canMoveDown && (
-          <button
-            onClick={onMoveDown}
-            className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
-            title="Move down"
-            aria-label="Move exercise down"
-          >
-            v
-          </button>
-        )}
-        {onDelete && (
-          <button
-            onClick={onDelete}
-            className="h-10 w-10 rounded text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300 active:bg-red-500/20"
-            title="Delete exercise"
-            aria-label="Delete exercise"
-          >
-            x
-          </button>
-        )}
-      </div>
+      {/* Alternatives panel */}
+      {showAlts && (
+        <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
+          {loadingAlts ? (
+            <p className="text-xs text-zinc-500">Loading…</p>
+          ) : (
+            <>
+              {alternatives.length === 0 && !showAddAlt && (
+                <p className="text-xs text-zinc-500">No saved alternatives yet.</p>
+              )}
+              {alternatives.map((alt) => (
+                <div key={alt.exercise_id} className="flex items-center justify-between">
+                  <span className="text-xs text-white">{alt.exercise?.name ?? "Unknown"}</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await removeProgramExerciseAlternative(exercise.id, alt.exercise_id);
+                      setAlternatives((prev) => prev.filter((a) => a.exercise_id !== alt.exercise_id));
+                    }}
+                    className="text-xs text-red-400 active:text-red-300 ml-2"
+                  >
+                    × remove
+                  </button>
+                </div>
+              ))}
+              {showAddAlt ? (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={altSearch}
+                    onChange={(e) => setAltSearch(e.target.value)}
+                    placeholder="Search exercises…"
+                    className="w-full px-2 py-1.5 rounded-lg bg-zinc-800 text-white text-xs border border-zinc-700 focus:border-blue-500 focus:outline-none"
+                    autoFocus
+                  />
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {allExercises
+                      .filter(
+                        (ex) =>
+                          ex.id !== exercise.exercise_id &&
+                          !alternatives.some((a) => a.exercise_id === ex.id) &&
+                          ex.name.toLowerCase().includes(altSearch.toLowerCase())
+                      )
+                      .slice(0, 20)
+                      .map((ex) => (
+                        <button
+                          key={ex.id}
+                          type="button"
+                          onClick={async () => {
+                            await addProgramExerciseAlternative(exercise.id, ex.id);
+                            const updated = await getExerciseAlternatives(exercise.id);
+                            setAlternatives(updated);
+                            setAltSearch("");
+                            setShowAddAlt(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg bg-zinc-800 text-xs text-white active:bg-zinc-700"
+                        >
+                          {ex.name}
+                        </button>
+                      ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddAlt(false); setAltSearch(""); }}
+                    className="text-xs text-zinc-500 active:text-zinc-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowAddAlt(true)}
+                  className="text-xs text-blue-400 active:text-blue-300"
+                >
+                  + Add alternative
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
