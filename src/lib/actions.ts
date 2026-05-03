@@ -288,7 +288,9 @@ async function buildStartWorkoutResultFromExisting(
 
 export async function startWorkout(
   workoutDayId: string,
-  isDeload = false
+  isDeload = false,
+  deloadWeightPct = 80,
+  deloadSetPct = 50
 ): Promise<StartWorkoutResult | null> {
   if (DEMO_MODE) return startWorkoutMock(workoutDayId);
 
@@ -489,9 +491,8 @@ export async function startWorkout(
 
     // ── Deload modifier ────────────────────────────────────────────────────────
     // Only reduce work sets (warmups carry over from history as-is via is_warmup flag).
-    // Sets: ceil(50%), min 1.  Weight: 80% of prev, rounded to nearest 2.5 kg.
     if (isDeload) {
-      setCount = Math.max(1, Math.ceil(setCount * 0.5));
+      setCount = Math.max(1, Math.ceil(setCount * deloadSetPct / 100));
     }
 
     for (let j = 0; j < setCount; j++) {
@@ -501,8 +502,7 @@ export async function startWorkout(
 
       let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
       if (isDeload && weightKg != null) {
-        // 80% of weight, snapped to nearest 2.5 kg
-        weightKg = Math.round((weightKg * 0.8) / 2.5) * 2.5;
+        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
       }
 
       allSetRows.push({
@@ -575,11 +575,13 @@ export async function startWorkout(
 // ════════════════════════════════════════════════════════
 export async function startDeloadWorkout(
   primaryDayId: string,
-  additionalDayIds: string[] = []
+  additionalDayIds: string[] = [],
+  deloadWeightPct = 80,
+  deloadSetPct = 50
 ): Promise<StartWorkoutResult | null> {
   // For normal deload (no additional days), reuse the main path.
   if (additionalDayIds.length === 0) {
-    return startWorkout(primaryDayId, true);
+    return startWorkout(primaryDayId, true, deloadWeightPct, deloadSetPct);
   }
 
   if (DEMO_MODE) return startWorkoutMock(primaryDayId);
@@ -762,16 +764,16 @@ export async function startDeloadWorkout(
     const prescription = parseSchemePrescription(wde.scheme_text);
     const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
     const prevResults = prevResultsAll[i] ?? [];
-    // Deload: 50% fewer sets (min 1)
-    const setCount = Math.max(1, Math.ceil(Math.max(baseCount, prevResults.length) * 0.5));
+    // Deload: reduce set count by configurable %
+    const setCount = Math.max(1, Math.ceil(Math.max(baseCount, prevResults.length) * deloadSetPct / 100));
 
     for (let j = 0; j < setCount; j++) {
       const prev = prevResults[j];
       const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
       let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
-      // Deload: 80% weight, snapped to nearest 2.5 kg
+      // Deload: configurable weight %, snapped to nearest 2.5 kg
       if (weightKg != null) {
-        weightKg = Math.round((weightKg * 0.8) / 2.5) * 2.5;
+        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
       }
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,

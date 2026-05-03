@@ -3,7 +3,12 @@
 import { useSettings } from "@/lib/settings";
 
 export default function SettingsPage() {
-  const { navPosition, setNavPosition, debugBorders, setDebugBorders } = useSettings();
+  const {
+    navPosition, setNavPosition,
+    debugBorders, setDebugBorders,
+    deloadWeightPct, setDeloadWeightPct,
+    deloadSetPct, setDeloadSetPct,
+  } = useSettings();
 
   return (
     <div className="space-y-6">
@@ -42,6 +47,67 @@ export default function SettingsPage() {
               ⬆ Top
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* Easy Week */}
+      <section className="bg-card rounded-2xl border border-border divide-y divide-border">
+        <div className="p-4">
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">🔄 Easy Week</h2>
+          <p className="text-muted text-xs mt-1">Applied when you start a recovery week workout</p>
+        </div>
+
+        {/* Weight % */}
+        <div className="p-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-white font-medium">Weight</p>
+            <p className="text-muted text-xs mt-0.5">Use this % of your usual load</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setDeloadWeightPct(Math.max(50, deloadWeightPct - 5))}
+              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+            >
+              −
+            </button>
+            <span className="w-12 text-center text-white font-semibold tabular-nums">{deloadWeightPct}%</span>
+            <button
+              onClick={() => setDeloadWeightPct(Math.min(95, deloadWeightPct + 5))}
+              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Set % */}
+        <div className="p-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-white font-medium">Sets</p>
+            <p className="text-muted text-xs mt-0.5">Keep this % of your normal set count</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setDeloadSetPct(Math.max(25, deloadSetPct - 5))}
+              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+            >
+              −
+            </button>
+            <span className="w-12 text-center text-white font-semibold tabular-nums">{deloadSetPct}%</span>
+            <button
+              onClick={() => setDeloadSetPct(Math.min(90, deloadSetPct + 5))}
+              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div className="px-4 py-3 bg-amber-500/5">
+          <p className="text-amber-400 text-xs">
+            Example: 4 sets × 100 kg → <strong>{Math.max(1, Math.ceil(4 * deloadSetPct / 100))} sets × {Math.round(100 * deloadWeightPct / 100 / 2.5) * 2.5} kg</strong>
+          </p>
         </div>
       </section>
 

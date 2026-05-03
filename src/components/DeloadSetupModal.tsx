@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { startDeloadWorkout } from "@/lib/actions";
+import { useSettings } from "@/lib/settings";
 import type { WorkoutDay } from "@/lib/types";
 
 type DeloadTemplate = {
@@ -40,6 +41,7 @@ type Props = {
 
 export default function DeloadSetupModal({ programId, allDays, primaryDayId, onClose }: Props) {
   const router = useRouter();
+  const { deloadWeightPct, deloadSetPct } = useSettings();
   const [loading, setLoading] = useState(false);
 
   // Setup state
@@ -81,7 +83,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
         });
       }
       const extra = mode === "compact" ? additionalDayIds : [];
-      const result = await startDeloadWorkout(primaryDayId, extra);
+      const result = await startDeloadWorkout(primaryDayId, extra, deloadWeightPct, deloadSetPct);
       if (result) {
         const serialized = JSON.stringify(result);
         sessionStorage.setItem(`workout-${result.id}`, serialized);
@@ -113,7 +115,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
         <div className="flex items-center justify-between px-5 pt-5 pb-4 shrink-0">
           <div>
             <h2 className="text-white text-lg font-bold">🔄 Easy Week</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">50% fewer sets · 80% weight</p>
+            <p className="text-zinc-400 text-xs mt-0.5">{deloadSetPct}% fewer sets · {deloadWeightPct}% weight</p>
           </div>
           <button
             type="button"
