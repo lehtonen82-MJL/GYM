@@ -192,6 +192,7 @@ export type Workout = {
   started_at: string;
   completed_at: string | null;
   notes: string | null;
+  is_deload?: boolean;
   created_at: string;
   workout_day?: WorkoutDay;
 };

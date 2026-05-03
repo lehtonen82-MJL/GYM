@@ -652,6 +652,12 @@ export default function WorkoutClient({
         </div>
       </div>
 
+      {workout.is_deload && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-400 text-sm font-medium">
+          🔄 Recovery Week — lighter loads, fewer sets
+        </div>
+      )}
+
       {entries.map((entry) => (
         <ExerciseCard
           key={entry.id}

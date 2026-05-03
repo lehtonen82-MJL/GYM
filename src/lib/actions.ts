@@ -287,7 +287,8 @@ async function buildStartWorkoutResultFromExisting(
 }
 
 export async function startWorkout(
-  workoutDayId: string
+  workoutDayId: string,
+  isDeload = false
 ): Promise<StartWorkoutResult | null> {
   if (DEMO_MODE) return startWorkoutMock(workoutDayId);
 
@@ -326,7 +327,7 @@ export async function startWorkout(
   // 2. Create workout row
   const { data: workout, error: wErr } = await supabase
     .from("workouts")
-    .insert({ user_id: userId, workout_day_id: workoutDayId })
+    .insert({ user_id: userId, workout_day_id: workoutDayId, is_deload: isDeload })
     .select("*")
     .single();
   if (wErr || !workout) return null;
@@ -484,16 +485,31 @@ export async function startWorkout(
     const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
     const prevResults = prevResultsAll[i] ?? [];
     // Create as many sets as the larger of: program target or previous workout sets
-    const setCount = Math.max(baseCount, prevResults.length);
+    let setCount = Math.max(baseCount, prevResults.length);
+
+    // ── Deload modifier ────────────────────────────────────────────────────────
+    // Only reduce work sets (warmups carry over from history as-is via is_warmup flag).
+    // Sets: ceil(50%), min 1.  Weight: 80% of prev, rounded to nearest 2.5 kg.
+    if (isDeload) {
+      setCount = Math.max(1, Math.ceil(setCount * 0.5));
+    }
+
     for (let j = 0; j < setCount; j++) {
       const prev = prevResults[j];
       // If previous set was too_heavy, use the program's target reps instead of the reduced achieved reps
       const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
+
+      let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
+      if (isDeload && weightKg != null) {
+        // 80% of weight, snapped to nearest 2.5 kg
+        weightKg = Math.round((weightKg * 0.8) / 2.5) * 2.5;
+      }
+
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,
         user_id: userId,
         set_number: j + 1,
-        weight_kg: prescription[j]?.weightKg ?? prev?.weight_kg ?? null,
+        weight_kg: weightKg,
         reps: prescription[j]?.reps ?? prevReps ?? null,
         completed: false,
         is_warmup: prev?.is_warmup ?? false,
@@ -549,6 +565,271 @@ export async function startWorkout(
   );
 
   return { id: workout.id, workout, entries, suggestions, tooHeavyFlags };
+}
+
+// ════════════════════════════════════════════════════════
+// DELOAD WORKOUT (compact multi-day or single-day)
+// Called from the DeloadSetupModal via the EasyWeekButton client component.
+// primaryDayId   — the "anchor" day (today's scheduled day, or first selected)
+// additionalDayIds — extra days whose exercises are appended (compact mode only)
+// ════════════════════════════════════════════════════════
+export async function startDeloadWorkout(
+  primaryDayId: string,
+  additionalDayIds: string[] = []
+): Promise<StartWorkoutResult | null> {
+  // For normal deload (no additional days), reuse the main path.
+  if (additionalDayIds.length === 0) {
+    return startWorkout(primaryDayId, true);
+  }
+
+  if (DEMO_MODE) return startWorkoutMock(primaryDayId);
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Get the primary workout day for metadata
+  const { data: primaryDay } = await supabase
+    .from("workout_days")
+    .select("*")
+    .eq("id", primaryDayId)
+    .eq("user_id", userId)
+    .single();
+  if (!primaryDay) return null;
+
+  // Fetch all additional days for the auto-note
+  const { data: extraDays } = await supabase
+    .from("workout_days")
+    .select("id, name")
+    .in("id", additionalDayIds)
+    .eq("user_id", userId);
+
+  const dayNames = [
+    (primaryDay as { name: string }).name,
+    ...((extraDays ?? []) as { name: string }[]).map((d) => d.name),
+  ];
+  const autoNote = `Easy week — ${dayNames.join(" + ")}`;
+
+  // Create workout row tied to the primary day
+  const { data: workout, error: wErr } = await supabase
+    .from("workouts")
+    .insert({
+      user_id: userId,
+      workout_day_id: primaryDayId,
+      is_deload: true,
+      notes: autoNote,
+    })
+    .select("*, workout_day:workout_days(*)")
+    .single();
+  if (wErr || !workout) return null;
+
+  // Collect exercises from all days in order, deduplicated by exercise_id
+  const allDayIds = [primaryDayId, ...additionalDayIds];
+  const seenExerciseIds = new Set<string>();
+
+  type WdeRow = {
+    id: string;
+    exercise_id: string;
+    target_sets: number;
+    target_reps?: number;
+    scheme_text?: string;
+    exercise: unknown;
+  };
+  let allWdes: WdeRow[] = [];
+
+  for (const dayId of allDayIds) {
+    // Try legacy workout_day_exercises first
+    const { data: legacyWdes } = await supabase
+      .from("workout_day_exercises")
+      .select("*, exercise:exercises(*)")
+      .eq("workout_day_id", dayId)
+      .eq("user_id", userId)
+      .order("order_index");
+
+    if (legacyWdes && legacyWdes.length > 0) {
+      for (const wde of legacyWdes as WdeRow[]) {
+        if (!seenExerciseIds.has(wde.exercise_id)) {
+          seenExerciseIds.add(wde.exercise_id);
+          allWdes.push(wde);
+        }
+      }
+    } else {
+      // Fall back to program_exercises and materialise wde rows
+      const { data: pes } = await supabase
+        .from("program_exercises")
+        .select("*")
+        .eq("program_day_id", dayId)
+        .eq("user_id", userId)
+        .order("sort_order");
+
+      for (const pe of pes ?? []) {
+        let exerciseId: string | null = (pe.exercise_id as string | null) ?? null;
+        if (!exerciseId) {
+          const normalized = (pe.exercise_name_snapshot as string).toLowerCase().trim();
+          const { data: existing } = await supabase
+            .from("exercises")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("normalized_name", normalized)
+            .limit(1)
+            .maybeSingle();
+          if (existing) {
+            exerciseId = existing.id as string;
+          } else {
+            const { data: created } = await supabase
+              .from("exercises")
+              .insert({ user_id: userId, name: pe.exercise_name_snapshot, normalized_name: normalized })
+              .select("id")
+              .single();
+            exerciseId = created?.id ?? null;
+          }
+        }
+        if (!exerciseId || seenExerciseIds.has(exerciseId)) continue;
+        seenExerciseIds.add(exerciseId);
+
+        const schemeText = (pe.scheme_text as string | null) ?? undefined;
+        const prescription = parseSchemePrescription(schemeText);
+        const firstReps = prescription[0]?.reps;
+
+        let wde = await supabase
+          .from("workout_day_exercises")
+          .select("*, exercise:exercises(*)")
+          .eq("workout_day_id", dayId)
+          .eq("exercise_id", exerciseId)
+          .eq("user_id", userId)
+          .limit(1)
+          .maybeSingle();
+
+        if (!wde.data) {
+          const { data: newWde } = await supabase
+            .from("workout_day_exercises")
+            .insert({
+              workout_day_id: dayId,
+              exercise_id: exerciseId,
+              user_id: userId,
+              order_index: pe.sort_order ?? 0,
+              target_sets: (pe.target_sets as number | null) ?? 3,
+              target_reps: firstReps ?? 5,
+            })
+            .select("*, exercise:exercises(*)")
+            .single();
+          if (newWde) allWdes.push({ ...(newWde as WdeRow), scheme_text: schemeText });
+        } else {
+          allWdes.push({ ...(wde.data as WdeRow), scheme_text: schemeText });
+        }
+      }
+    }
+  }
+
+  if (allWdes.length === 0) return null;
+
+  // Fetch previous results for all exercises in parallel
+  const prevResultsAll = await Promise.all(
+    allWdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id))
+  );
+
+  // Create entries and sets
+  const entryResults = await Promise.all(
+    allWdes.map((wde) =>
+      supabase
+        .from("workout_exercise_entries")
+        .insert({
+          workout_id: (workout as { id: string }).id,
+          exercise_id: wde.exercise_id,
+          workout_day_exercise_id: wde.id,
+          user_id: userId,
+        })
+        .select("*")
+        .single()
+    )
+  );
+
+  type SetRow = {
+    workout_exercise_entry_id: string;
+    user_id: string;
+    set_number: number;
+    weight_kg: number | null;
+    reps: number | null;
+    completed: boolean;
+    is_warmup: boolean;
+  };
+  const allSetRows: SetRow[] = [];
+  const entryWdeMap: Array<{ entry: Record<string, unknown>; wde: WdeRow }> = [];
+
+  for (let i = 0; i < allWdes.length; i++) {
+    const { data: entry } = entryResults[i];
+    if (!entry) continue;
+    const wde = allWdes[i];
+    const prescription = parseSchemePrescription(wde.scheme_text);
+    const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
+    const prevResults = prevResultsAll[i] ?? [];
+    // Deload: 50% fewer sets (min 1)
+    const setCount = Math.max(1, Math.ceil(Math.max(baseCount, prevResults.length) * 0.5));
+
+    for (let j = 0; j < setCount; j++) {
+      const prev = prevResults[j];
+      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
+      let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
+      // Deload: 80% weight, snapped to nearest 2.5 kg
+      if (weightKg != null) {
+        weightKg = Math.round((weightKg * 0.8) / 2.5) * 2.5;
+      }
+      allSetRows.push({
+        workout_exercise_entry_id: entry.id as string,
+        user_id: userId,
+        set_number: j + 1,
+        weight_kg: weightKg,
+        reps: prescription[j]?.reps ?? prevReps ?? null,
+        completed: false,
+        is_warmup: prev?.is_warmup ?? false,
+      });
+    }
+    entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });
+  }
+
+  const { data: allSets } = await supabase
+    .from("set_entries")
+    .insert(allSetRows)
+    .select("*")
+    .order("set_number");
+
+  const setsByEntryId: Record<string, unknown[]> = {};
+  for (const s of allSets ?? []) {
+    const eid = (s as { workout_exercise_entry_id: string }).workout_exercise_entry_id;
+    if (!setsByEntryId[eid]) setsByEntryId[eid] = [];
+    setsByEntryId[eid].push(s);
+  }
+
+  const entries: WorkoutExerciseEntry[] = [];
+  const suggestions: Record<string, number | null> = {};
+  for (let i = 0; i < entryWdeMap.length; i++) {
+    const { entry, wde } = entryWdeMap[i];
+    const prevResults = prevResultsAll[i] ?? [];
+    const workSets = prevResults.filter((s) => !s.is_warmup);
+    suggestions[wde.exercise_id] =
+      workSets.length === 0
+        ? null
+        : Math.max(...workSets.map((s) => s.weight_kg ?? 0));
+    entries.push({
+      ...(entry as WorkoutExerciseEntry),
+      exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
+      workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
+      set_entries: (setsByEntryId[entry.id as string] ?? []) as WorkoutExerciseEntry["set_entries"],
+    });
+  }
+
+  const tooHeavyFlags = await getLastTooHeavyFlags(
+    supabase,
+    userId,
+    entries.map((e) => e.exercise_id)
+  );
+
+  return {
+    id: (workout as { id: string }).id,
+    workout: workout as Workout,
+    entries,
+    suggestions,
+    tooHeavyFlags,
+  };
 }
 
 function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
@@ -1163,7 +1444,7 @@ export async function exportWorkoutHistory(): Promise<string> {
   // Fetch ALL completed workouts (no limit)
   const { data: workouts } = await supabase
     .from("workouts")
-    .select("id, started_at, completed_at, notes, workout_day:workout_days(name, day_label)")
+    .select("id, started_at, completed_at, notes, is_deload, workout_day:workout_days(name, day_label)")
     .eq("user_id", userId)
     .not("completed_at", "is", null)
     .order("started_at", { ascending: true });
@@ -1222,7 +1503,7 @@ export async function exportWorkoutHistory(): Promise<string> {
   const exercisePRs: Record<string, { weight: number; reps: number; date: string }> = {};
 
   // Build workout records
-  type RawWorkout = { id: string; started_at: string; completed_at: string | null; notes: string | null; workout_day: { name: string; day_label: string } | null };
+  type RawWorkout = { id: string; started_at: string; completed_at: string | null; notes: string | null; is_deload: boolean | null; workout_day: { name: string; day_label: string } | null };
   const workoutRecords = (workouts as unknown as RawWorkout[]).map((w) => {
     const wEntries = entriesByWorkout.get(w.id) ?? [];
     const startDate = new Date(w.started_at);
@@ -1291,6 +1572,7 @@ export async function exportWorkoutHistory(): Promise<string> {
       ...(cardio ? {
         cardio: `${cardio.machine_type} ${cardio.distance_m}m ${cardio.duration_seconds}s${cardio.pace_per_500_seconds ? ` pace:${cardio.pace_per_500_seconds}` : ""}${cardio.calories ? ` cal:${cardio.calories}` : ""}${cardio.avg_watts ? ` watts:${cardio.avg_watts}` : ""}`,
       } : {}),
+      ...(w.is_deload ? { deload: true } : {}),
       ...(w.notes ? { notes: w.notes } : {}),
     };
   });

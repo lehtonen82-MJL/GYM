@@ -289,6 +289,9 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                     {imported && (
                       <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
                     )}
+                    {w.is_deload && (
+                      <span className="text-xs bg-amber-500/20 text-amber-400 rounded px-1.5 py-0.5">🔄 Easy week</span>
+                    )}
                   </div>
                   <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
                   <p className="text-white text-sm mt-2">{formatDate(w.started_at)}</p>
@@ -304,6 +307,9 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                     </p>
                     {imported && (
                       <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
+                    )}
+                    {w.is_deload && (
+                      <span className="text-xs bg-amber-500/20 text-amber-400 rounded px-1.5 py-0.5">🔄 Easy week</span>
                     )}
                   </div>
                   <p className="text-muted text-sm">{w.workout_day?.day_label}</p>

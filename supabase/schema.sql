@@ -105,6 +105,7 @@ create table if not exists workouts (
   started_at timestamptz default now(),
   completed_at timestamptz,
   notes text,
+  is_deload boolean not null default false, -- true = recovery/deload week (lighter loads, fewer sets)
   created_at timestamptz default now()
 );
 
