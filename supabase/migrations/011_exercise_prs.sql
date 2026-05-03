@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS exercise_prs (
   exercise_id  uuid        NOT NULL REFERENCES exercises(id)  ON DELETE CASCADE,
   pr_type      text        NOT NULL CHECK (pr_type IN (
                  'max_weight',     -- heaviest single set weight (any rep count)
-                 '1rm_estimate',   -- Epley: weight × (1 + reps/30)
+                 '1rm_estimate',   -- Epley (1985): weight × (1 + reps/30), valid for reps 1–12; r=1 returns weight directly
                  'max_volume'      -- highest total volume in one workout session
                )),
   value        numeric(10,2) NOT NULL,
