@@ -107,8 +107,8 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-      <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md flex flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 rounded-3xl w-full max-w-md flex flex-col pb-6 max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 shrink-0">
           <div>
