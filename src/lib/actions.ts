@@ -290,7 +290,8 @@ export async function startWorkout(
   workoutDayId: string,
   isDeload = false,
   deloadWeightPct = 80,
-  deloadSetPct = 50
+  deloadSetPct = 50,
+  deloadReduceWarmups = false
 ): Promise<StartWorkoutResult | null> {
   if (DEMO_MODE) return startWorkoutMock(workoutDayId);
 
@@ -486,33 +487,61 @@ export async function startWorkout(
     const prescription = parseSchemePrescription(wde.scheme_text);
     const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
     const prevResults = prevResultsAll[i] ?? [];
-    // Create as many sets as the larger of: program target or previous workout sets
-    let setCount = Math.max(baseCount, prevResults.length);
+
+    // Separate warmup and work sets from history
+    const prevWarmups = prevResults.filter((s) => s.is_warmup);
+    const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
+
+    // Work set count: larger of program target or previous work sets
+    let workSetCount = Math.max(baseCount, prevWorkSets.length);
+    // Warmup count: carry over from history
+    let warmupCount = prevWarmups.length;
 
     // ── Deload modifier ────────────────────────────────────────────────────────
-    // Only reduce work sets (warmups carry over from history as-is via is_warmup flag).
+    // Weight %: always applied to both warmup and work sets.
+    // Set count %: applied to work sets always; applied to warmup sets only if deloadReduceWarmups.
     if (isDeload) {
-      setCount = Math.max(1, Math.ceil(setCount * deloadSetPct / 100));
+      workSetCount = Math.max(1, Math.ceil(workSetCount * deloadSetPct / 100));
+      if (deloadReduceWarmups) {
+        warmupCount = Math.max(0, Math.ceil(warmupCount * deloadSetPct / 100));
+      }
     }
 
-    for (let j = 0; j < setCount; j++) {
-      const prev = prevResults[j];
-      // If previous set was too_heavy, use the program's target reps instead of the reduced achieved reps
+    let setNumber = 1;
+    // Warmup sets first
+    for (let j = 0; j < warmupCount; j++) {
+      const prev = prevWarmups[j];
       const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
-
+      let weightKg = prev?.weight_kg ?? null;
+      if (isDeload && weightKg != null) {
+        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
+      }
+      allSetRows.push({
+        workout_exercise_entry_id: entry.id as string,
+        user_id: userId,
+        set_number: setNumber++,
+        weight_kg: weightKg,
+        reps: prev?.reps ?? prevReps ?? null,
+        completed: false,
+        is_warmup: true,
+      });
+    }
+    // Work sets
+    for (let j = 0; j < workSetCount; j++) {
+      const prev = prevWorkSets[j];
+      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
       let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
       if (isDeload && weightKg != null) {
         weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
       }
-
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,
         user_id: userId,
-        set_number: j + 1,
+        set_number: setNumber++,
         weight_kg: weightKg,
         reps: prescription[j]?.reps ?? prevReps ?? null,
         completed: false,
-        is_warmup: prev?.is_warmup ?? false,
+        is_warmup: false,
       });
     }
     entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });
@@ -577,11 +606,12 @@ export async function startDeloadWorkout(
   primaryDayId: string,
   additionalDayIds: string[] = [],
   deloadWeightPct = 80,
-  deloadSetPct = 50
+  deloadSetPct = 50,
+  deloadReduceWarmups = false
 ): Promise<StartWorkoutResult | null> {
   // For normal deload (no additional days), reuse the main path.
   if (additionalDayIds.length === 0) {
-    return startWorkout(primaryDayId, true, deloadWeightPct, deloadSetPct);
+    return startWorkout(primaryDayId, true, deloadWeightPct, deloadSetPct, deloadReduceWarmups);
   }
 
   if (DEMO_MODE) return startWorkoutMock(primaryDayId);
@@ -764,25 +794,51 @@ export async function startDeloadWorkout(
     const prescription = parseSchemePrescription(wde.scheme_text);
     const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
     const prevResults = prevResultsAll[i] ?? [];
-    // Deload: reduce set count by configurable %
-    const setCount = Math.max(1, Math.ceil(Math.max(baseCount, prevResults.length) * deloadSetPct / 100));
 
-    for (let j = 0; j < setCount; j++) {
-      const prev = prevResults[j];
-      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
-      let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
-      // Deload: configurable weight %, snapped to nearest 2.5 kg
+    // Separate warmup and work sets from history
+    const prevWarmups = prevResults.filter((s) => s.is_warmup);
+    const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
+
+    let workSetCount = Math.max(1, Math.ceil(Math.max(baseCount, prevWorkSets.length) * deloadSetPct / 100));
+    let warmupCount = prevWarmups.length;
+    if (deloadReduceWarmups) {
+      warmupCount = Math.max(0, Math.ceil(warmupCount * deloadSetPct / 100));
+    }
+
+    let setNumber = 1;
+    // Warmup sets first — weight always reduced
+    for (let j = 0; j < warmupCount; j++) {
+      const prev = prevWarmups[j];
+      let weightKg = prev?.weight_kg ?? null;
       if (weightKg != null) {
         weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
       }
       allSetRows.push({
         workout_exercise_entry_id: entry.id as string,
         user_id: userId,
-        set_number: j + 1,
+        set_number: setNumber++,
+        weight_kg: weightKg,
+        reps: prev?.reps ?? null,
+        completed: false,
+        is_warmup: true,
+      });
+    }
+    // Work sets — weight reduced, count reduced
+    for (let j = 0; j < workSetCount; j++) {
+      const prev = prevWorkSets[j];
+      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
+      let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
+      if (weightKg != null) {
+        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
+      }
+      allSetRows.push({
+        workout_exercise_entry_id: entry.id as string,
+        user_id: userId,
+        set_number: setNumber++,
         weight_kg: weightKg,
         reps: prescription[j]?.reps ?? prevReps ?? null,
         completed: false,
-        is_warmup: prev?.is_warmup ?? false,
+        is_warmup: false,
       });
     }
     entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });

@@ -41,7 +41,7 @@ type Props = {
 
 export default function DeloadSetupModal({ programId, allDays, primaryDayId, onClose }: Props) {
   const router = useRouter();
-  const { deloadWeightPct, deloadSetPct } = useSettings();
+  const { deloadWeightPct, deloadSetPct, deloadReduceWarmups } = useSettings();
   const [loading, setLoading] = useState(false);
 
   // Setup state
@@ -83,7 +83,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
         });
       }
       const extra = mode === "compact" ? additionalDayIds : [];
-      const result = await startDeloadWorkout(primaryDayId, extra, deloadWeightPct, deloadSetPct);
+      const result = await startDeloadWorkout(primaryDayId, extra, deloadWeightPct, deloadSetPct, deloadReduceWarmups);
       if (result) {
         const serialized = JSON.stringify(result);
         sessionStorage.setItem(`workout-${result.id}`, serialized);

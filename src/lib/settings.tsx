@@ -11,6 +11,8 @@ type Settings = {
   deloadWeightPct: number;
   /** Easy Week: percentage of sets to keep (e.g. 50 = half) */
   deloadSetPct: number;
+  /** Easy Week: also apply set-count reduction to warmup sets */
+  deloadReduceWarmups: boolean;
 };
 
 type SettingsContextType = Settings & {
@@ -18,6 +20,7 @@ type SettingsContextType = Settings & {
   setDebugBorders: (on: boolean) => void;
   setDeloadWeightPct: (pct: number) => void;
   setDeloadSetPct: (pct: number) => void;
+  setDeloadReduceWarmups: (on: boolean) => void;
 };
 
 const STORAGE_KEY = "gym-app-settings";
@@ -27,6 +30,7 @@ const defaults: Settings = {
   debugBorders: false,
   deloadWeightPct: 80,
   deloadSetPct: 50,
+  deloadReduceWarmups: false,
 };
 
 function loadSettings(): Settings {
@@ -76,6 +80,7 @@ const SettingsContext = createContext<SettingsContextType>({
   setDebugBorders: () => {},
   setDeloadWeightPct: () => {},
   setDeloadSetPct: () => {},
+  setDeloadReduceWarmups: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -105,8 +110,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     emitChange();
   }
 
+  function setDeloadReduceWarmups(deloadReduceWarmups: boolean) {
+    currentSettings = { ...currentSettings, deloadReduceWarmups };
+    saveSettings(currentSettings);
+    emitChange();
+  }
+
   return (
-    <SettingsContext.Provider value={{ ...settings, setNavPosition, setDebugBorders, setDeloadWeightPct, setDeloadSetPct }}>
+    <SettingsContext.Provider value={{ ...settings, setNavPosition, setDebugBorders, setDeloadWeightPct, setDeloadSetPct, setDeloadReduceWarmups }}>
       {children}
     </SettingsContext.Provider>
   );

@@ -8,6 +8,7 @@ export default function SettingsPage() {
     debugBorders, setDebugBorders,
     deloadWeightPct, setDeloadWeightPct,
     deloadSetPct, setDeloadSetPct,
+    deloadReduceWarmups, setDeloadReduceWarmups,
   } = useSettings();
 
   return (
@@ -106,8 +107,37 @@ export default function SettingsPage() {
         {/* Preview */}
         <div className="px-4 py-3 bg-amber-500/5">
           <p className="text-amber-400 text-xs">
-            Example: 4 sets × 100 kg → <strong>{Math.max(1, Math.ceil(4 * deloadSetPct / 100))} sets × {Math.round(100 * deloadWeightPct / 100 / 2.5) * 2.5} kg</strong>
+            Example: 2 warmup + 4 work sets × 100 kg →{" "}
+            <strong>
+              {deloadReduceWarmups ? Math.max(0, Math.ceil(2 * deloadSetPct / 100)) : 2} warmup
+              {" + "}
+              {Math.max(1, Math.ceil(4 * deloadSetPct / 100))} work sets × {Math.round(100 * deloadWeightPct / 100 / 2.5) * 2.5} kg
+            </strong>
           </p>
+        </div>
+
+        {/* Reduce warmup sets toggle */}
+        <div className="p-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-white font-medium">Reduce warmup sets</p>
+            <p className="text-muted text-xs mt-0.5">
+              {deloadReduceWarmups
+                ? "Warmup count is also cut by the sets %"
+                : "Warmup weight is reduced, count stays the same"}
+            </p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={deloadReduceWarmups}
+            onClick={() => setDeloadReduceWarmups(!deloadReduceWarmups)}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${deloadReduceWarmups ? "bg-amber-500" : "bg-zinc-700"}`}
+          >
+            <span
+              className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                deloadReduceWarmups ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
         </div>
       </section>
 
