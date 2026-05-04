@@ -1166,12 +1166,15 @@ async function getPreviousResultsInternal(
   userId: string,
   exerciseId: string
 ): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean }[]> {
-  // Step 1: get recent completed workout IDs ordered by actual workout date
+  // Step 1: get recent completed workout IDs ordered by actual workout date.
+  // Exclude deload workouts — after an Easy Week the next normal session should
+  // restore the pre-deload baseline, not inherit the reduced weights/sets.
   const { data: recentWorkouts } = await supabase
     .from("workouts")
     .select("id")
     .eq("user_id", userId)
     .not("completed_at", "is", null)
+    .eq("is_deload", false)
     .order("started_at", { ascending: false })
     .limit(30);
 
