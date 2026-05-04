@@ -1033,24 +1033,47 @@ export async function getWorkout(
     .single();
   if (!workout) return null;
 
+  // Fetch entries without nested set_entries or named-FK joins to avoid query
+  // failures if migrations haven't been applied or FK names differ.
   const { data: entries } = await supabase
     .from("workout_exercise_entries")
     .select(
-      "*, exercise:exercises(*), original_exercise:exercises!workout_exercise_entries_original_exercise_id_fkey(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
+      "*, exercise:exercises(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*))"
     )
     .eq("workout_id", workoutId)
     .eq("user_id", userId)
     .order("created_at");
 
-  // Sort set_entries by set_number within each entry
-  for (const entry of entries ?? []) {
-    entry.set_entries?.sort(
-      (a: { set_number: number }, b: { set_number: number }) =>
-        a.set_number - b.set_number
-    );
+  const entryList = entries ?? [];
+
+  // Fetch set_entries in a separate robust query
+  let setEntries: Array<Record<string, unknown>> = [];
+  if (entryList.length > 0) {
+    const entryIds = entryList.map((e) => e.id as string);
+    const { data: setsData } = await supabase
+      .from("set_entries")
+      .select("*")
+      .in("workout_exercise_entry_id", entryIds)
+      .eq("user_id", userId)
+      .order("set_number");
+    setEntries = setsData ?? [];
   }
 
-  return { workout, entries: entries ?? [] };
+  // Group sets by entry id
+  const setsByEntry = new Map<string, unknown[]>();
+  for (const s of setEntries) {
+    const eid = s.workout_exercise_entry_id as string;
+    if (!setsByEntry.has(eid)) setsByEntry.set(eid, []);
+    setsByEntry.get(eid)!.push(s);
+  }
+
+  // Merge set_entries into entries
+  const enriched: WorkoutExerciseEntry[] = entryList.map((entry) => ({
+    ...(entry as WorkoutExerciseEntry),
+    set_entries: (setsByEntry.get(entry.id as string) ?? []) as WorkoutExerciseEntry["set_entries"],
+  }));
+
+  return { workout, entries: enriched };
 }
 
 // ════════════════════════════════════════════════════════
