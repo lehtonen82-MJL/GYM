@@ -1035,7 +1035,7 @@ export async function getWorkout(
 
   // Fetch entries without nested set_entries or named-FK joins to avoid query
   // failures if migrations haven't been applied or FK names differ.
-  const { data: entries } = await supabase
+  const { data: entries, error: entriesError } = await supabase
     .from("workout_exercise_entries")
     .select(
       "*, exercise:exercises(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*))"
@@ -1044,20 +1044,29 @@ export async function getWorkout(
     .eq("user_id", userId)
     .order("created_at");
 
+  if (entriesError) {
+    console.error("[getWorkout] entries query error:", entriesError.message, entriesError.details);
+  }
+
   const entryList = entries ?? [];
 
   // Fetch set_entries in a separate robust query
   let setEntries: Array<Record<string, unknown>> = [];
   if (entryList.length > 0) {
     const entryIds = entryList.map((e) => e.id as string);
-    const { data: setsData } = await supabase
+    const { data: setsData, error: setsError } = await supabase
       .from("set_entries")
       .select("*")
       .in("workout_exercise_entry_id", entryIds)
       .eq("user_id", userId)
       .order("set_number");
+    if (setsError) {
+      console.error("[getWorkout] set_entries query error:", setsError.message);
+    }
     setEntries = setsData ?? [];
   }
+
+  console.log(`[getWorkout] entries=${entryList.length} sets=${setEntries.length}`);
 
   // Group sets by entry id
   const setsByEntry = new Map<string, unknown[]>();

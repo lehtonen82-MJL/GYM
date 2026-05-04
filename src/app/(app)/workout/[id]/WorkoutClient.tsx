@@ -500,7 +500,6 @@ export default function WorkoutClient({
         {entries.map((entry) => {
           const sets = setsMap[entry.id] ?? [];
           const setsWithData = sets.filter((s) => s.weight_kg || s.reps || s.completed);
-          if (setsWithData.length === 0) return null;
           const entryIsBodyweight = setsWithData.every((s) => !s.weight_kg);
           return (
             <div key={entry.id} className="bg-card rounded-2xl border border-border p-4">
@@ -512,27 +511,33 @@ export default function WorkoutClient({
                   </span>
                 )}
               </div>
-              <div className="space-y-1">
-                {setsWithData.map((s) => {
-                  const reps = s.reps ?? entry.workout_day_exercise?.target_reps ?? 0;
-                  return (
-                    <div key={s.id} className={`flex justify-between text-sm ${s.too_heavy ? "bg-red-950/30 border border-red-800/40 rounded-lg px-2 py-0.5" : ""}`}>
-                      <span className="text-muted">Set {s.set_number}</span>
-                      <span className={`font-mono ${s.too_heavy ? "text-red-400" : "text-white"}`}>
-                        {entryIsBodyweight
-                          ? `× ${reps} reps`
-                          : `${s.weight_kg ?? 0}kg × ${reps}`}
-                        {s.too_heavy && (
-                          <span className="ml-1" title="Too heavy">
-                            ⚠{s.too_heavy_reps != null ? ` ${s.too_heavy_reps}/${reps}` : ""}
-                          </span>
-                        )}
-                        {s.completed && <span className="text-success ml-2">✓</span>}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              {setsWithData.length === 0 ? (
+                <p className="text-muted text-sm">No set data recorded</p>
+              ) : (
+                <div className="space-y-1">
+                  {setsWithData.map((s) => {
+                    const reps = s.reps ?? entry.workout_day_exercise?.target_reps ?? 0;
+                    return (
+                      <div key={s.id} className={`flex justify-between text-sm ${s.too_heavy ? "bg-red-950/30 border border-red-800/40 rounded-lg px-2 py-0.5" : ""}`}>
+                        <span className="text-muted">
+                          {s.is_warmup ? "Warmup" : `Set ${s.set_number}`}
+                        </span>
+                        <span className={`font-mono ${s.too_heavy ? "text-red-400" : "text-white"}`}>
+                          {entryIsBodyweight
+                            ? `× ${reps} reps`
+                            : `${s.weight_kg ?? 0}kg × ${reps}`}
+                          {s.too_heavy && (
+                            <span className="ml-1" title="Too heavy">
+                              ⚠{s.too_heavy_reps != null ? ` ${s.too_heavy_reps}/${reps}` : ""}
+                            </span>
+                          )}
+                          {s.completed && <span className="text-success ml-2">✓</span>}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
