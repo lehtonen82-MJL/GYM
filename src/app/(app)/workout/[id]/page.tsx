@@ -51,16 +51,24 @@ export default function WorkoutPage() {
     }
 
     async function load() {
-      // 1. Try local client stores (active workout).
+      // 1. Try local client stores — only for in-progress workouts.
+      //    Completed workouts must be fetched from server so we get the real
+      //    set_entries (localStorage only holds the initial empty template).
       const stored = getStoredWorkout(id);
-      if (stored) {
+      if (stored && !stored.workout.completed_at) {
         setData(stored);
-        setReadOnly(Boolean(stored.workout.completed_at));
+        setReadOnly(false);
         setLoading(false);
         return;
       }
 
-      // 2. Try fetching from server (viewing history)
+      // Clean up any stale localStorage for completed workouts
+      if (stored?.workout.completed_at) {
+        localStorage.removeItem(`workout-${id}`);
+        sessionStorage.removeItem(`workout-${id}`);
+      }
+
+      // 2. Fetch from server (history view or completed workout)
       const result = await getWorkout(id);
       if (result) {
         const bonus = await getWorkoutBonusCardio(id);
