@@ -88,6 +88,19 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
         const serialized = JSON.stringify(result);
         sessionStorage.setItem(`workout-${result.id}`, serialized);
         localStorage.setItem(`workout-${result.id}`, serialized);
+        // Mark additional merged days as done for this week so ProgramSlotsGrid can flag them
+        if (extra.length > 0) {
+          const now = new Date();
+          const dow = now.getDay();
+          const daysFromMonday = dow === 0 ? 6 : dow - 1;
+          const weekStart = new Date(now);
+          weekStart.setDate(now.getDate() - daysFromMonday);
+          weekStart.setHours(0, 0, 0, 0);
+          localStorage.setItem(
+            `week-compact-done-${programId}`,
+            JSON.stringify({ weekStart: weekStart.toISOString(), dayIds: extra }),
+          );
+        }
         router.push(`/workout/${result.id}`);
       }
     } finally {

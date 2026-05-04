@@ -1,6 +1,7 @@
 import {
   getLatestUnfinishedWorkout,
   getTodayWorkoutDay,
+  getThisWeekFinishedDayIds,
   getWorkoutDaysForProgram,
 } from "@/lib/actions";
 import Link from "next/link";
@@ -8,6 +9,7 @@ import { Suspense } from "react";
 import StartWorkoutButton from "./StartWorkoutButton";
 import EasyWeekButton from "./EasyWeekButton";
 import ManualWorkoutSelector from "./ManualWorkoutSelector";
+import ProgramSlotsGrid from "./ProgramSlotsGrid";
 
 export default function TodayPage() {
   return (
@@ -24,11 +26,14 @@ export default function TodayPage() {
 }
 
 async function TodayContent() {
-  const [unfinishedWorkout, todayDay, allDays] = await Promise.all([
+  const [unfinishedWorkout, todayDay, allDays, finishedDayIds] = await Promise.all([
     getLatestUnfinishedWorkout(),
     getTodayWorkoutDay(),
     getWorkoutDaysForProgram(),
+    getThisWeekFinishedDayIds(),
   ]);
+
+  const programId = allDays[0]?.program_id;
 
   return (
     <>
@@ -52,17 +57,24 @@ async function TodayContent() {
         </div>
       )}
 
-      {allDays.length > 0 && (
-        <EasyWeekButton programId={allDays[0]!.program_id} />
-      )}
+      {programId && <EasyWeekButton programId={programId} />}
 
       {todayDay ? (
-        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-          <div>
-            <p className="text-muted text-sm">Today&apos;s slot</p>
-            <h2 className="text-xl font-bold text-white">{todayDay.name}</h2>
+        <div className={`bg-card rounded-2xl border p-5 space-y-4 ${
+          finishedDayIds.includes(todayDay.id)
+            ? "border-green-600/50 bg-green-500/5"
+            : "border-border"
+        }`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-muted text-sm">Today&apos;s slot</p>
+              <h2 className="text-xl font-bold text-white">{todayDay.name}</h2>
+            </div>
+            {finishedDayIds.includes(todayDay.id) && (
+              <span className="text-sm text-green-400 font-semibold">✓ Done</span>
+            )}
           </div>
-          <StartWorkoutButton workoutDayId={todayDay.id} programId={allDays[0]?.program_id} />
+          <StartWorkoutButton workoutDayId={todayDay.id} programId={programId} />
         </div>
       ) : (
         <div className="bg-card rounded-2xl border border-border p-5">
@@ -84,27 +96,13 @@ async function TodayContent() {
         </div>
       )}
 
-      <div>
-        <h2 className="text-lg font-semibold text-white mb-3">Program Slots</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {allDays.map((day, index) => {
-            const isToday = day.day_of_week === new Date().getDay();
-            return (
-              <div
-                key={day.id}
-                className={`bg-card rounded-xl border p-3 ${
-                  isToday ? "border-accent bg-accent/5" : "border-border"
-                }`}
-              >
-                <p className="text-muted text-xs">Workout {index + 1}</p>
-                <p className="text-white font-medium">{day.name}</p>
-                {isToday && <p className="text-xs text-accent mt-1">Today</p>}
-                <StartWorkoutButton workoutDayId={day.id} programId={day.program_id} small />
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {programId && (
+        <ProgramSlotsGrid
+          allDays={allDays}
+          serverFinishedIds={finishedDayIds}
+          programId={programId}
+        />
+      )}
     </>
   );
 }

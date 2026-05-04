@@ -192,6 +192,31 @@ export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
   return [];
 }
 
+// Returns workout_day_ids of all completed workouts in the current calendar week (Mon–Sun).
+export async function getThisWeekFinishedDayIds(): Promise<string[]> {
+  if (DEMO_MODE) return [];
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun
+  const daysFromMonday = dow === 0 ? 6 : dow - 1;
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - daysFromMonday);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const { data } = await supabase
+    .from("workouts")
+    .select("workout_day_id")
+    .eq("user_id", userId)
+    .not("completed_at", "is", null)
+    .gte("completed_at", weekStart.toISOString())
+    .not("workout_day_id", "is", null);
+
+  return (data ?? []).map((w) => w.workout_day_id as string);
+}
+
 export async function getLatestUnfinishedWorkout(): Promise<Workout | null> {
   if (DEMO_MODE) {
     const unfinished = Array.from(mockStore.values())
