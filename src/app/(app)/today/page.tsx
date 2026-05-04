@@ -52,20 +52,17 @@ async function TodayContent() {
         </div>
       )}
 
+      {allDays.length > 0 && (
+        <EasyWeekButton programId={allDays[0]!.program_id} />
+      )}
+
       {todayDay ? (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <div>
             <p className="text-muted text-sm">Today&apos;s slot</p>
             <h2 className="text-xl font-bold text-white">{todayDay.name}</h2>
           </div>
-          <StartWorkoutButton workoutDayId={todayDay.id} />
-          {allDays.length > 0 && (
-            <EasyWeekButton
-              programId={allDays[0]!.program_id}
-              allDays={allDays}
-              primaryDayId={todayDay.id}
-            />
-          )}
+          <StartWorkoutButton workoutDayId={todayDay.id} programId={allDays[0]?.program_id} />
         </div>
       ) : (
         <div className="bg-card rounded-2xl border border-border p-5">
@@ -102,13 +99,7 @@ async function TodayContent() {
                 <p className="text-muted text-xs">Workout {index + 1}</p>
                 <p className="text-white font-medium">{day.name}</p>
                 {isToday && <p className="text-xs text-accent mt-1">Today</p>}
-                <StartWorkoutButton workoutDayId={day.id} small />
-                <EasyWeekButton
-                  programId={day.program_id}
-                  allDays={allDays}
-                  primaryDayId={day.id}
-                  small
-                />
+                <StartWorkoutButton workoutDayId={day.id} programId={day.program_id} small />
               </div>
             );
           })}
