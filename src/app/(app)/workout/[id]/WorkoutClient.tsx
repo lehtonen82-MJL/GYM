@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ExerciseCard from "@/components/ExerciseCard";
 import type {
@@ -18,7 +18,10 @@ import {
   swapWorkoutExercise,
   updateProgramExerciseDefault,
   getPreviousResults,
+  addExerciseToWorkout,
+  saveWorkoutAsTemplate,
 } from "@/lib/actions";
+import AddExerciseModal from "@/components/AddExerciseModal";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
   hasBonusCardioData,
@@ -133,8 +136,15 @@ export default function WorkoutClient({
     return map;
   });
 
-  // Track which set IDs existed in DB when this workout was loaded
-  const originalSetIds = initialEntries.flatMap((e) => (e.set_entries ?? []).map((s) => s.id));
+  // Track which set IDs existed in DB when this workout was loaded.
+  // Stored in a ref so addExercise can append without triggering re-renders.
+  const originalSetIdsRef = useRef<string[]>(
+    initialEntries.flatMap((e) => (e.set_entries ?? []).map((s) => s.id))
+  );
+  // Keep a plain variable alias for the existing handleFinish references
+  const originalSetIds = originalSetIdsRef.current;
+
+  const [showAddExercise, setShowAddExercise] = useState(false);
 
   // State for the "Update program?" dialog shown after a mid-workout swap
   const [updateProgramDialog, setUpdateProgramDialog] = useState<{
@@ -150,6 +160,8 @@ export default function WorkoutClient({
   const [showSummary, setShowSummary] = useState(false);
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [hydratedDraft, setHydratedDraft] = useState(false);
@@ -388,6 +400,23 @@ export default function WorkoutClient({
     });
   }
 
+  async function handleAddExercise(exerciseId: string, exerciseName: string) {
+    setShowAddExercise(false);
+    const newEntry = await addExerciseToWorkout(workout.id, exerciseId);
+    if (!newEntry) return;
+
+    setEntries((prev) => [...prev, newEntry]);
+    setSetsMap((prev) => ({
+      ...prev,
+      [newEntry.id]: newEntry.set_entries ?? [],
+    }));
+    // New sets are already persisted server-side; track their IDs so syncWorkoutSets
+    // will update (not re-insert) them on finish.
+    const newSetIds = (newEntry.set_entries ?? []).map((s) => s.id);
+    originalSetIdsRef.current = [...originalSetIdsRef.current, ...newSetIds];
+    setActiveEntryId(newEntry.id);
+  }
+
   function handleFinishClick() {
     const hasIncomplete = entries.some((entry) => {
       const sets = setsMap[entry.id] ?? [];
@@ -448,6 +477,18 @@ export default function WorkoutClient({
         localStorage.removeItem(`workout-${workout.id}`);
         localStorage.removeItem(draftStorageKey(workout.id));
       }
+
+      // Offer to save as a reusable template for freestyle or mixed workouts
+      const isFreestyle = workout.workout_day_id == null;
+      if (isFreestyle) {
+        const defaultName = workout.import_session_name && workout.import_session_name !== "Freestyle workout"
+          ? workout.import_session_name
+          : `Workout ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+        setTemplateName(defaultName);
+        setShowSaveTemplate(true);
+        return;
+      }
+
       router.push("/today");
     } finally {
       setSaving(false);
@@ -556,6 +597,7 @@ export default function WorkoutClient({
 
   if (showSummary) {
     return (
+      <>
       <div className="space-y-6 pb-8">
         <div className="flex items-center gap-3">
           <button
@@ -645,6 +687,49 @@ export default function WorkoutClient({
           </button>
         )}
       </div>
+
+      {/* Save as reusable workout prompt */}
+      {showSaveTemplate && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
+          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+            <h2 className="text-white text-lg font-bold">Save as workout?</h2>
+            <p className="text-zinc-400 text-sm">
+              Give this workout a name so you can start it again from Today.
+            </p>
+            <input
+              type="text"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Workout name"
+              className="w-full px-4 py-3 rounded-xl bg-zinc-800 text-white border border-zinc-700 focus:border-blue-500 focus:outline-none text-base"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowSaveTemplate(false); router.push("/today"); }}
+                className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:bg-zinc-700"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (templateName.trim()) {
+                    await saveWorkoutAsTemplate(workout.id, templateName.trim());
+                  }
+                  setShowSaveTemplate(false);
+                  router.push("/today");
+                }}
+                className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm active:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
@@ -681,11 +766,26 @@ export default function WorkoutClient({
       ))}
 
       <button
+        type="button"
+        onClick={() => setShowAddExercise(true)}
+        className="w-full py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm border border-zinc-700 active:bg-zinc-700"
+      >
+        + Add exercise
+      </button>
+
+      <button
         onClick={handleFinishClick}
         className="w-full py-4 rounded-xl bg-success text-white font-bold text-lg active:opacity-80"
       >
         Finish Workout
       </button>
+
+      {showAddExercise && (
+        <AddExerciseModal
+          onAdd={(id, name) => void handleAddExercise(id, name)}
+          onClose={() => setShowAddExercise(false)}
+        />
+      )}
 
       {/* Update Program dialog — shown after a mid-workout swap */}
       {updateProgramDialog && (

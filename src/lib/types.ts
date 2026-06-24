@@ -304,3 +304,34 @@ export type ProgramListItem = Program & {
   days_count: number;
   exercises_count: number;
 };
+
+// ── Freestyle / Custom Workout Templates ───────────────────
+
+export type WorkoutTemplate = {
+  id: string;
+  user_id: string;
+  name: string;
+  last_used_at: string | null;
+  created_at: string;
+};
+
+export type WorkoutTemplateExercise = {
+  id: string;
+  template_id: string;
+  user_id: string;
+  exercise_id: string;
+  exercise_name_snapshot: string;
+  target_sets: number;
+  target_reps: number;
+  sort_order: number;
+  exercise?: Exercise;
+};
+
+export type WorkoutTemplateWithExercises = WorkoutTemplate & {
+  exercises: WorkoutTemplateExercise[];
+};
+
+export type WorkoutTemplateListItem = WorkoutTemplate & {
+  exercise_count: number;
+  exercise_names: string[];
+};

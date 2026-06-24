@@ -3,13 +3,16 @@ import {
   getTodayWorkoutDay,
   getThisWeekFinishedDayIds,
   getWorkoutDaysForProgram,
+  getWorkoutTemplates,
 } from "@/lib/actions";
 import Link from "next/link";
 import { Suspense } from "react";
 import StartWorkoutButton from "./StartWorkoutButton";
+import StartBlankWorkoutButton from "./StartBlankWorkoutButton";
 import EasyWeekButton from "./EasyWeekButton";
 import ManualWorkoutSelector from "./ManualWorkoutSelector";
 import ProgramSlotsGrid from "./ProgramSlotsGrid";
+import MyWorkoutsSection from "./MyWorkoutsSection";
 
 export default function TodayPage() {
   return (
@@ -26,11 +29,12 @@ export default function TodayPage() {
 }
 
 async function TodayContent() {
-  const [unfinishedWorkout, todayDay, allDays, finishedDayIds] = await Promise.all([
+  const [unfinishedWorkout, todayDay, allDays, finishedDayIds, templates] = await Promise.all([
     getLatestUnfinishedWorkout(),
     getTodayWorkoutDay(),
     getWorkoutDaysForProgram(),
     getThisWeekFinishedDayIds(),
+    getWorkoutTemplates(),
   ]);
 
   const programId = allDays[0]?.program_id;
@@ -103,6 +107,17 @@ async function TodayContent() {
           programId={programId}
         />
       )}
+
+      {templates.length > 0 && <MyWorkoutsSection templates={templates} />}
+
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+        <div>
+          <p className="text-muted text-sm">Freestyle</p>
+          <h3 className="text-lg font-semibold text-white mt-0.5">Build your own</h3>
+          <p className="text-muted text-xs mt-1">Start empty and add exercises as you go</p>
+        </div>
+        <StartBlankWorkoutButton />
+      </div>
     </>
   );
 }

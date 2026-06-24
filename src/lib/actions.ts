@@ -6,3 +6,4 @@ export * from "./actions/history";
 export * from "./actions/exercises";
 export * from "./actions/programs";
 export * from "./actions/prs";
+export * from "./actions/freestyle";
