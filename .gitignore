@@ -31,13 +31,12 @@ yarn-error.log*
 .pnpm-debug.log*
 .dev-server.log
 iCloud Photos/
-eng.traineddata
+*.traineddata
 .tmp-ocr-results/
 .tmp-*
 /tmp/
-build-output.txt
-build_out*.txt
-build_output*.txt
+build*.txt
+build_*.txt
 
 # env files (can opt-in for committing if needed)
 .env*
