@@ -1,0 +1,442 @@
+"use server";
+
+import type { ExerciseDefinition, ProgramExerciseAlternative } from "@/lib/types";
+import { DEMO_MODE, db, getUserId } from "./_shared";
+import { MOCK_EXERCISES } from "./_mocks";
+
+function getExerciseProgressMock(exerciseId: string) {
+  const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
+    "ex-bench": [
+      { date: "2026-01-05", weight_kg: 90,   reps: 5, sets: 4, volume: 1800 },
+      { date: "2026-01-12", weight_kg: 92.5, reps: 5, sets: 4, volume: 1850 },
+      { date: "2026-01-19", weight_kg: 95,   reps: 5, sets: 4, volume: 1900 },
+      { date: "2026-01-26", weight_kg: 97.5, reps: 4, sets: 4, volume: 1560 },
+      { date: "2026-02-02", weight_kg: 97.5, reps: 5, sets: 4, volume: 1950 },
+      { date: "2026-02-09", weight_kg: 100,  reps: 5, sets: 4, volume: 2000 },
+      { date: "2026-02-16", weight_kg: 100,  reps: 4, sets: 4, volume: 1600 },
+      { date: "2026-03-02", weight_kg: 100,  reps: 5, sets: 4, volume: 2000 },
+    ],
+    "ex-bsquat": [
+      { date: "2026-01-03", weight_kg: 100,  reps: 5, sets: 5, volume: 2000 },
+      { date: "2026-01-10", weight_kg: 105,  reps: 5, sets: 5, volume: 2100 },
+      { date: "2026-01-17", weight_kg: 110,  reps: 5, sets: 5, volume: 2200 },
+      { date: "2026-01-24", weight_kg: 112.5, reps: 5, sets: 5, volume: 2250 },
+      { date: "2026-01-31", weight_kg: 115,  reps: 4, sets: 5, volume: 1840 },
+      { date: "2026-02-07", weight_kg: 115,  reps: 5, sets: 5, volume: 2300 },
+      { date: "2026-02-21", weight_kg: 117.5, reps: 5, sets: 5, volume: 2350 },
+      { date: "2026-03-07", weight_kg: 120,  reps: 5, sets: 5, volume: 2400 },
+    ],
+    "ex-snatch": [
+      { date: "2026-01-06", weight_kg: 60,   reps: 2, sets: 3, volume: 480 },
+      { date: "2026-01-13", weight_kg: 62.5, reps: 2, sets: 3, volume: 500 },
+      { date: "2026-01-20", weight_kg: 65,   reps: 2, sets: 3, volume: 520 },
+      { date: "2026-02-03", weight_kg: 67.5, reps: 2, sets: 3, volume: 540 },
+      { date: "2026-02-17", weight_kg: 70,   reps: 2, sets: 3, volume: 560 },
+    ],
+    "ex-rdl": [
+      { date: "2026-01-08", weight_kg: 70,   reps: 8, sets: 3, volume: 1680 },
+      { date: "2026-01-15", weight_kg: 75,   reps: 8, sets: 3, volume: 1800 },
+      { date: "2026-01-22", weight_kg: 77.5, reps: 8, sets: 3, volume: 1860 },
+      { date: "2026-02-05", weight_kg: 80,   reps: 8, sets: 3, volume: 1920 },
+    ],
+  };
+  return MOCK_PROGRESS[exerciseId] ?? [];
+}
+
+export async function getExerciseList() {
+  if (DEMO_MODE) {
+    const all = Object.values(MOCK_EXERCISES).flat();
+    const seen = new Set<string>();
+    return all
+      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+      .map((ex) => ({ id: ex.id, name: ex.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("exercises")
+    .select("id, name")
+    .eq("user_id", userId)
+    .order("name");
+
+  return data ?? [];
+}
+
+/** Like getExerciseList but includes linked library metadata for badge display. */
+export async function getExerciseListEnriched(): Promise<Array<{
+  id: string;
+  name: string;
+  equipment_type?: string;
+  primary_muscle?: string;
+  is_bodyweight?: boolean;
+}>> {
+  if (DEMO_MODE) {
+    const all = Object.values(MOCK_EXERCISES).flat();
+    const seen = new Set<string>();
+    return all
+      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+      .map((ex) => ({ id: ex.id, name: ex.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("exercises")
+    .select("id, name, is_bodyweight, exercise_definition_id, definition:exercise_definitions(equipment_type, primary_muscle)")
+    .eq("user_id", userId)
+    .order("name");
+
+  return (data ?? []).map((ex) => {
+    const def = Array.isArray(ex.definition) ? ex.definition[0] : ex.definition;
+    return {
+      id: ex.id as string,
+      name: ex.name as string,
+      is_bodyweight: (ex.is_bodyweight as boolean | null) ?? false,
+      equipment_type: (def as { equipment_type?: string } | null)?.equipment_type,
+      primary_muscle: (def as { primary_muscle?: string } | null)?.primary_muscle,
+    };
+  });
+}
+
+/**
+ * Merged exercise list for the Swap Exercise modal.
+ * Returns user's own exercises (source: "user") plus any library exercises
+ * they haven't logged yet (source: "library"), de-duped by normalized_name.
+ */
+export async function getExerciseListForSwap(): Promise<Array<{
+  id: string;
+  name: string;
+  equipment_type?: string;
+  primary_muscle?: string;
+  is_bodyweight?: boolean;
+  source: "user" | "library";
+}>> {
+  if (DEMO_MODE) {
+    const all = Object.values(MOCK_EXERCISES).flat();
+    const seen = new Set<string>();
+    return all
+      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+      .map((ex) => ({ id: ex.id, name: ex.name, source: "user" as const }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const [userResult, libraryResult] = await Promise.all([
+    supabase
+      .from("exercises")
+      .select("id, name, is_bodyweight, definition:exercise_definitions(equipment_type, primary_muscle, normalized_name)")
+      .eq("user_id", userId)
+      .order("name"),
+    supabase
+      .from("exercise_definitions")
+      .select("id, name, normalized_name, equipment_type, primary_muscle, is_bodyweight")
+      .order("name"),
+  ]);
+
+  if (userResult.error) console.error("[getExerciseListForSwap] exercises error:", userResult.error);
+  if (libraryResult.error) console.error("[getExerciseListForSwap] exercise_definitions error:", libraryResult.error);
+
+  const userExercises = userResult.data;
+  const libraryExercises = libraryResult.data;
+
+  const userItems = (userExercises ?? []).map((ex) => {
+    const def = Array.isArray(ex.definition) ? ex.definition[0] : ex.definition;
+    const defTyped = def as { equipment_type?: string; primary_muscle?: string; normalized_name?: string } | null;
+    return {
+      id: ex.id as string,
+      name: ex.name as string,
+      is_bodyweight: (ex.is_bodyweight as boolean | null) ?? false,
+      equipment_type: defTyped?.equipment_type,
+      primary_muscle: defTyped?.primary_muscle,
+      _normalized: defTyped?.normalized_name ?? (ex.name as string).toLowerCase().trim(),
+      source: "user" as const,
+    };
+  });
+
+  const userNormalizedNames = new Set(userItems.map((u) => u._normalized));
+
+  const libraryItems = (libraryExercises ?? [])
+    .filter((lib) => !userNormalizedNames.has(lib.normalized_name as string))
+    .map((lib) => ({
+      id: lib.id as string,
+      name: lib.name as string,
+      is_bodyweight: (lib.is_bodyweight as boolean) ?? false,
+      equipment_type: lib.equipment_type as string,
+      primary_muscle: lib.primary_muscle as string,
+      source: "library" as const,
+    }));
+
+  return [
+    ...userItems.map(({ _normalized: _n, ...rest }) => rest),
+    ...libraryItems,
+  ];
+}
+
+/**
+ * When a user picks a library exercise they've never logged, we need a real
+ * row in their exercises table. This finds or creates it and links to the library.
+ * Returns the user-scoped exercise id to use in workout_exercise_entries.
+ */
+export async function getOrCreateExerciseFromLibrary(
+  libraryDefinitionId: string,
+  exerciseName: string
+): Promise<string | null> {
+  if (DEMO_MODE) return null;
+
+  const supabase = await db();
+  const userId = await getUserId();
+  const normalized = exerciseName.toLowerCase().trim();
+
+  // Check if already exists
+  const { data: existing } = await supabase
+    .from("exercises")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("normalized_name", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing.id as string;
+
+  // Create new exercise row linked to library
+  const { data: created } = await supabase
+    .from("exercises")
+    .insert({ user_id: userId, name: exerciseName, normalized_name: normalized, exercise_definition_id: libraryDefinitionId })
+    .select("id")
+    .single();
+
+  return created?.id ?? null;
+}
+
+export async function getExerciseProgress(exerciseId: string) {
+  if (DEMO_MODE) return getExerciseProgressMock(exerciseId);
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  // Get all sets for this exercise, grouped by workout date.
+  // Include sets with weight entered (weighted exercises) OR reps entered (bodyweight exercises).
+  // Rely on workout.completed_at IS NOT NULL (whole workout was finished).
+  const { data } = await supabase
+    .from("set_entries")
+    .select(
+      "weight_kg, reps, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, workout_day_exercise:workout_day_exercises(target_reps), workout:workouts!inner(started_at, completed_at))"
+    )
+    .eq("workout_exercise_entry.exercise_id", exerciseId)
+    .eq("user_id", userId)
+    .or("weight_kg.not.is.null,reps.not.is.null");
+
+  if (!data || data.length === 0) return [];
+
+  // Group by date: pick top set (highest weight) AND sum total volume AND count sets
+  const byDate = new Map<string, { weight_kg: number; reps: number; sets: number; volume: number }>();
+  for (const row of data) {
+    const we = row.workout_exercise_entry as unknown as {
+      workout: { started_at: string; completed_at: string | null };
+      workout_day_exercise: { target_reps: number } | null;
+    };
+    if (!we?.workout?.completed_at) continue;
+    const date = we.workout.started_at.split("T")[0];
+    const existing = byDate.get(date);
+    const w = row.weight_kg ?? 0;
+    const r = row.reps ?? we.workout_day_exercise?.target_reps ?? 0;
+    const setVolume = w * r;
+    if (!existing) {
+      byDate.set(date, { weight_kg: w, reps: r, sets: 1, volume: setVolume });
+    } else {
+      existing.sets += 1;
+      existing.volume += setVolume;
+      // For weighted exercises: top set = highest weight
+      // For bodyweight exercises (w=0): top set = highest reps
+      const isBodyweight = w === 0 && existing.weight_kg === 0;
+      if (isBodyweight ? r > existing.reps : w > existing.weight_kg) {
+        existing.weight_kg = w;
+        existing.reps = r;
+      }
+    }
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, vals]) => ({ date, ...vals }));
+}
+
+export async function getExerciseDefinitions(filters?: {
+  primaryMuscle?: string;
+  equipmentType?: string;
+  movementPattern?: string;
+  search?: string;
+}): Promise<ExerciseDefinition[]> {
+  if (DEMO_MODE) return [];
+
+  const supabase = await db();
+  let query = supabase
+    .from("exercise_definitions")
+    .select("*")
+    .order("name");
+
+  if (filters?.primaryMuscle) {
+    query = query.eq("primary_muscle", filters.primaryMuscle);
+  }
+  if (filters?.equipmentType) {
+    query = query.eq("equipment_type", filters.equipmentType);
+  }
+  if (filters?.movementPattern) {
+    query = query.eq("movement_pattern", filters.movementPattern);
+  }
+  if (filters?.search) {
+    query = query.ilike("name", `%${filters.search}%`);
+  }
+
+  const { data } = await query;
+  return (data ?? []) as ExerciseDefinition[];
+}
+
+/**
+ * Given a display name, look up a matching exercise_definition by normalized_name
+ * or alias. Returns the definition id if found, otherwise null.
+ */
+export async function matchExerciseToLibrary(
+  name: string
+): Promise<ExerciseDefinition | null> {
+  if (DEMO_MODE) return null;
+
+  const supabase = await db();
+  const normalized = name.toLowerCase().trim().replace(/\s+/g, " ");
+
+  // Exact normalized_name match
+  const { data: exact } = await supabase
+    .from("exercise_definitions")
+    .select("*")
+    .eq("normalized_name", normalized)
+    .maybeSingle();
+
+  if (exact) return exact as ExerciseDefinition;
+
+  // Alias match: check if normalized appears in the aliases array
+  const { data: aliased } = await supabase
+    .from("exercise_definitions")
+    .select("*")
+    .contains("aliases", [normalized])
+    .maybeSingle();
+
+  return (aliased as ExerciseDefinition | null) ?? null;
+}
+
+/**
+ * Internal: link a newly created exercise to the library, reusing an existing supabase client.
+ * Only fires when exercise_definition_id is not already set.
+ * Silently skips if no matching definition is found.
+ */
+export async function linkExerciseToLibraryInternal(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  exerciseId: string,
+  exerciseName: string
+): Promise<void> {
+  const normalized = exerciseName.toLowerCase().trim().replace(/\s+/g, " ");
+
+  // Exact normalized_name match first
+  let { data: def } = await supabase
+    .from("exercise_definitions")
+    .select("id, is_bodyweight, is_main_lift, equipment_type")
+    .eq("normalized_name", normalized)
+    .maybeSingle();
+
+  // Alias match fallback
+  if (!def) {
+    const { data: aliased } = await supabase
+      .from("exercise_definitions")
+      .select("id, is_bodyweight, is_main_lift, equipment_type")
+      .contains("aliases", [normalized])
+      .maybeSingle();
+    def = aliased;
+  }
+
+  if (!def) return;
+
+  await supabase
+    .from("exercises")
+    .update({
+      exercise_definition_id: def.id,
+      is_bodyweight: def.is_bodyweight,
+      is_main_lift: def.is_main_lift,
+      category: def.equipment_type,
+    })
+    .eq("id", exerciseId)
+    .eq("user_id", userId);
+}
+
+/**
+ * After creating or finding a user exercise, attempt to link it to the library.
+ * Updates exercise_definition_id and is_bodyweight if a match is found.
+ */
+export async function linkExerciseToLibrary(exerciseId: string, exerciseName: string): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+  await linkExerciseToLibraryInternal(supabase, userId, exerciseId, exerciseName);
+}
+
+/** Fetch pre-defined alternatives for a program exercise slot */
+export async function getExerciseAlternatives(
+  programExerciseId: string
+): Promise<ProgramExerciseAlternative[]> {
+  if (DEMO_MODE) return [];
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  const { data } = await supabase
+    .from("program_exercise_alternatives")
+    .select("*, exercise:exercises(id, name)")
+    .eq("program_exercise_id", programExerciseId)
+    .eq("user_id", userId)
+    .order("sort_order");
+
+  return (data ?? []) as ProgramExerciseAlternative[];
+}
+
+/** Add an alternative exercise to a program slot */
+export async function addProgramExerciseAlternative(
+  programExerciseId: string,
+  exerciseId: string
+): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase
+    .from("program_exercise_alternatives")
+    .upsert(
+      { program_exercise_id: programExerciseId, exercise_id: exerciseId, user_id: userId },
+      { onConflict: "program_exercise_id,exercise_id", ignoreDuplicates: true }
+    );
+}
+
+/** Remove an alternative exercise from a program slot */
+export async function removeProgramExerciseAlternative(
+  programExerciseId: string,
+  exerciseId: string
+): Promise<void> {
+  if (DEMO_MODE) return;
+
+  const supabase = await db();
+  const userId = await getUserId();
+
+  await supabase
+    .from("program_exercise_alternatives")
+    .delete()
+    .eq("program_exercise_id", programExerciseId)
+    .eq("exercise_id", exerciseId)
+    .eq("user_id", userId);
+}
