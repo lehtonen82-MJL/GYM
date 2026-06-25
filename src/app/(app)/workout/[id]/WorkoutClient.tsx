@@ -416,9 +416,13 @@ export default function WorkoutClient({
     if (!entry) return;
     const exerciseId = entry.exercise_id;
     if (equipmentOptions[exerciseId] !== undefined) return; // already loaded
-    getEquipmentOptions(exerciseId).then((opts) => {
-      setEquipmentOptions((prev) => ({ ...prev, [exerciseId]: opts }));
-    });
+    getEquipmentOptions(exerciseId)
+      .then((opts) => {
+        setEquipmentOptions((prev) => ({ ...prev, [exerciseId]: opts }));
+      })
+      .catch(() => {
+        setEquipmentOptions((prev) => ({ ...prev, [exerciseId]: [] }));
+      });
   }, [activeEntryId, entries, equipmentOptions, readOnly]);
 
   async function handleChangeEquipment(entryId: string, option: EquipmentOption) {

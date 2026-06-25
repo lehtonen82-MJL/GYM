@@ -11,7 +11,7 @@ export type EquipmentOption = {
   exercise_name: string;
 };
 
-export const EQUIPMENT_LABELS: Record<string, string> = {
+const EQUIPMENT_LABELS: Record<string, string> = {
   barbell: "Barbell",
   dumbbell: "Dumbbell",
   cable: "Cable",
@@ -33,12 +33,24 @@ const EQUIPMENT_ORDER = [
   "cardio_machine", "other",
 ];
 
+function allEquipmentTypes(siblingMap: Map<string, { id: string; name: string }>): EquipmentOption[] {
+  return EQUIPMENT_ORDER.map((eq) => {
+    const sibling = siblingMap.get(eq);
+    return {
+      equipment_type: eq,
+      label: EQUIPMENT_LABELS[eq] ?? eq,
+      definition_id: sibling?.id ?? "",
+      exercise_name: sibling?.name ?? "",
+    };
+  });
+}
+
 /**
- * Returns all equipment types as options for the given exercise.
- * Types that have a matching library definition include a definition_id
- * so the exercise can be swapped. Types without one get definition_id: ""
- * and only tag the equipment on the entry without swapping.
- * Returns [] when the exercise is not linked to any library definition.
+ * Returns all 13 equipment types as dropdown options.
+ * Types that have a matching library definition for the same movement include
+ * a definition_id so the exercise can be swapped (separate history per tool).
+ * Types without a match get definition_id: "" and only tag the entry.
+ * Returns [] only when the exercise has no library definition at all.
  */
 export async function getEquipmentOptions(
   exerciseId: string
@@ -61,39 +73,31 @@ export async function getEquipmentOptions(
   // 2. Get current definition → movement + muscle
   const { data: def } = await supabase
     .from("exercise_definitions")
-    .select("movement_pattern, primary_muscle, equipment_type")
+    .select("movement_pattern, primary_muscle")
     .eq("id", exercise.exercise_definition_id as string)
     .maybeSingle();
 
-  if (!def?.movement_pattern || !def?.primary_muscle) return [];
+  if (!def) return allEquipmentTypes(new Map());
 
-  // 3. Find sibling definitions sharing movement + muscle
-  const { data: siblings } = await supabase
-    .from("exercise_definitions")
-    .select("id, name, equipment_type")
-    .eq("movement_pattern", def.movement_pattern as string)
-    .eq("primary_muscle", def.primary_muscle as string);
-
-  // Build a map: equipment_type → first sibling definition
+  // 3. Find sibling definitions sharing movement + muscle (if both are set)
   const siblingMap = new Map<string, { id: string; name: string }>();
-  for (const s of siblings ?? []) {
-    const eq = s.equipment_type as string;
-    if (!siblingMap.has(eq)) {
-      siblingMap.set(eq, { id: s.id as string, name: s.name as string });
+
+  if (def.movement_pattern && def.primary_muscle) {
+    const { data: siblings } = await supabase
+      .from("exercise_definitions")
+      .select("id, name, equipment_type")
+      .eq("movement_pattern", def.movement_pattern as string)
+      .eq("primary_muscle", def.primary_muscle as string);
+
+    for (const s of siblings ?? []) {
+      const eq = s.equipment_type as string;
+      if (!siblingMap.has(eq)) {
+        siblingMap.set(eq, { id: s.id as string, name: s.name as string });
+      }
     }
   }
 
-  // 4. Return ALL known equipment types in a fixed order.
-  //    Types with a sibling get definition_id filled in; others get "".
-  return EQUIPMENT_ORDER.map((eq) => {
-    const sibling = siblingMap.get(eq);
-    return {
-      equipment_type: eq,
-      label: EQUIPMENT_LABELS[eq] ?? eq,
-      definition_id: sibling?.id ?? "",
-      exercise_name: sibling?.name ?? "",
-    };
-  });
+  return allEquipmentTypes(siblingMap);
 }
 
 /**

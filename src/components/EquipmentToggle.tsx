@@ -10,7 +10,7 @@ type Props = {
 };
 
 export default function EquipmentToggle({ currentEquipment, options, onChange, disabled }: Props) {
-  if (options.length <= 1) return null;
+  if (options.length === 0) return null;
 
   return (
     <select
