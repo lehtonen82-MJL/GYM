@@ -162,6 +162,7 @@ export default function WorkoutClient({
   const [activeEntryId, setActiveEntryId] = useState<string | null>(entries[0]?.id ?? null);
   const [notes, setNotes] = useState("");
   const [showSummary, setShowSummary] = useState(false);
+  const [autoAdvanceLocked, setAutoAdvanceLocked] = useState(false);
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
@@ -290,7 +291,7 @@ export default function WorkoutClient({
   }, [bonusCardioDraft, notes, readOnly, setsMap]);
 
   useEffect(() => {
-    if (readOnly || showSummary) return;
+    if (readOnly || showSummary || autoAdvanceLocked) return;
 
     const allSetsDone = entries.every((entry) => {
       const sets = setsMap[entry.id] ?? [];
@@ -301,7 +302,7 @@ export default function WorkoutClient({
       const timer = setTimeout(() => setShowSummary(true), 500);
       return () => clearTimeout(timer);
     }
-  }, [entries, readOnly, setsMap, showSummary]);
+  }, [autoAdvanceLocked, entries, readOnly, setsMap, showSummary]);
 
   const handleSetsChange = useCallback(
     (entryId: string, sets: SetEntry[]) => {
@@ -691,7 +692,7 @@ export default function WorkoutClient({
           <h1 className="text-2xl font-bold text-white">Workout Summary</h1>
           <button
             type="button"
-            onClick={() => setShowSummary(false)}
+            onClick={() => { setShowSummary(false); setAutoAdvanceLocked(true); }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-sm font-semibold active:bg-zinc-700"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
