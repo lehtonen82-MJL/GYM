@@ -242,7 +242,7 @@ export async function saveWorkoutAsTemplate(workoutId: string, name: string): Pr
   // Fetch the workout's entries with exercise names
   const { data: entriesData } = await supabase
     .from("workout_exercise_entries")
-    .select("id, exercise_id, exercise:exercises(name), set_entries(is_warmup, set_number)")
+    .select("id, exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(name), set_entries(is_warmup, set_number)")
     .eq("workout_id", workoutId)
     .eq("user_id", userId)
     .order("created_at");
