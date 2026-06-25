@@ -24,7 +24,7 @@ async function buildStartWorkoutResultFromExisting(
   const { data: entriesData } = await supabase
     .from("workout_exercise_entries")
     .select(
-      "*, exercise:exercises(*), original_exercise:exercises!workout_exercise_entries_original_exercise_id_fkey(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
+      "*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*), original_exercise:exercises!workout_exercise_entries_original_exercise_id_fkey(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*)), set_entries:set_entries(*)"
     )
     .eq("workout_id", workout.id)
     .eq("user_id", userId)
@@ -791,7 +791,7 @@ export async function getWorkout(
   const { data: entries, error: entriesError } = await supabase
     .from("workout_exercise_entries")
     .select(
-      "*, exercise:exercises(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*))"
+      "*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*), workout_day_exercise:workout_day_exercises(*, exercise:exercises(*))"
     )
     .eq("workout_id", workoutId)
     .eq("user_id", userId)

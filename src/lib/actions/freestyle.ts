@@ -150,7 +150,7 @@ export async function addExerciseToWorkout(
       workout_day_exercise_id: null,
       user_id: userId,
     })
-    .select("*, exercise:exercises(*)")
+    .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
     .single();
 
   if (entryErr || !entry) {
@@ -525,7 +525,7 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
             workout_day_exercise_id: null,
             user_id: userId,
           })
-          .select("*, exercise:exercises(*)")
+          .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
           .single()
       )
     ),
