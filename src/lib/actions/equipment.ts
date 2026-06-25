@@ -6,11 +6,12 @@ import { getSuggestedWeightInternal } from "./sets";
 export type EquipmentOption = {
   equipment_type: string;
   label: string;
+  /** Empty string when no library definition exists for this type — entry gets tagged but exercise is not swapped. */
   definition_id: string;
   exercise_name: string;
 };
 
-const EQUIPMENT_LABELS: Record<string, string> = {
+export const EQUIPMENT_LABELS: Record<string, string> = {
   barbell: "Barbell",
   dumbbell: "Dumbbell",
   cable: "Cable",
@@ -22,14 +23,22 @@ const EQUIPMENT_LABELS: Record<string, string> = {
   trap_bar: "Trap Bar",
   band: "Band",
   suspension: "TRX",
-  cardio_machine: "Cardio",
+  cardio_machine: "Cardio Machine",
   other: "Other",
 };
 
+const EQUIPMENT_ORDER = [
+  "barbell", "dumbbell", "cable", "machine_plate", "machine_stack",
+  "smith", "bodyweight", "kettlebell", "trap_bar", "band", "suspension",
+  "cardio_machine", "other",
+];
+
 /**
- * Returns all equipment variants available for the same movement as the given exercise.
- * Looks up the exercise → definition → (movement_pattern, primary_muscle), then
- * finds all definitions sharing those two fields. Returns [] when no definition is linked.
+ * Returns all equipment types as options for the given exercise.
+ * Types that have a matching library definition include a definition_id
+ * so the exercise can be swapped. Types without one get definition_id: ""
+ * and only tag the equipment on the entry without swapping.
+ * Returns [] when the exercise is not linked to any library definition.
  */
 export async function getEquipmentOptions(
   exerciseId: string
@@ -58,39 +67,40 @@ export async function getEquipmentOptions(
 
   if (!def?.movement_pattern || !def?.primary_muscle) return [];
 
-  // 3. Find all definitions sharing movement + muscle
+  // 3. Find sibling definitions sharing movement + muscle
   const { data: siblings } = await supabase
     .from("exercise_definitions")
     .select("id, name, equipment_type")
     .eq("movement_pattern", def.movement_pattern as string)
-    .eq("primary_muscle", def.primary_muscle as string)
-    .order("name");
+    .eq("primary_muscle", def.primary_muscle as string);
 
-  if (!siblings || siblings.length <= 1) return [];
-
-  // Dedupe by equipment_type — keep first definition per tool
-  const seen = new Set<string>();
-  const options: EquipmentOption[] = [];
-  for (const s of siblings) {
+  // Build a map: equipment_type → first sibling definition
+  const siblingMap = new Map<string, { id: string; name: string }>();
+  for (const s of siblings ?? []) {
     const eq = s.equipment_type as string;
-    if (seen.has(eq)) continue;
-    seen.add(eq);
-    options.push({
-      equipment_type: eq,
-      label: EQUIPMENT_LABELS[eq] ?? eq,
-      definition_id: s.id as string,
-      exercise_name: s.name as string,
-    });
+    if (!siblingMap.has(eq)) {
+      siblingMap.set(eq, { id: s.id as string, name: s.name as string });
+    }
   }
 
-  return options;
+  // 4. Return ALL known equipment types in a fixed order.
+  //    Types with a sibling get definition_id filled in; others get "".
+  return EQUIPMENT_ORDER.map((eq) => {
+    const sibling = siblingMap.get(eq);
+    return {
+      equipment_type: eq,
+      label: EQUIPMENT_LABELS[eq] ?? eq,
+      definition_id: sibling?.id ?? "",
+      exercise_name: sibling?.name ?? "",
+    };
+  });
 }
 
 /**
- * Switches the equipment type on a workout entry:
- * 1. Finds or creates the user exercise for the new definition.
- * 2. Updates the entry's exercise_id + equipment_type.
- * 3. Returns the new exercise name + suggested weight.
+ * Switches the equipment type on a workout entry.
+ * If definition_id is non-empty: finds/creates the user exercise for the new
+ * definition and swaps exercise_id (separate history per tool).
+ * If definition_id is empty: only tags equipment_type on the entry.
  */
 export async function changeEntryEquipment(
   entryId: string,
@@ -106,7 +116,30 @@ export async function changeEntryEquipment(
   const supabase = await db();
   const userId = await getUserId();
 
-  // 1. Get the target definition's name
+  // No definition → just tag equipment_type, keep current exercise
+  if (!newDefinitionId) {
+    const { data: current } = await supabase
+      .from("workout_exercise_entries")
+      .select("exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(id, name)")
+      .eq("id", entryId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    await supabase
+      .from("workout_exercise_entries")
+      .update({ equipment_type: newEquipmentType })
+      .eq("id", entryId)
+      .eq("user_id", userId);
+
+    const cur = current as { exercise_id: string; exercise: { id: string; name: string } | null } | null;
+    return {
+      exerciseId: cur?.exercise_id ?? "",
+      exerciseName: cur?.exercise?.name ?? "",
+      suggestion: null,
+    };
+  }
+
+  // Has definition → swap exercise for separate history
   const { data: def } = await supabase
     .from("exercise_definitions")
     .select("name, normalized_name, is_bodyweight, is_main_lift, equipment_type")
@@ -118,7 +151,6 @@ export async function changeEntryEquipment(
   const exerciseName = def.name as string;
   const normalized = def.normalized_name as string;
 
-  // 2. Find or create user exercise linked to new definition
   const { data: existing } = await supabase
     .from("exercises")
     .select("id")
@@ -148,7 +180,6 @@ export async function changeEntryEquipment(
     exerciseId = created.id as string;
   }
 
-  // 3. Get current entry to know target_sets for suggestion
   const { data: entry } = await supabase
     .from("workout_exercise_entries")
     .select("workout_day_exercise:workout_day_exercises(target_sets)")
@@ -156,19 +187,15 @@ export async function changeEntryEquipment(
     .eq("user_id", userId)
     .maybeSingle();
 
-  const entryTyped = entry as {
-    workout_day_exercise: { target_sets: number } | null;
-  } | null;
+  const entryTyped = entry as { workout_day_exercise: { target_sets: number } | null } | null;
   const targetSets = entryTyped?.workout_day_exercise?.target_sets ?? 3;
 
-  // 4. Update entry: swap exercise + tag equipment
   await supabase
     .from("workout_exercise_entries")
     .update({ exercise_id: exerciseId, equipment_type: newEquipmentType })
     .eq("id", entryId)
     .eq("user_id", userId);
 
-  // 5. Suggested weight for the new exercise
   const suggestion = await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets);
 
   return { exerciseId, exerciseName, suggestion };

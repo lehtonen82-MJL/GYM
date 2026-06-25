@@ -855,7 +855,7 @@ export default function WorkoutClient({
             originalExerciseName={entry.original_exercise?.name ?? null}
             onSwapExercise={(newId, newName) => void handleSwapExercise(entry.id, newId, newName)}
             equipmentToggle={
-              opts.length > 1 ? (
+              opts.length > 0 ? (
                 <EquipmentToggle
                   currentEquipment={currentEquip}
                   options={opts}
