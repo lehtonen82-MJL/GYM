@@ -11,15 +11,15 @@ export type EquipmentOption = {
 };
 
 const EQUIPMENT_LABELS: Record<string, string> = {
-  barbell: "BB",
-  dumbbell: "DB",
+  barbell: "Barbell",
+  dumbbell: "Dumbbell",
   cable: "Cable",
-  machine_plate: "Machine",
-  machine_stack: "Machine",
-  smith: "Smith",
-  bodyweight: "BW",
-  kettlebell: "KB",
-  trap_bar: "Trap",
+  machine_plate: "Machine (plate)",
+  machine_stack: "Machine (stack)",
+  smith: "Smith Machine",
+  bodyweight: "Bodyweight",
+  kettlebell: "Kettlebell",
+  trap_bar: "Trap Bar",
   band: "Band",
   suspension: "TRX",
   cardio_machine: "Cardio",
