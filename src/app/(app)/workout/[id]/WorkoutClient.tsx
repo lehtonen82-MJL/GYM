@@ -469,6 +469,10 @@ export default function WorkoutClient({
       alert(`Could not add ${exerciseName}. Please try again.`);
       return;
     }
+    if ("__error" in newEntry) {
+      alert(`Could not add ${exerciseName}: ${newEntry.__error}`);
+      return;
+    }
 
     setEntries((prev) => {
       const next = [...prev, newEntry];

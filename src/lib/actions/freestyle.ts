@@ -96,7 +96,7 @@ export async function addExerciseToWorkout(
   exerciseId: string,
   targetSets = 3,
   targetReps = 8
-): Promise<WorkoutExerciseEntry | null> {
+): Promise<WorkoutExerciseEntry | { __error: string } | null> {
   if (DEMO_MODE) {
     const stored = mockStore.get(workoutId);
     if (!stored) return null;
@@ -154,11 +154,13 @@ export async function addExerciseToWorkout(
     .single();
 
   if (entryErr || !entry) {
-    console.error("[addExerciseToWorkout] entry insert failed:", entryErr?.message, entryErr?.details, entryErr?.hint);
-    throw new Error(entryErr?.message ?? "Failed to create exercise entry");
+    const msg = `entry insert failed: ${entryErr?.message ?? "no data"} | ${entryErr?.details ?? ""} | hint: ${entryErr?.hint ?? ""}`;
+    console.error("[addExerciseToWorkout]", msg);
+    return { __error: msg };
   }
 
-  // Insert blank sets
+  // Insert blank sets — omit too_heavy/too_heavy_reps so DB defaults apply,
+  // matching the same approach used by startWorkout.
   const setRows = Array.from({ length: targetSets }, (_, i) => ({
     workout_exercise_entry_id: entry.id as string,
     user_id: userId,
@@ -167,8 +169,6 @@ export async function addExerciseToWorkout(
     reps: null as number | null,
     completed: false,
     is_warmup: false,
-    too_heavy: false,
-    too_heavy_reps: null as number | null,
   }));
 
   const { data: sets, error: setsErr } = await supabase
@@ -177,8 +177,9 @@ export async function addExerciseToWorkout(
     .select("*");
 
   if (setsErr) {
-    console.error("[addExerciseToWorkout] sets insert failed:", setsErr?.message, setsErr?.details, setsErr?.hint);
-    throw new Error(setsErr?.message ?? "Failed to create sets");
+    const msg = `sets insert failed: ${setsErr?.message ?? "no data"} | ${setsErr?.details ?? ""} | hint: ${setsErr?.hint ?? ""}`;
+    console.error("[addExerciseToWorkout]", msg);
+    return { __error: msg };
   }
 
   return {
