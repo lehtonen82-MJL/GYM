@@ -459,9 +459,27 @@ export default function WorkoutClient({
   async function handleAddExercise(exerciseId: string, exerciseName: string) {
     setShowAddExercise(false);
     const newEntry = await addExerciseToWorkout(workout.id, exerciseId);
-    if (!newEntry) return;
+    if (!newEntry) {
+      alert(`Could not add ${exerciseName}. Please check your connection and try again.`);
+      return;
+    }
 
-    setEntries((prev) => [...prev, newEntry]);
+    setEntries((prev) => {
+      const next = [...prev, newEntry];
+      // Persist updated entries to localStorage so reloading the page doesn't lose them.
+      if (typeof window !== "undefined") {
+        const storageKey = `workout-${workout.id}`;
+        const raw = sessionStorage.getItem(storageKey) ?? localStorage.getItem(storageKey);
+        if (raw) {
+          try {
+            const updated = JSON.stringify({ ...JSON.parse(raw), entries: next });
+            sessionStorage.setItem(storageKey, updated);
+            localStorage.setItem(storageKey, updated);
+          } catch { /* ignore */ }
+        }
+      }
+      return next;
+    });
     setSetsMap((prev) => ({
       ...prev,
       [newEntry.id]: newEntry.set_entries ?? [],
