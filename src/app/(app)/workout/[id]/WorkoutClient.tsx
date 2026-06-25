@@ -458,9 +458,15 @@ export default function WorkoutClient({
 
   async function handleAddExercise(exerciseId: string, exerciseName: string) {
     setShowAddExercise(false);
-    const newEntry = await addExerciseToWorkout(workout.id, exerciseId);
+    let newEntry;
+    try {
+      newEntry = await addExerciseToWorkout(workout.id, exerciseId);
+    } catch (err) {
+      alert(`Could not add ${exerciseName}: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
     if (!newEntry) {
-      alert(`Could not add ${exerciseName}. Please check your connection and try again.`);
+      alert(`Could not add ${exerciseName}. Please try again.`);
       return;
     }
 

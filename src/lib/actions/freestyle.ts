@@ -153,7 +153,10 @@ export async function addExerciseToWorkout(
     .select("*, exercise:exercises(*)")
     .single();
 
-  if (entryErr || !entry) return null;
+  if (entryErr || !entry) {
+    console.error("[addExerciseToWorkout] entry insert failed:", entryErr?.message, entryErr?.details, entryErr?.hint);
+    throw new Error(entryErr?.message ?? "Failed to create exercise entry");
+  }
 
   // Insert blank sets
   const setRows = Array.from({ length: targetSets }, (_, i) => ({
@@ -173,7 +176,10 @@ export async function addExerciseToWorkout(
     .insert(setRows)
     .select("*");
 
-  if (setsErr) return null;
+  if (setsErr) {
+    console.error("[addExerciseToWorkout] sets insert failed:", setsErr?.message, setsErr?.details, setsErr?.hint);
+    throw new Error(setsErr?.message ?? "Failed to create sets");
+  }
 
   return {
     ...(entry as WorkoutExerciseEntry),
