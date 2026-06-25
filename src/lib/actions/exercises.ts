@@ -4,6 +4,12 @@ import type { ExerciseDefinition, ProgramExerciseAlternative } from "@/lib/types
 import { DEMO_MODE, db, getUserId } from "./_shared";
 import { MOCK_EXERCISES } from "./_mocks";
 
+function dedupMockExercises() {
+  const all = Object.values(MOCK_EXERCISES).flat();
+  const seen = new Set<string>();
+  return all.filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; });
+}
+
 function getExerciseProgressMock(exerciseId: string) {
   const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
     "ex-bench": [
@@ -45,10 +51,7 @@ function getExerciseProgressMock(exerciseId: string) {
 
 export async function getExerciseList() {
   if (DEMO_MODE) {
-    const all = Object.values(MOCK_EXERCISES).flat();
-    const seen = new Set<string>();
-    return all
-      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+    return dedupMockExercises()
       .map((ex) => ({ id: ex.id, name: ex.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -74,10 +77,7 @@ export async function getExerciseListEnriched(): Promise<Array<{
   is_bodyweight?: boolean;
 }>> {
   if (DEMO_MODE) {
-    const all = Object.values(MOCK_EXERCISES).flat();
-    const seen = new Set<string>();
-    return all
-      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+    return dedupMockExercises()
       .map((ex) => ({ id: ex.id, name: ex.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -117,10 +117,7 @@ export async function getExerciseListForSwap(): Promise<Array<{
   source: "user" | "library";
 }>> {
   if (DEMO_MODE) {
-    const all = Object.values(MOCK_EXERCISES).flat();
-    const seen = new Set<string>();
-    return all
-      .filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; })
+    return dedupMockExercises()
       .map((ex) => ({ id: ex.id, name: ex.name, source: "user" as const }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
