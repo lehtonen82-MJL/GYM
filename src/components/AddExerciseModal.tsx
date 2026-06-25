@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getExerciseListForSwap, getOrCreateExerciseFromLibrary } from "@/lib/actions";
+import { useEffect, useRef, useState } from "react";
+import { getExerciseListForSwap, getOrCreateExerciseFromLibrary, createCustomExercise } from "@/lib/actions";
 
 const EQUIPMENT_LABELS: Record<string, string> = {
   barbell: "Barbell",
@@ -53,6 +53,10 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<string | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [creatingCustom, setCreatingCustom] = useState(false);
+  const customInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getExerciseListForSwap().then((list) => {
@@ -60,6 +64,12 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (showCustom) {
+      setTimeout(() => customInputRef.current?.focus(), 50);
+    }
+  }, [showCustom]);
 
   async function handleAdd(ex: ExerciseItem) {
     if (adding) return;
@@ -76,9 +86,28 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
     }
   }
 
+  async function handleAddCustom() {
+    const name = customName.trim();
+    if (!name || creatingCustom) return;
+    setCreatingCustom(true);
+    try {
+      const id = await createCustomExercise(name);
+      if (id) onAdd(id, name);
+    } finally {
+      setCreatingCustom(false);
+    }
+  }
+
   const filtered = exercises.filter((ex) =>
     ex.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  // When search has text and no exact match exists, suggest adding custom
+  const searchTrimmed = search.trim();
+  const exactMatch = exercises.some(
+    (ex) => ex.name.toLowerCase() === searchTrimmed.toLowerCase()
+  );
+  const showAddCustomPrompt = searchTrimmed.length > 1 && !exactMatch && !loading;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
@@ -100,46 +129,104 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setShowCustom(false); }}
             placeholder="Search exercises…"
             className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white border border-zinc-700 focus:border-blue-500 focus:outline-none text-sm"
             autoFocus
           />
         </div>
 
+        {/* Custom exercise inline form */}
+        {showCustom && (
+          <div className="px-5 pb-3 shrink-0 space-y-2">
+            <input
+              ref={customInputRef}
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void handleAddCustom(); if (e.key === "Escape") setShowCustom(false); }}
+              placeholder="Exercise name…"
+              className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white border border-zinc-600 focus:border-blue-500 focus:outline-none text-sm"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void handleAddCustom()}
+                disabled={!customName.trim() || creatingCustom}
+                className="flex-1 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm active:bg-accent-hover disabled:opacity-50"
+              >
+                {creatingCustom ? "Adding…" : "Add"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCustom(false)}
+                className="px-4 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* List */}
         <div className="overflow-y-auto flex-1 px-5">
           {loading ? (
             <p className="text-zinc-500 text-sm py-4 text-center">Loading…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-zinc-500 text-sm py-4 text-center">No exercises found</p>
           ) : (
             <div className="space-y-1 pb-2">
-              {filtered.map((ex) => (
+              {/* "Add as custom" prompt when no match found */}
+              {showAddCustomPrompt && !showCustom && (
                 <button
-                  key={ex.id}
                   type="button"
-                  onClick={() => void handleAdd(ex)}
-                  disabled={adding === ex.id}
-                  className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 text-white text-sm active:bg-zinc-700 disabled:opacity-50"
+                  onClick={() => { setCustomName(searchTrimmed); setShowCustom(true); }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 border border-dashed border-zinc-600 text-sm active:bg-zinc-700"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{ex.name}</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {ex.equipment_type && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
-                          {EQUIPMENT_LABELS[ex.equipment_type] ?? ex.equipment_type}
-                        </span>
-                      )}
-                      {ex.primary_muscle && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300">
-                          {MUSCLE_LABELS[ex.primary_muscle] ?? ex.primary_muscle}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <span className="text-zinc-400">Add </span>
+                  <span className="text-white font-medium">&ldquo;{searchTrimmed}&rdquo;</span>
+                  <span className="text-zinc-400"> as custom exercise</span>
                 </button>
-              ))}
+              )}
+
+              {/* Blank custom entry button when not searching */}
+              {!showCustom && !searchTrimmed && (
+                <button
+                  type="button"
+                  onClick={() => { setCustomName(""); setShowCustom(true); }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 border border-dashed border-zinc-600 text-zinc-400 text-sm active:bg-zinc-700"
+                >
+                  + Custom exercise (no library match)
+                </button>
+              )}
+
+              {filtered.length === 0 && !showAddCustomPrompt ? (
+                <p className="text-zinc-500 text-sm py-4 text-center">No exercises found</p>
+              ) : (
+                filtered.map((ex) => (
+                  <button
+                    key={ex.id}
+                    type="button"
+                    onClick={() => void handleAdd(ex)}
+                    disabled={adding === ex.id}
+                    className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 text-white text-sm active:bg-zinc-700 disabled:opacity-50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{ex.name}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {ex.equipment_type && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+                            {EQUIPMENT_LABELS[ex.equipment_type] ?? ex.equipment_type}
+                          </span>
+                        )}
+                        {ex.primary_muscle && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300">
+                            {MUSCLE_LABELS[ex.primary_muscle] ?? ex.primary_muscle}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           )}
         </div>

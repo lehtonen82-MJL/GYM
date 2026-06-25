@@ -52,18 +52,31 @@ export async function startBlankWorkout(name?: string): Promise<StartWorkoutResu
   const supabase = await db();
   const userId = await getUserId();
 
+  // Check whether the import_session_name column exists (migration 004 may not be applied)
+  const { error: probeErr } = await supabase
+    .from("workouts")
+    .select("import_session_name")
+    .limit(0);
+  const hasSessionName = !probeErr;
+
+  const insertPayload: Record<string, unknown> = {
+    user_id: userId,
+    workout_day_id: null,
+    is_deload: false,
+  };
+  if (hasSessionName) {
+    insertPayload.import_session_name = name ?? "Freestyle workout";
+  }
+
   const { data: workout, error } = await supabase
     .from("workouts")
-    .insert({
-      user_id: userId,
-      workout_day_id: null,
-      import_session_name: name ?? "Freestyle workout",
-      is_deload: false,
-    })
+    .insert(insertPayload)
     .select("*")
     .single();
 
-  if (error || !workout) return null;
+  if (error || !workout) {
+    throw new Error(error?.message ?? "Failed to create workout");
+  }
 
   return {
     id: workout.id as string,

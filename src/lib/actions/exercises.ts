@@ -405,6 +405,60 @@ export async function getExerciseAlternatives(
   return (data ?? []) as ProgramExerciseAlternative[];
 }
 
+/**
+ * Creates a user exercise with no library link — a fully custom movement.
+ * Returns the new exercise id, or null on failure.
+ */
+export async function createCustomExercise(name: string): Promise<string | null> {
+  if (DEMO_MODE) {
+    const id = `custom-${Date.now()}`;
+    return id;
+  }
+
+  const supabase = await db();
+  const userId = await getUserId();
+  const normalized = name.toLowerCase().trim().replace(/\s+/g, " ");
+
+  // Return existing if name already used
+  const { data: existing } = await supabase
+    .from("exercises")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("normalized_name", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing.id as string;
+
+  // Try to auto-link to library before creating
+  const { data: def } = await supabase
+    .from("exercise_definitions")
+    .select("id, is_bodyweight, is_main_lift, equipment_type")
+    .or(`normalized_name.eq.${normalized},aliases.cs.{${normalized}}`)
+    .limit(1)
+    .maybeSingle();
+
+  const { data: created } = await supabase
+    .from("exercises")
+    .insert({
+      user_id: userId,
+      name,
+      normalized_name: normalized,
+      ...(def
+        ? {
+            exercise_definition_id: def.id,
+            is_bodyweight: def.is_bodyweight,
+            is_main_lift: def.is_main_lift,
+            category: def.equipment_type,
+          }
+        : {}),
+    })
+    .select("id")
+    .single();
+
+  return created?.id ?? null;
+}
+
 /** Add an alternative exercise to a program slot */
 export async function addProgramExerciseAlternative(
   programExerciseId: string,

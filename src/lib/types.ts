@@ -220,6 +220,8 @@ export type WorkoutExerciseEntry = {
   workout_day_exercise_id: string | null;
   user_id: string;
   too_heavy?: boolean;
+  /** The tool used for this entry — drives per-equipment history & PRs */
+  equipment_type?: string | null;
   /** Non-null when the user swapped this slot to a different exercise mid-workout */
   original_exercise_id?: string | null;
   original_exercise?: Exercise;

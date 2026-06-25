@@ -24,6 +24,8 @@ type ExerciseCardProps = {
   originalExerciseName?: string | null;
   /** Called when user picks a replacement exercise */
   onSwapExercise?: (newExerciseId: string, newExerciseName: string) => void;
+  /** Equipment toggle rendered below header when active */
+  equipmentToggle?: React.ReactNode;
 };
 
 function renumber(sets: SetEntry[]): SetEntry[] {
@@ -42,6 +44,7 @@ export default function ExerciseCard({
   programExerciseId,
   originalExerciseName,
   onSwapExercise,
+  equipmentToggle,
 }: ExerciseCardProps) {
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
   const [showTimer, setShowTimer] = useState(false);
@@ -192,6 +195,13 @@ export default function ExerciseCard({
             </p>
           )}
         </button>
+
+        {/* Equipment toggle slot — rendered to the right of the name area */}
+        {isActive && equipmentToggle && (
+          <div className="shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+            {equipmentToggle}
+          </div>
+        )}
 
         {/* Right controls */}
         <div className="flex items-center gap-2 shrink-0 ml-2">

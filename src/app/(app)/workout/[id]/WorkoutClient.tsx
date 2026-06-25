@@ -20,8 +20,12 @@ import {
   getPreviousResults,
   addExerciseToWorkout,
   saveWorkoutAsTemplate,
+  getEquipmentOptions,
+  changeEntryEquipment,
+  type EquipmentOption,
 } from "@/lib/actions";
 import AddExerciseModal from "@/components/AddExerciseModal";
+import EquipmentToggle from "@/components/EquipmentToggle";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
   hasBonusCardioData,
@@ -165,6 +169,11 @@ export default function WorkoutClient({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [hydratedDraft, setHydratedDraft] = useState(false);
+  // Equipment variant state: options keyed by exerciseId, changing tracks which entry is mid-swap
+  const [equipmentOptions, setEquipmentOptions] = useState<Record<string, EquipmentOption[]>>({});
+  const [changingEquipment, setChangingEquipment] = useState<string | null>(null);
+  // Overrides for suggestions after an equipment swap (new exerciseId → suggestion)
+  const [suggestionOverrides, setSuggestionOverrides] = useState<Record<string, number | null>>({});
   const [bonusCardioDraft, setBonusCardioDraft] = useState<BonusCardioDraft>(
     bonusCardio
       ? {
@@ -398,6 +407,53 @@ export default function WorkoutClient({
       newExerciseId,
       programExerciseId,
     });
+  }
+
+  // Lazy-load equipment options when an exercise becomes active
+  useEffect(() => {
+    if (!activeEntryId || readOnly) return;
+    const entry = entries.find((e) => e.id === activeEntryId);
+    if (!entry) return;
+    const exerciseId = entry.exercise_id;
+    if (equipmentOptions[exerciseId] !== undefined) return; // already loaded
+    getEquipmentOptions(exerciseId).then((opts) => {
+      setEquipmentOptions((prev) => ({ ...prev, [exerciseId]: opts }));
+    });
+  }, [activeEntryId, entries, equipmentOptions, readOnly]);
+
+  async function handleChangeEquipment(entryId: string, option: EquipmentOption) {
+    if (changingEquipment) return;
+    setChangingEquipment(entryId);
+    try {
+      const result = await changeEntryEquipment(entryId, option.definition_id, option.equipment_type);
+      if (!result) return;
+
+      // Update entry in state: new exerciseId + name + equipment_type
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id !== entryId
+            ? e
+            : {
+                ...e,
+                exercise_id: result.exerciseId,
+                equipment_type: option.equipment_type,
+                exercise: { ...e.exercise!, id: result.exerciseId, name: result.exerciseName },
+              }
+        )
+      );
+
+      // Update suggestion for new exercise
+      if (result.suggestion !== null) {
+        // suggestions is passed in as prop — update via a local override map
+        setSuggestionOverrides((prev) => ({ ...prev, [result.exerciseId]: result.suggestion }));
+      }
+
+      // Load options for the new exerciseId
+      const opts = await getEquipmentOptions(result.exerciseId);
+      setEquipmentOptions((prev) => ({ ...prev, [result.exerciseId]: opts }));
+    } finally {
+      setChangingEquipment(null);
+    }
   }
 
   async function handleAddExercise(exerciseId: string, exerciseName: string) {
@@ -748,22 +804,41 @@ export default function WorkoutClient({
         </div>
       )}
 
-      {entries.map((entry) => (
-        <ExerciseCard
-          key={entry.id}
-          entry={entry}
-          sets={setsMap[entry.id] ?? []}
-          onSetsChange={(sets) => handleSetsChange(entry.id, sets)}
-          suggestedWeight={suggestions[entry.exercise_id] ?? null}
-          isActive={activeEntryId === entry.id}
-          onToggle={() => setActiveEntryId((prev) => (prev === entry.id ? null : entry.id))}
-          tooHeavyLastSets={tooHeavyFlags[entry.exercise_id] ?? []}
-          onTooHeavySetsChange={(setIds, value, achievedReps) => handleTooHeavySetsChange(entry.id, setIds, value, achievedReps)}
-          programExerciseId={entry.workout_day_exercise_id ?? null}
-          originalExerciseName={entry.original_exercise?.name ?? null}
-          onSwapExercise={(newId, newName) => void handleSwapExercise(entry.id, newId, newName)}
-        />
-      ))}
+      {entries.map((entry) => {
+        const opts = equipmentOptions[entry.exercise_id] ?? [];
+        const currentEquip = entry.equipment_type ?? null;
+        const suggestion =
+          suggestionOverrides[entry.exercise_id] !== undefined
+            ? suggestionOverrides[entry.exercise_id]
+            : (suggestions[entry.exercise_id] ?? null);
+
+        return (
+          <ExerciseCard
+            key={entry.id}
+            entry={entry}
+            sets={setsMap[entry.id] ?? []}
+            onSetsChange={(sets) => handleSetsChange(entry.id, sets)}
+            suggestedWeight={suggestion}
+            isActive={activeEntryId === entry.id}
+            onToggle={() => setActiveEntryId((prev) => (prev === entry.id ? null : entry.id))}
+            tooHeavyLastSets={tooHeavyFlags[entry.exercise_id] ?? []}
+            onTooHeavySetsChange={(setIds, value, achievedReps) => handleTooHeavySetsChange(entry.id, setIds, value, achievedReps)}
+            programExerciseId={entry.workout_day_exercise_id ?? null}
+            originalExerciseName={entry.original_exercise?.name ?? null}
+            onSwapExercise={(newId, newName) => void handleSwapExercise(entry.id, newId, newName)}
+            equipmentToggle={
+              opts.length > 1 ? (
+                <EquipmentToggle
+                  currentEquipment={currentEquip}
+                  options={opts}
+                  onChange={(opt) => void handleChangeEquipment(entry.id, opt)}
+                  disabled={changingEquipment === entry.id}
+                />
+              ) : undefined
+            }
+          />
+        );
+      })}
 
       <button
         type="button"
