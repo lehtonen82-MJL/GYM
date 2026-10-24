@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS exercise_definitions (
   id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   name               text        NOT NULL UNIQUE,
   normalized_name    text        NOT NULL UNIQUE,
-  aliases            text[]      DEFAULT '{}',
+  aliases            text[]      NOT NULL DEFAULT '{}',
   equipment_type     text        NOT NULL CHECK (equipment_type IN (
                        'barbell', 'dumbbell', 'cable', 'machine_plate',
                        'machine_stack', 'smith', 'bodyweight', 'kettlebell',
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS exercise_definitions (
                        'biceps', 'triceps', 'forearms', 'core',
                        'glutes', 'quads', 'hamstrings', 'calves'
                      )),
-  secondary_muscles  text[]      DEFAULT '{}',
+  secondary_muscles  text[]      NOT NULL DEFAULT '{}',
   movement_pattern   text        CHECK (movement_pattern IN (
                        'horizontal_push', 'vertical_push',
                        'horizontal_pull', 'vertical_pull',
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS exercise_definitions (
 
 -- Anyone can read definitions; no writes from client
 ALTER TABLE exercise_definitions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "exercise_definitions are publicly readable" ON exercise_definitions;
 CREATE POLICY "exercise_definitions are publicly readable"
   ON exercise_definitions FOR SELECT
   USING (true);

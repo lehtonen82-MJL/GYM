@@ -1,0 +1,51 @@
+# Database migrations
+
+`supabase/migrations/*.sql` is the single source of truth for the database schema.
+
+## Apply order
+
+Files run in lexical order of their names:
+
+```
+000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 019
+```
+
+Letter suffixes (`004a`/`004b`, `010a`/`010b`) replaced duplicate numbers without renumbering
+later files. `supabase/seed.sql` (the `create_default_program` function) runs after them.
+
+## Setting up or updating a database
+
+1. `npm run db:setup` — regenerates `supabase/setup.sql` (all migrations + `seed.sql` in one transaction).
+2. Supabase → **SQL Editor** → New query → paste `supabase/setup.sql` → **Run**.
+
+The same file works on a new project and on an existing one: every migration is
+re-runnable, and the whole run rolls back on any error. Take a backup first on production
+(Database → Backups), because `019_recompute_prs.sql` rebuilds `exercise_prs` from history.
+
+## Rules for new migrations
+
+- Next free number, `NNN_short_name.sql`. Never rename or edit an applied migration to change
+  its effect — add a new one.
+- Must be re-runnable: `create table if not exists`, `add column if not exists`,
+  `drop policy if exists` before `create policy`, `drop trigger if exists` before
+  `create trigger`, `drop constraint if exists` before `add constraint`,
+  `on conflict` for seed rows.
+- Run `supabase/tests/verify-migrations.sh` (below), then commit the migration, the regenerated
+  `setup.sql` and `schema.sql` together.
+
+## Verifying
+
+`supabase/tests/verify-migrations.sh` needs `psql`/`pg_dump` and a **local** Postgres
+(never a Supabase project — it drops and recreates its test database):
+
+```bash
+PGHOST=127.0.0.1 PGPORT=5432 PGUSER=postgres supabase/tests/verify-migrations.sh
+```
+
+It builds a fresh database from `setup.sql`, re-runs it, re-runs it again on invented test
+data (`tests/fixture.sql`), checks PRs per tool, and compares the result with `schema.sql`.
+After a schema change, add `--update-snapshot` to regenerate `schema.sql`.
+
+`schema.sql` is that generated snapshot of the `public` schema — reference only, never run it.
+
+See `AUDIT.md` for what each migration adds and what Phase 2 fixed.

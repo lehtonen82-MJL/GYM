@@ -95,6 +95,11 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 2 — Reconcile migrations & schema · RISK: medium (DB — test on a scratch project)
 
+> **Status 2026-10-24: done.** See `supabase/migrations/README.md` and `AUDIT.md`. Deviations: duplicates were
+> renamed with letter suffixes (`004a/b`, `010a/b`) instead of renumbering; verification runs on a local Postgres
+> with a Supabase stub (`supabase/tests/verify-migrations.sh`), not a scratch Supabase project; fresh setup now uses
+> the generated `supabase/setup.sql`.
+
 **Task 2.1 — Audit drift**
 - Do: Read every file in `supabase/migrations/` + `schema.sql`. Produce `supabase/migrations/AUDIT.md` listing: each table/column/policy, which migration introduces it, and any item in `schema.sql` not covered by a migration (or vice-versa).
 - Done when: AUDIT.md exists and is complete.

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS exercise_prs (
 );
 
 ALTER TABLE exercise_prs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own exercise_prs" ON exercise_prs;
 CREATE POLICY "Users can manage own exercise_prs"
   ON exercise_prs FOR ALL
   USING (auth.uid() = user_id);

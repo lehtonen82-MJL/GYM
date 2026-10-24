@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS workout_templates (
 );
 
 ALTER TABLE workout_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own workout_templates" ON workout_templates;
 CREATE POLICY "Users can manage own workout_templates"
   ON workout_templates FOR ALL
   USING (auth.uid() = user_id);
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS workout_template_exercises (
 );
 
 ALTER TABLE workout_template_exercises ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own workout_template_exercises" ON workout_template_exercises;
 CREATE POLICY "Users can manage own workout_template_exercises"
   ON workout_template_exercises FOR ALL
   USING (auth.uid() = user_id);

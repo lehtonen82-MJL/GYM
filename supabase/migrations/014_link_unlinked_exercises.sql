@@ -1,32 +1,50 @@
 -- ============================================================
 -- Migration 014: Link unlinked user exercises to definitions
 --
--- Run this query first to SEE which exercises are unlinked:
+-- Matches each unlinked exercise by normalized_name (exact) or
+-- aliases, and copies category / is_bodyweight / is_main_lift
+-- from the definition. Custom exercises stay unlinked.
+-- Re-runnable: only touches exercises with no definition yet.
 --
--- SELECT id, name, normalized_name
--- FROM exercises
--- WHERE exercise_definition_id IS NULL
--- ORDER BY name;
---
--- Then run the UPDATE below to auto-link by normalized_name match.
--- Any that still don't match need manual linking (see bottom).
+-- To see what is still unlinked afterwards:
+--   SELECT id, name, normalized_name FROM exercises
+--   WHERE exercise_definition_id IS NULL ORDER BY name;
 -- ============================================================
 
--- Auto-link exercises where normalized_name matches a definition
-UPDATE exercises e
-SET exercise_definition_id = d.id
-FROM exercise_definitions d
-WHERE e.exercise_definition_id IS NULL
-  AND e.normalized_name = d.normalized_name;
+DO $$
+DECLARE
+  r       RECORD;
+  v_def   RECORD;
+BEGIN
+  FOR r IN
+    SELECT id, name, normalized_name
+    FROM exercises
+    WHERE exercise_definition_id IS NULL
+  LOOP
+    -- Exact normalized_name match
+    SELECT id, is_bodyweight, is_main_lift, equipment_type
+    INTO v_def
+    FROM exercise_definitions
+    WHERE normalized_name = COALESCE(r.normalized_name, lower(trim(r.name)))
+    LIMIT 1;
 
--- Check what's still unlinked after the auto-link:
--- SELECT id, name, normalized_name
--- FROM exercises
--- WHERE exercise_definition_id IS NULL
--- ORDER BY name;
+    -- Alias fallback
+    IF v_def.id IS NULL THEN
+      SELECT id, is_bodyweight, is_main_lift, equipment_type
+      INTO v_def
+      FROM exercise_definitions
+      WHERE aliases @> ARRAY[COALESCE(r.normalized_name, lower(trim(r.name)))]
+      LIMIT 1;
+    END IF;
 
--- For any remaining unlinked, manually link by name similarity, e.g.:
--- UPDATE exercises
--- SET exercise_definition_id = (SELECT id FROM exercise_definitions WHERE name = 'Bench Press')
--- WHERE name ILIKE '%bench%press%'
---   AND exercise_definition_id IS NULL;
+    IF v_def.id IS NOT NULL THEN
+      UPDATE exercises SET
+        exercise_definition_id = v_def.id,
+        is_bodyweight          = v_def.is_bodyweight,
+        is_main_lift           = v_def.is_main_lift,
+        category               = v_def.equipment_type
+      WHERE id = r.id;
+    END IF;
+  END LOOP;
+END;
+$$;

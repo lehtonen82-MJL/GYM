@@ -45,7 +45,9 @@ create table if not exists program_exercises (
 );
 
 alter table program_exercises enable row level security;
+drop policy if exists "Users can view own program_exercises" on program_exercises;
 create policy "Users can view own program_exercises" on program_exercises for select using (auth.uid() = user_id);
+drop policy if exists "Users can manage own program_exercises" on program_exercises;
 create policy "Users can manage own program_exercises" on program_exercises for all using (auth.uid() = user_id);
 create index if not exists idx_program_exercises_program on program_exercises(program_id);
 create index if not exists idx_program_exercises_day on program_exercises(program_day_id);
@@ -82,15 +84,19 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists update_programs_updated_at on programs;
 create trigger update_programs_updated_at before update on programs
   for each row execute procedure public.update_updated_at_timestamp();
 
+drop trigger if exists update_exercises_updated_at on exercises;
 create trigger update_exercises_updated_at before update on exercises
   for each row execute procedure public.update_updated_at_timestamp();
 
+drop trigger if exists update_workout_days_updated_at on workout_days;
 create trigger update_workout_days_updated_at before update on workout_days
   for each row execute procedure public.update_updated_at_timestamp();
 
+drop trigger if exists update_program_exercises_updated_at on program_exercises;
 create trigger update_program_exercises_updated_at before update on program_exercises
   for each row execute procedure public.update_updated_at_timestamp();
 

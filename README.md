@@ -87,24 +87,20 @@ NEXT_PUBLIC_SUPABASE_URL=https://abcdefghij.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### Step 6: Create Database Tables
+### Step 6: Create the Database
 
 1. In your Supabase dashboard, click **"SQL Editor"** in the left sidebar
 2. Click **"New query"**
-3. Open the file `supabase/schema.sql` from this project
+3. Open the file `supabase/setup.sql` from this project
 4. **Copy the entire contents** and paste it into the SQL editor
 5. Click **"Run"** (or press Ctrl+Enter)
 6. You should see "Success. No rows returned" — this is normal
 
-### Step 7: Create the Seed Function
+`setup.sql` contains every migration plus the default-program function from `seed.sql`.
+Run the same file again after pulling updates — it is safe on an existing database.
+See `supabase/migrations/README.md` for details.
 
-1. Still in the SQL Editor, click **"New query"** again
-2. Open the file `supabase/seed.sql` from this project
-3. **Copy the entire contents** and paste it into the SQL editor
-4. Click **"Run"**
-5. This creates a function that will automatically set up your workout program when you first sign up
-
-### Step 8: Enable Email Auth
+### Step 7: Enable Email Auth
 
 1. In Supabase, go to **Authentication** → **Providers**
 2. Make sure **Email** is enabled
@@ -112,7 +108,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
    - This lets you sign up without checking your email
    - **Re-enable this before going to production**
 
-### Step 9: Run the App
+### Step 8: Run the App
 
 ```bash
 npm run dev
@@ -120,7 +116,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Step 10: Create Your Account
+### Step 9: Create Your Account
 
 1. You'll see the login page
 2. Click **"Need an account? Sign up"**
@@ -188,8 +184,11 @@ src/
 │   └── supabase/           # Supabase client setup
 └── proxy.ts                # Auth middleware
 supabase/
-├── schema.sql              # Database tables + RLS policies
-└── seed.sql                # Default workout program function
+├── migrations/             # Source of truth for the schema (see migrations/README.md)
+├── setup.sql               # Generated: all migrations + seed, paste into SQL Editor
+├── schema.sql              # Generated snapshot of the schema (reference only)
+├── seed.sql                # Default workout program function
+└── tests/                  # verify-migrations.sh: checks the chain on a local Postgres
 ```
 
 ## Default Program

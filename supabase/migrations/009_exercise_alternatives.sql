@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS program_exercise_alternatives (
 );
 
 ALTER TABLE program_exercise_alternatives ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own program_exercise_alternatives" ON program_exercise_alternatives;
 CREATE POLICY "Users can manage own program_exercise_alternatives"
   ON program_exercise_alternatives FOR ALL
   USING (auth.uid() = user_id);
