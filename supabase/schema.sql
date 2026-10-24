@@ -1218,7 +1218,9 @@ CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH 
 -- Name: exercise_prs Users can manage own exercise_prs; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own exercise_prs" ON public.exercise_prs USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own exercise_prs" ON public.exercise_prs USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = exercise_prs.exercise_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: exercises Users can manage own exercises; Type: POLICY; Schema: public; Owner: -
@@ -1230,13 +1232,23 @@ CREATE POLICY "Users can manage own exercises" ON public.exercises USING ((auth.
 -- Name: program_exercise_alternatives Users can manage own program_exercise_alternatives; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own program_exercise_alternatives" ON public.program_exercise_alternatives USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own program_exercise_alternatives" ON public.program_exercise_alternatives USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = program_exercise_alternatives.exercise_id) AND (parent.user_id = auth.uid()))))) AND ((program_exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.program_exercises parent
+  WHERE ((parent.id = program_exercise_alternatives.program_exercise_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: program_exercises Users can manage own program_exercises; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own program_exercises" ON public.program_exercises USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own program_exercises" ON public.program_exercises USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = program_exercises.exercise_id) AND (parent.user_id = auth.uid()))))) AND ((program_day_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workout_days parent
+  WHERE ((parent.id = program_exercises.program_day_id) AND (parent.user_id = auth.uid()))))) AND ((program_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.programs parent
+  WHERE ((parent.id = program_exercises.program_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: programs Users can manage own programs; Type: POLICY; Schema: public; Owner: -
@@ -1248,37 +1260,59 @@ CREATE POLICY "Users can manage own programs" ON public.programs USING ((auth.ui
 -- Name: set_entries Users can manage own set_entries; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own set_entries" ON public.set_entries USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own set_entries" ON public.set_entries USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((workout_exercise_entry_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workout_exercise_entries parent
+  WHERE ((parent.id = set_entries.workout_exercise_entry_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: workout_bonus_cardio Users can manage own workout_bonus_cardio; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own workout_bonus_cardio" ON public.workout_bonus_cardio USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own workout_bonus_cardio" ON public.workout_bonus_cardio USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((workout_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workouts parent
+  WHERE ((parent.id = workout_bonus_cardio.workout_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: workout_day_exercises Users can manage own workout_day_exercises; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own workout_day_exercises" ON public.workout_day_exercises USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own workout_day_exercises" ON public.workout_day_exercises USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = workout_day_exercises.exercise_id) AND (parent.user_id = auth.uid()))))) AND ((workout_day_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workout_days parent
+  WHERE ((parent.id = workout_day_exercises.workout_day_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: workout_days Users can manage own workout_days; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own workout_days" ON public.workout_days USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own workout_days" ON public.workout_days USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((program_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.programs parent
+  WHERE ((parent.id = workout_days.program_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: workout_exercise_entries Users can manage own workout_exercise_entries; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own workout_exercise_entries" ON public.workout_exercise_entries USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own workout_exercise_entries" ON public.workout_exercise_entries USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = workout_exercise_entries.exercise_id) AND (parent.user_id = auth.uid()))))) AND ((original_exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = workout_exercise_entries.original_exercise_id) AND (parent.user_id = auth.uid()))))) AND ((workout_day_exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workout_day_exercises parent
+  WHERE ((parent.id = workout_exercise_entries.workout_day_exercise_id) AND (parent.user_id = auth.uid()))))) AND ((workout_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workouts parent
+  WHERE ((parent.id = workout_exercise_entries.workout_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: workout_template_exercises Users can manage own workout_template_exercises; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own workout_template_exercises" ON public.workout_template_exercises USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own workout_template_exercises" ON public.workout_template_exercises USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((exercise_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.exercises parent
+  WHERE ((parent.id = workout_template_exercises.exercise_id) AND (parent.user_id = auth.uid()))))) AND ((template_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workout_templates parent
+  WHERE ((parent.id = workout_template_exercises.template_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: workout_templates Users can manage own workout_templates; Type: POLICY; Schema: public; Owner: -
@@ -1290,7 +1324,9 @@ CREATE POLICY "Users can manage own workout_templates" ON public.workout_templat
 -- Name: workouts Users can manage own workouts; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can manage own workouts" ON public.workouts USING ((auth.uid() = user_id));
+CREATE POLICY "Users can manage own workouts" ON public.workouts USING ((auth.uid() = user_id)) WITH CHECK (((auth.uid() = user_id) AND ((workout_day_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.workout_days parent
+  WHERE ((parent.id = workouts.workout_day_id) AND (parent.user_id = auth.uid())))))));
 
 --
 -- Name: profiles Users can update own profile; Type: POLICY; Schema: public; Owner: -

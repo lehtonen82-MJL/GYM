@@ -7,7 +7,7 @@
 Files run in lexical order of their names:
 
 ```
-000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 021
+000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 022
 ```
 
 Letter suffixes (`004a`/`004b`, `010a`/`010b`) replaced duplicate numbers without renumbering
@@ -32,6 +32,7 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   commit "feat: atomic workout writes" on needs it. The SQL Editor warns about "destructive
   operations" for `021` (the DELETE inside `save_workout_sets`): confirm with **Run query**,
   otherwise nothing is applied.
+- **Pending:** `022` (row ownership on writes). Policies only; the app needs no change for it.
 
 ## Rules for new migrations
 

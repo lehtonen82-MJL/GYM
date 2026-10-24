@@ -189,3 +189,11 @@ No schema change on a fresh database.
 - added: function save_workout_sets(jsonb,uuid[]) — a finished workout's sets in one transaction
 - added: function workout_sets_payload(jsonb) — helper for save_workout_sets
 - All `SECURITY INVOKER`: row-level security applies. Checked by `tests/rpc_test.sql`.
+
+#### `022_row_ownership_on_writes.sql` (added after this audit)
+
+- changed: the "Users can manage own …" policy of the 10 tables with a foreign key to another
+  user-owned table gets a WITH CHECK: the row's user_id is the caller's AND every referenced
+  user-owned row is the caller's (before, only the row's own user_id was checked, so a row could
+  point at another user's workout, entry, program, …). Reads and deletes (USING) are unchanged.
+- Checked by `tests/rpc_test.sql` (a second user can't attach rows to the first user's rows).

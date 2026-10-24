@@ -1,4 +1,4 @@
--- Checks the workout RPCs (021) for verify-migrations.sh, run after fixture.sql.
+-- Checks the workout RPCs (021) and write ownership (022) for verify-migrations.sh, run after fixture.sql.
 -- Runs as the `authenticated` role so row-level security applies, like on Supabase.
 -- Every check RAISEs on failure (psql runs with ON_ERROR_STOP).
 
@@ -6,6 +6,9 @@
 GRANT USAGE ON SCHEMA public, auth TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public, auth TO authenticated;
+
+-- A second user, for the checks that one user can't write into another's rows
+INSERT INTO auth.users (id, email) VALUES ('00000000-0000-0000-0000-000000000002', 'other@example.com');
 
 -- A program slot whose target_sets the save should update (owned by the fixture user)
 INSERT INTO programs (id, user_id, name) VALUES
@@ -54,7 +57,7 @@ BEGIN
       '[{"exercise_id": "00000000-0000-0000-0000-0000000000e1", "sets": [{"set_number": 1}]},
         {"exercise_id": "00000000-0000-0000-0000-00000000dead", "sets": []}]');
     RAISE EXCEPTION 'start_workout accepted an unknown exercise';
-  EXCEPTION WHEN foreign_key_violation THEN NULL;
+  EXCEPTION WHEN foreign_key_violation OR insufficient_privilege THEN NULL;
   END;
   IF (SELECT count(*) FROM workouts) <> before THEN
     RAISE EXCEPTION 'interrupted start_workout left a workout behind';
@@ -101,6 +104,23 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
+-- Nor attach rows of their own to the first user's rows (migration 022)
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO set_entries (workout_exercise_entry_id, user_id, set_number)
+    VALUES ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000002', 1);
+    RAISE EXCEPTION 'a set went into another user''s exercise entry';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO workout_exercise_entries (workout_id, exercise_id, user_id)
+    VALUES ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-000000000002');
+    RAISE EXCEPTION 'an entry went into another user''s workout';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END $$;
+
 RESET request.jwt.claim.sub;
 RESET ROLE;
 
@@ -115,6 +135,7 @@ END $$;
 -- Leave the fixture as it was for the rest of verify-migrations.sh
 DELETE FROM workouts WHERE id = (SELECT (r->'workout'->>'id')::uuid FROM started);
 DELETE FROM programs WHERE id = '00000000-0000-0000-0000-0000000000f1';
+DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000002';
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM authenticated;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public, auth FROM authenticated;
 REVOKE USAGE ON SCHEMA public, auth FROM authenticated;
