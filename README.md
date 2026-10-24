@@ -12,16 +12,9 @@ A fast, minimal workout tracking PWA optimized for one-handed iPhone use. Built 
 - **Progress Charts** — Track top set progression per exercise over time
 - **PWA** — Installable on iPhone home screen, standalone display
 
-## Demo Mode
-
-The app runs in **demo mode** with mock data when no Supabase credentials are configured. This is great for trying it out locally.
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) — no account or database needed.
+The app needs a Supabase project: without `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` it stops with an error saying which one is missing.
+(There used to be a demo mode with mock data; it was removed — see `docs/adr/0001-remove-demo-mode.md`.)
 
 ---
 
@@ -179,7 +172,7 @@ src/
 │   ├── SetRow.tsx          # Single set: weight × reps + check
 │   └── WeightStepper.tsx   # ±2.5kg stepper buttons
 ├── lib/
-│   ├── actions.ts          # Server actions (Supabase + demo mock)
+│   ├── actions/            # Server actions by domain (Supabase)
 │   ├── types.ts            # TypeScript types for all tables
 │   └── supabase/           # Supabase client setup
 └── proxy.ts                # Auth middleware

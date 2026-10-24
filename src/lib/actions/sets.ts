@@ -1,7 +1,6 @@
 "use server";
 
-import { DEMO_MODE, db, getDefaultEquipment, getUserId, mockStore } from "./_shared";
-import { MOCK_PREV } from "./_mocks";
+import { db, getDefaultEquipment, getUserId } from "./_shared";
 import { pickLatestEntryForEquipment } from "@/lib/equipment";
 import { previousResultSets, suggestedWeight } from "@/lib/setRules";
 
@@ -29,8 +28,6 @@ export async function getPreviousResults(
   exerciseId: string,
   equipment?: string | null
 ): Promise<{ weight_kg: number; reps: number }[]> {
-  if (DEMO_MODE) return MOCK_PREV[exerciseId] ?? [];
-
   const supabase = await db();
   const userId = await getUserId();
   const results = await getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
@@ -103,8 +100,6 @@ export async function getSuggestedWeight(
   targetSets: number,
   equipment?: string | null
 ): Promise<number | null> {
-  if (DEMO_MODE) return suggestedWeight(MOCK_PREV[exerciseId] ?? [], targetSets);
-
   const supabase = await db();
   const userId = await getUserId();
   return getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, equipment);
@@ -126,16 +121,6 @@ export async function updateSet(
   setId: string,
   data: { weight_kg?: number; reps?: number; completed?: boolean; is_warmup?: boolean }
 ) {
-  if (DEMO_MODE) {
-    for (const stored of mockStore.values()) {
-      for (const entry of stored.entries) {
-        const set = entry.set_entries?.find((s) => s.id === setId);
-        if (set) { Object.assign(set, data); return; }
-      }
-    }
-    return;
-  }
-
   const supabase = await db();
   await supabase.from("set_entries").update(data).eq("id", setId);
 }
@@ -144,24 +129,6 @@ export async function syncWorkoutSets(
   entriesData: SetSyncEntry[],
   originalSetIds: string[]
 ): Promise<void> {
-  if (DEMO_MODE) {
-    // Update mock store in-place
-    for (const { entryId, userId: entryUserId, sets } of entriesData) {
-      for (const stored of mockStore.values()) {
-        const entry = stored.entries.find((e) => e.id === entryId);
-        if (entry) {
-          entry.set_entries = sets.map((s) => ({
-            ...s,
-            workout_exercise_entry_id: entryId,
-            user_id: entryUserId,
-            created_at: new Date().toISOString(),
-          }));
-        }
-      }
-    }
-    return;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
   const errors: string[] = [];
@@ -228,8 +195,6 @@ export async function syncWorkoutSets(
 export async function saveSets(
   sets: { id: string; weight_kg: number | null; reps: number | null; completed: boolean }[]
 ) {
-  if (DEMO_MODE) return;
-
   const supabase = await db();
   for (const set of sets) {
     await supabase

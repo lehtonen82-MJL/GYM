@@ -1,7 +1,7 @@
 "use server";
 
 import type { WorkoutBonusCardio } from "@/lib/types";
-import { DEMO_MODE, db, getUserId, mockBonusCardio, uid } from "./_shared";
+import { db, getUserId } from "./_shared";
 
 export type RowingDataPoint = {
   date: string;
@@ -33,28 +33,9 @@ function isMissingBonusCardioTableError(error: { message?: string } | null | und
   );
 }
 
-function getRowingHistoryMock(): RowingDataPoint[] {
-  return [
-    { date: "2026-01-06", pace_per_500_seconds: 132, distance_m: 5000, duration_seconds: 1320, calories: 280 },
-    { date: "2026-01-13", pace_per_500_seconds: 130, distance_m: 5000, duration_seconds: 1300, calories: 275 },
-    { date: "2026-01-20", pace_per_500_seconds: 129, distance_m: 6000, duration_seconds: 1548, calories: 330 },
-    { date: "2026-01-27", pace_per_500_seconds: 127, distance_m: 5000, duration_seconds: 1270, calories: 268 },
-    { date: "2026-02-03", pace_per_500_seconds: 126, distance_m: 5000, duration_seconds: 1260, calories: 265 },
-    { date: "2026-02-10", pace_per_500_seconds: 124, distance_m: 6000, duration_seconds: 1488, calories: 310 },
-    { date: "2026-02-17", pace_per_500_seconds: 125, distance_m: 5000, duration_seconds: 1250, calories: 260 },
-    { date: "2026-03-03", pace_per_500_seconds: 122, distance_m: 6000, duration_seconds: 1464, calories: 305 },
-    { date: "2026-03-17", pace_per_500_seconds: 121, distance_m: 5000, duration_seconds: 1210, calories: 252 },
-    { date: "2026-03-31", pace_per_500_seconds: 119, distance_m: 6000, duration_seconds: 1428, calories: 298 },
-  ];
-}
-
 export async function getWorkoutBonusCardio(
   workoutId: string
 ): Promise<WorkoutBonusCardio | null> {
-  if (DEMO_MODE) {
-    return mockBonusCardio.get(workoutId) ?? null;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -95,19 +76,6 @@ export async function saveWorkoutBonusCardio(
     extra_metrics: input.extra_metrics ?? {},
   };
 
-  if (DEMO_MODE) {
-    const existing = mockBonusCardio.get(workoutId);
-    const next: WorkoutBonusCardio = {
-      id: existing?.id ?? uid(),
-      workout_id: workoutId,
-      user_id: "mock-user",
-      created_at: existing?.created_at ?? new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...payload,
-    };
-    mockBonusCardio.set(workoutId, next);
-    return next;
-  }
 
   const supabase = await db();
   const userId = await getUserId();
@@ -131,7 +99,7 @@ export async function saveWorkoutBonusCardio(
         "[bonus-cardio] Table workout_bonus_cardio is missing in Supabase; skipping persistence."
       );
       return {
-        id: uid(),
+        id: crypto.randomUUID(),
         workout_id: workoutId,
         user_id: userId,
         created_at: new Date().toISOString(),
@@ -145,8 +113,6 @@ export async function saveWorkoutBonusCardio(
 }
 
 export async function getRowingHistory(): Promise<RowingDataPoint[]> {
-  if (DEMO_MODE) return getRowingHistoryMock();
-
   const supabase = await db();
   const userId = await getUserId();
 

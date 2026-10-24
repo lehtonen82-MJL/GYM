@@ -1,22 +1,10 @@
 "use server";
 
 import type { WorkoutDay, Workout } from "@/lib/types";
-import { DEMO_MODE, db, getUserId, mockStore } from "./_shared";
-import { MOCK_PROGRAM_DAYS, MOCK_PROGRAMS, getDemoProgramDays, getDemoPreferredProgramId, demoDayToWorkoutDay } from "./_mocks";
+import { db, getUserId } from "./_shared";
 import { getActiveProgram } from "./programs";
 
 export async function getTodayWorkoutDay(): Promise<WorkoutDay | null> {
-  if (DEMO_MODE) {
-    const preferredProgramId = getDemoPreferredProgramId();
-    if (!preferredProgramId) return null;
-    const dow = new Date().getDay();
-    return (
-      getDemoProgramDays(preferredProgramId)
-        .map(demoDayToWorkoutDay)
-        .find((d) => d.day_of_week === dow) ?? null
-    );
-  }
-
   const supabase = await db();
   const userId = await getUserId();
   const dow = new Date().getDay();
@@ -38,12 +26,6 @@ export async function getTodayWorkoutDay(): Promise<WorkoutDay | null> {
 }
 
 export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
-  if (DEMO_MODE) {
-    const preferredProgramId = getDemoPreferredProgramId();
-    if (!preferredProgramId) return [];
-    return getDemoProgramDays(preferredProgramId).map(demoDayToWorkoutDay);
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -89,8 +71,6 @@ export async function getWorkoutDaysForProgram(): Promise<WorkoutDay[]> {
 
 // Returns workout_day_ids of all completed workouts in the current calendar week (Mon–Sun).
 export async function getThisWeekFinishedDayIds(): Promise<string[]> {
-  if (DEMO_MODE) return [];
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -113,17 +93,6 @@ export async function getThisWeekFinishedDayIds(): Promise<string[]> {
 }
 
 export async function getLatestUnfinishedWorkout(): Promise<Workout | null> {
-  if (DEMO_MODE) {
-    const unfinished = Array.from(mockStore.values())
-      .map((stored) => stored.workout)
-      .filter((workout) => !workout.completed_at)
-      .sort(
-        (a, b) =>
-          new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-      );
-    return unfinished[0] ?? null;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 

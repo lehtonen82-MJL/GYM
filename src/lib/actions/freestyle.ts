@@ -5,50 +5,15 @@ import type {
   WorkoutTemplateListItem,
   WorkoutTemplateWithExercises,
 } from "@/lib/types";
-import { DEMO_MODE, db, getUserId, uid, mockStore } from "./_shared";
-import { MOCK_EXERCISES } from "./_mocks";
+import { db, getUserId } from "./_shared";
 import { type StartWorkoutResult } from "./workout";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
-
-// ── Demo mock store for templates ──────────────────────────
-
-declare const globalThis: typeof global & {
-  __mockTemplates?: MockTemplate[];
-};
-
-type MockTemplate = {
-  id: string;
-  name: string;
-  last_used_at: string | null;
-  created_at: string;
-  exercises: { exercise_id: string; exercise_name_snapshot: string; target_sets: number; target_reps: number; sort_order: number }[];
-};
-
-if (!globalThis.__mockTemplates) globalThis.__mockTemplates = [];
-const mockTemplates = globalThis.__mockTemplates;
 
 // ════════════════════════════════════════════════════════
 // START BLANK WORKOUT
 // ════════════════════════════════════════════════════════
 
 export async function startBlankWorkout(name?: string): Promise<StartWorkoutResult | null> {
-  if (DEMO_MODE) {
-    const workoutId = uid();
-    const workout = {
-      id: workoutId,
-      user_id: "mock-user",
-      workout_day_id: null,
-      import_session_name: name ?? "Freestyle workout",
-      started_at: new Date().toISOString(),
-      completed_at: null,
-      notes: null,
-      is_deload: false,
-      created_at: new Date().toISOString(),
-    };
-    mockStore.set(workoutId, { workout, entries: [] });
-    return { id: workoutId, workout, entries: [], suggestions: {}, tooHeavyFlags: {} };
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -97,47 +62,6 @@ export async function addExerciseToWorkout(
   targetSets = 3,
   targetReps = 8
 ): Promise<WorkoutExerciseEntry | { __error: string } | null> {
-  if (DEMO_MODE) {
-    const stored = mockStore.get(workoutId);
-    if (!stored) return null;
-
-    // Find exercise name from mock data
-    let exerciseName = exerciseId;
-    for (const exercises of Object.values(MOCK_EXERCISES)) {
-      const ex = exercises.find((e) => e.id === exerciseId);
-      if (ex) { exerciseName = ex.name; break; }
-    }
-
-    const entryId = uid();
-    const sets = Array.from({ length: targetSets }, (_, i) => ({
-      id: uid(),
-      workout_exercise_entry_id: entryId,
-      user_id: "mock-user",
-      set_number: i + 1,
-      weight_kg: null as number | null,
-      reps: null as number | null,
-      completed: false,
-      is_warmup: false,
-      too_heavy: false,
-      too_heavy_reps: null as number | null,
-      created_at: new Date().toISOString(),
-    }));
-
-    const entry: WorkoutExerciseEntry = {
-      id: entryId,
-      workout_id: workoutId,
-      exercise_id: exerciseId,
-      workout_day_exercise_id: null,
-      user_id: "mock-user",
-      exercise: { id: exerciseId, user_id: "mock-user", name: exerciseName, created_at: new Date().toISOString() },
-      set_entries: sets,
-      created_at: new Date().toISOString(),
-    };
-
-    stored.entries.push(entry);
-    return entry;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -193,14 +117,6 @@ export async function addExerciseToWorkout(
 // ════════════════════════════════════════════════════════
 
 export async function removeExerciseFromWorkout(entryId: string): Promise<void> {
-  if (DEMO_MODE) {
-    for (const stored of mockStore.values()) {
-      const idx = stored.entries.findIndex((e) => e.id === entryId);
-      if (idx !== -1) { stored.entries.splice(idx, 1); return; }
-    }
-    return;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
   await supabase
@@ -215,27 +131,6 @@ export async function removeExerciseFromWorkout(entryId: string): Promise<void> 
 // ════════════════════════════════════════════════════════
 
 export async function saveWorkoutAsTemplate(workoutId: string, name: string): Promise<string | null> {
-  if (DEMO_MODE) {
-    const stored = mockStore.get(workoutId);
-    if (!stored) return null;
-    const templateId = uid();
-    const exercises = stored.entries.map((entry, i) => ({
-      exercise_id: entry.exercise_id,
-      exercise_name_snapshot: entry.exercise?.name ?? entry.exercise_id,
-      target_sets: (entry.set_entries ?? []).filter((s) => !s.is_warmup).length || 3,
-      target_reps: 8,
-      sort_order: i,
-    }));
-    mockTemplates.push({
-      id: templateId,
-      name,
-      last_used_at: null,
-      created_at: new Date().toISOString(),
-      exercises,
-    });
-    return templateId;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -289,18 +184,6 @@ export async function saveWorkoutAsTemplate(workoutId: string, name: string): Pr
 // ════════════════════════════════════════════════════════
 
 export async function getWorkoutTemplates(): Promise<WorkoutTemplateListItem[]> {
-  if (DEMO_MODE) {
-    return mockTemplates.map((t) => ({
-      id: t.id,
-      user_id: "mock-user",
-      name: t.name,
-      last_used_at: t.last_used_at,
-      created_at: t.created_at,
-      exercise_count: t.exercises.length,
-      exercise_names: t.exercises.slice(0, 4).map((e) => e.exercise_name_snapshot),
-    }));
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -348,28 +231,6 @@ export async function getWorkoutTemplates(): Promise<WorkoutTemplateListItem[]> 
 // ════════════════════════════════════════════════════════
 
 export async function getWorkoutTemplate(templateId: string): Promise<WorkoutTemplateWithExercises | null> {
-  if (DEMO_MODE) {
-    const t = mockTemplates.find((t) => t.id === templateId);
-    if (!t) return null;
-    return {
-      id: t.id,
-      user_id: "mock-user",
-      name: t.name,
-      last_used_at: t.last_used_at,
-      created_at: t.created_at,
-      exercises: t.exercises.map((e, i) => ({
-        id: `${t.id}-ex-${i}`,
-        template_id: t.id,
-        user_id: "mock-user",
-        exercise_id: e.exercise_id,
-        exercise_name_snapshot: e.exercise_name_snapshot,
-        target_sets: e.target_sets,
-        target_reps: e.target_reps,
-        sort_order: e.sort_order,
-      })),
-    };
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -399,22 +260,12 @@ export async function getWorkoutTemplate(templateId: string): Promise<WorkoutTem
 // ════════════════════════════════════════════════════════
 
 export async function renameWorkoutTemplate(templateId: string, name: string): Promise<void> {
-  if (DEMO_MODE) {
-    const t = mockTemplates.find((t) => t.id === templateId);
-    if (t) t.name = name;
-    return;
-  }
   const supabase = await db();
   const userId = await getUserId();
   await supabase.from("workout_templates").update({ name }).eq("id", templateId).eq("user_id", userId);
 }
 
 export async function deleteWorkoutTemplate(templateId: string): Promise<void> {
-  if (DEMO_MODE) {
-    const idx = mockTemplates.findIndex((t) => t.id === templateId);
-    if (idx !== -1) mockTemplates.splice(idx, 1);
-    return;
-  }
   const supabase = await db();
   const userId = await getUserId();
   await supabase.from("workout_templates").delete().eq("id", templateId).eq("user_id", userId);
@@ -425,55 +276,6 @@ export async function deleteWorkoutTemplate(templateId: string): Promise<void> {
 // ════════════════════════════════════════════════════════
 
 export async function startWorkoutFromTemplate(templateId: string): Promise<StartWorkoutResult | null> {
-  if (DEMO_MODE) {
-    const t = mockTemplates.find((t) => t.id === templateId);
-    if (!t) return null;
-    t.last_used_at = new Date().toISOString();
-
-    const workoutId = uid();
-    const workout = {
-      id: workoutId,
-      user_id: "mock-user",
-      workout_day_id: null,
-      import_session_name: t.name,
-      started_at: new Date().toISOString(),
-      completed_at: null,
-      notes: null,
-      is_deload: false,
-      created_at: new Date().toISOString(),
-    };
-
-    const entries = t.exercises.map((ex) => {
-      const entryId = uid();
-      const sets = Array.from({ length: ex.target_sets }, (_, i) => ({
-        id: uid(),
-        workout_exercise_entry_id: entryId,
-        user_id: "mock-user",
-        set_number: i + 1,
-        weight_kg: null as number | null,
-        reps: null as number | null,
-        completed: false,
-        is_warmup: false,
-        too_heavy: false,
-        too_heavy_reps: null as number | null,
-        created_at: new Date().toISOString(),
-      }));
-      return {
-        id: entryId,
-        workout_id: workoutId,
-        exercise_id: ex.exercise_id,
-        workout_day_exercise_id: null,
-        user_id: "mock-user",
-        exercise: { id: ex.exercise_id, user_id: "mock-user", name: ex.exercise_name_snapshot, created_at: new Date().toISOString() },
-        set_entries: sets,
-        created_at: new Date().toISOString(),
-      } satisfies WorkoutExerciseEntry;
-    });
-
-    mockStore.set(workoutId, { workout, entries });
-    return { id: workoutId, workout, entries, suggestions: {}, tooHeavyFlags: {} };
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 

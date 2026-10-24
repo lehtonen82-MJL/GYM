@@ -1,7 +1,7 @@
 "use server";
 
 import type { ExercisePR } from "@/lib/types";
-import { DEMO_MODE, db, getDefaultEquipment, getUserId } from "./_shared";
+import { db, getDefaultEquipment, getUserId } from "./_shared";
 import { matchesEquipment } from "@/lib/equipment";
 
 /**
@@ -12,8 +12,6 @@ export async function getExercisePRs(
   exerciseId: string,
   equipment?: string | null
 ): Promise<ExercisePR[]> {
-  if (DEMO_MODE) return [];
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -40,8 +38,6 @@ export async function refreshExercisePRs(
   exerciseId: string,
   workoutStartedAt: string
 ): Promise<void> {
-  if (DEMO_MODE) return;
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -59,8 +55,6 @@ export async function refreshExercisePRs(
 export async function getAllExercisePRs(): Promise<
   Record<string, Partial<Record<"max_weight" | "1rm_estimate" | "max_volume", { value: number; achieved_at: string }>>>
 > {
-  if (DEMO_MODE) return {};
-
   const supabase = await db();
   const userId = await getUserId();
 

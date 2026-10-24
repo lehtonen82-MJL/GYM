@@ -1,83 +1,12 @@
 "use server";
 
 import type { ExerciseDefinition, ProgramExerciseAlternative } from "@/lib/types";
-import { DEMO_MODE, db, getDefaultEquipment, getUserId } from "./_shared";
+import { db, getDefaultEquipment, getUserId } from "./_shared";
 import { matchesEquipment, summarizeEquipmentUsage, type EquipmentUsage } from "@/lib/equipment";
 import { buildLibraryIndex, findDefinitionMatch, type LibraryIndex } from "@/lib/exerciseMatching";
-import { MOCK_EXERCISES } from "./_mocks";
 import { exerciseSummary, type RuleSet } from "@/lib/setRules";
 
-function dedupMockExercises() {
-  const all = Object.values(MOCK_EXERCISES).flat();
-  const seen = new Set<string>();
-  return all.filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; });
-}
-
-// Demo: bench press has also been done with dumbbells, to exercise the tool picker
-const MOCK_EQUIPMENT_USAGE: Record<string, EquipmentUsage[]> = {
-  "ex-bench": [
-    { equipment_type: "barbell", label: "Barbell", last_used: "2026-03-02" },
-    { equipment_type: "dumbbell", label: "Dumbbell", last_used: "2026-02-23" },
-  ],
-};
-
-const MOCK_PROGRESS_BY_EQUIPMENT: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
-  "ex-bench:dumbbell": [
-    { date: "2026-01-29", weight_kg: 32, reps: 8, sets: 3, volume: 768 },
-    { date: "2026-02-12", weight_kg: 34, reps: 8, sets: 3, volume: 816 },
-    { date: "2026-02-23", weight_kg: 36, reps: 7, sets: 3, volume: 756 },
-  ],
-};
-
-function getExerciseProgressMock(exerciseId: string, equipment?: string | null) {
-  if (equipment && MOCK_PROGRESS_BY_EQUIPMENT[`${exerciseId}:${equipment}`]) {
-    return MOCK_PROGRESS_BY_EQUIPMENT[`${exerciseId}:${equipment}`];
-  }
-  const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
-    "ex-bench": [
-      { date: "2026-01-05", weight_kg: 90,   reps: 5, sets: 4, volume: 1800 },
-      { date: "2026-01-12", weight_kg: 92.5, reps: 5, sets: 4, volume: 1850 },
-      { date: "2026-01-19", weight_kg: 95,   reps: 5, sets: 4, volume: 1900 },
-      { date: "2026-01-26", weight_kg: 97.5, reps: 4, sets: 4, volume: 1560 },
-      { date: "2026-02-02", weight_kg: 97.5, reps: 5, sets: 4, volume: 1950 },
-      { date: "2026-02-09", weight_kg: 100,  reps: 5, sets: 4, volume: 2000 },
-      { date: "2026-02-16", weight_kg: 100,  reps: 4, sets: 4, volume: 1600 },
-      { date: "2026-03-02", weight_kg: 100,  reps: 5, sets: 4, volume: 2000 },
-    ],
-    "ex-bsquat": [
-      { date: "2026-01-03", weight_kg: 100,  reps: 5, sets: 5, volume: 2000 },
-      { date: "2026-01-10", weight_kg: 105,  reps: 5, sets: 5, volume: 2100 },
-      { date: "2026-01-17", weight_kg: 110,  reps: 5, sets: 5, volume: 2200 },
-      { date: "2026-01-24", weight_kg: 112.5, reps: 5, sets: 5, volume: 2250 },
-      { date: "2026-01-31", weight_kg: 115,  reps: 4, sets: 5, volume: 1840 },
-      { date: "2026-02-07", weight_kg: 115,  reps: 5, sets: 5, volume: 2300 },
-      { date: "2026-02-21", weight_kg: 117.5, reps: 5, sets: 5, volume: 2350 },
-      { date: "2026-03-07", weight_kg: 120,  reps: 5, sets: 5, volume: 2400 },
-    ],
-    "ex-snatch": [
-      { date: "2026-01-06", weight_kg: 60,   reps: 2, sets: 3, volume: 480 },
-      { date: "2026-01-13", weight_kg: 62.5, reps: 2, sets: 3, volume: 500 },
-      { date: "2026-01-20", weight_kg: 65,   reps: 2, sets: 3, volume: 520 },
-      { date: "2026-02-03", weight_kg: 67.5, reps: 2, sets: 3, volume: 540 },
-      { date: "2026-02-17", weight_kg: 70,   reps: 2, sets: 3, volume: 560 },
-    ],
-    "ex-rdl": [
-      { date: "2026-01-08", weight_kg: 70,   reps: 8, sets: 3, volume: 1680 },
-      { date: "2026-01-15", weight_kg: 75,   reps: 8, sets: 3, volume: 1800 },
-      { date: "2026-01-22", weight_kg: 77.5, reps: 8, sets: 3, volume: 1860 },
-      { date: "2026-02-05", weight_kg: 80,   reps: 8, sets: 3, volume: 1920 },
-    ],
-  };
-  return MOCK_PROGRESS[exerciseId] ?? [];
-}
-
 export async function getExerciseList() {
-  if (DEMO_MODE) {
-    return dedupMockExercises()
-      .map((ex) => ({ id: ex.id, name: ex.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -98,12 +27,6 @@ export async function getExerciseListEnriched(): Promise<Array<{
   primary_muscle?: string;
   is_bodyweight?: boolean;
 }>> {
-  if (DEMO_MODE) {
-    return dedupMockExercises()
-      .map((ex) => ({ id: ex.id, name: ex.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -138,12 +61,6 @@ export async function getExerciseListForSwap(): Promise<Array<{
   is_bodyweight?: boolean;
   source: "user" | "library";
 }>> {
-  if (DEMO_MODE) {
-    return dedupMockExercises()
-      .map((ex) => ({ id: ex.id, name: ex.name, source: "user" as const }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -207,8 +124,6 @@ export async function getOrCreateExerciseFromLibrary(
   libraryDefinitionId: string,
   exerciseName: string
 ): Promise<string | null> {
-  if (DEMO_MODE) return null;
-
   const supabase = await db();
   const userId = await getUserId();
   const normalized = exerciseName.toLowerCase().trim();
@@ -239,8 +154,6 @@ export async function getOrCreateExerciseFromLibrary(
  * Used by the progress page to pick which tool's history to chart.
  */
 export async function getExerciseEquipmentUsage(exerciseId: string): Promise<EquipmentUsage[]> {
-  if (DEMO_MODE) return MOCK_EQUIPMENT_USAGE[exerciseId] ?? [];
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -271,8 +184,6 @@ export async function getExerciseEquipmentUsage(exerciseId: string): Promise<Equ
  * (defaults to the exercise's library tool). History is tracked per tool.
  */
 export async function getExerciseProgress(exerciseId: string, equipment?: string | null) {
-  if (DEMO_MODE) return getExerciseProgressMock(exerciseId, equipment);
-
   const supabase = await db();
   const userId = await getUserId();
   const defaults = await getDefaultEquipment(supabase, userId, [exerciseId]);
@@ -318,8 +229,6 @@ export async function getExerciseDefinitions(filters?: {
   movementPattern?: string;
   search?: string;
 }): Promise<ExerciseDefinition[]> {
-  if (DEMO_MODE) return [];
-
   const supabase = await db();
   let query = supabase
     .from("exercise_definitions")
@@ -365,8 +274,6 @@ async function getLibraryIndex(
 export async function matchExerciseToLibrary(
   name: string
 ): Promise<ExerciseDefinition | null> {
-  if (DEMO_MODE) return null;
-
   const supabase = await db();
   return findDefinitionMatch(name, await getLibraryIndex(supabase));
 }
@@ -400,8 +307,6 @@ export async function linkExerciseToLibraryInternal(
 
 /** User exercises the library doesn't recognize (no definition) — shown in Settings. */
 export async function getUnlinkedExercises(): Promise<{ id: string; name: string }[]> {
-  if (DEMO_MODE) return [];
-
   const supabase = await db();
   const userId = await getUserId();
   const { data } = await supabase
@@ -418,8 +323,6 @@ export async function getUnlinkedExercises(): Promise<{ id: string; name: string
  * Run after library updates (Settings → Exercise library → Re-link).
  */
 export async function relinkAllExercises(): Promise<{ linked: number; remaining: number }> {
-  if (DEMO_MODE) return { linked: 0, remaining: 0 };
-
   const supabase = await db();
   const userId = await getUserId();
   libraryCache = null; // pick up a just-applied migration
@@ -437,8 +340,6 @@ export async function relinkAllExercises(): Promise<{ linked: number; remaining:
  * Updates exercise_definition_id and is_bodyweight if a match is found.
  */
 export async function linkExerciseToLibrary(exerciseId: string, exerciseName: string): Promise<void> {
-  if (DEMO_MODE) return;
-
   const supabase = await db();
   const userId = await getUserId();
   await linkExerciseToLibraryInternal(supabase, userId, exerciseId, exerciseName);
@@ -448,8 +349,6 @@ export async function linkExerciseToLibrary(exerciseId: string, exerciseName: st
 export async function getExerciseAlternatives(
   programExerciseId: string
 ): Promise<ProgramExerciseAlternative[]> {
-  if (DEMO_MODE) return [];
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -468,11 +367,6 @@ export async function getExerciseAlternatives(
  * Returns the new exercise id, or null on failure.
  */
 export async function createCustomExercise(name: string): Promise<string | null> {
-  if (DEMO_MODE) {
-    const id = `custom-${Date.now()}`;
-    return id;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
   const normalized = name.toLowerCase().trim().replace(/\s+/g, " ");
@@ -522,8 +416,6 @@ export async function addProgramExerciseAlternative(
   programExerciseId: string,
   exerciseId: string
 ): Promise<void> {
-  if (DEMO_MODE) return;
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -540,8 +432,6 @@ export async function removeProgramExerciseAlternative(
   programExerciseId: string,
   exerciseId: string
 ): Promise<void> {
-  if (DEMO_MODE) return;
-
   const supabase = await db();
   const userId = await getUserId();
 

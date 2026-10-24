@@ -1,6 +1,6 @@
 "use server";
 
-import { DEMO_MODE, db, getUserId } from "./_shared";
+import { db, getUserId } from "./_shared";
 import { getSuggestedWeightInternal } from "./sets";
 import { EQUIPMENT_ORDER, equipmentLabel } from "@/lib/equipment";
 
@@ -40,8 +40,6 @@ function allEquipmentTypes(
 export async function getEquipmentOptions(
   exerciseId: string
 ): Promise<EquipmentOption[]> {
-  if (DEMO_MODE) return [];
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -100,8 +98,6 @@ export async function changeEntryEquipment(
   exerciseName: string;
   suggestion: number | null;
 } | null> {
-  if (DEMO_MODE) return null;
-
   const supabase = await db();
   const userId = await getUserId();
 

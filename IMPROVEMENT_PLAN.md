@@ -6,7 +6,7 @@
 > - Don't change a public function signature unless the task says so.
 > - Before editing the data layer, read `node_modules/next/dist/docs/` per `AGENTS.md` (this is a modified Next.js).
 > - Server Actions live in files starting with `"use server"`. Pure helpers must NOT live in those files — put them in `_shared.ts`/util modules.
-> - Demo mode (`DEMO_MODE`) must keep working: every action has a demo branch. Mirror it for any new action.
+> - Demo mode was removed (2026-10-24, `docs/adr/0001-remove-demo-mode.md`). Actions have no demo branch; demo-branch notes in completed phases below are historical.
 
 ---
 
@@ -345,12 +345,12 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 **Task 4.2 — Route `syncWorkoutSets` through the RPC**
 - Files: `src/lib/actions/sets.ts`
-- Do: replace the per-set loop with a single `supabase.rpc("save_workout_sets", …)`. Keep the demo branch and the existing signature.
+- Do: replace the per-set loop with a single `supabase.rpc("save_workout_sets", …)`. Keep the existing signature.
 - Done when: saving a 6×5 workout issues 1 RPC; data identical to before; killing the request mid-save leaves no partial rows.
 
 **Task 4.3 — Make `startWorkout` creation atomic**
 - Files: `src/lib/actions/workout.ts`
-- Do: wrap workout+entries+sets creation in a `start_workout` RPC (or a single transaction). Keep signature + demo branch.
+- Do: wrap workout+entries+sets creation in a `start_workout` RPC (or a single transaction). Keep the signature.
 - Done when: an interrupted start can't orphan a workout with no entries.
 
 **Task 4.4 — Verify with `/verify`**

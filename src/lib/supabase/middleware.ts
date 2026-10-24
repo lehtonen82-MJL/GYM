@@ -1,29 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const DEMO_MODE =
-  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL === "your-supabase-url";
+import { supabaseEnv } from "./env";
 
 export async function updateSession(request: NextRequest) {
-  // In demo mode, skip all auth checks and let every route through
-  if (DEMO_MODE) {
-    const { pathname } = request.nextUrl;
-    // Redirect root to /today
-    if (pathname === "/") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/today";
-      return NextResponse.redirect(url);
-    }
-    return NextResponse.next({ request });
-  }
-
-  // ── Real Supabase auth (only runs when env vars are set) ──
+  const { url, anonKey } = supabaseEnv();
   const { createServerClient } = await import("@supabase/ssr");
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    anonKey,
     {
       cookies: {
         getAll() {

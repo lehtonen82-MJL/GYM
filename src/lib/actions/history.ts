@@ -1,35 +1,9 @@
 "use server";
 
 import type { Workout } from "@/lib/types";
-import { DEMO_MODE, db, getUserId, mockStore, mockBonusCardio } from "./_shared";
-import { MOCK_DAYS, MOCK_EXERCISES } from "./_mocks";
+import { db, getUserId } from "./_shared";
 import { exerciseSummary, sessionVolume, type RuleSet } from "@/lib/setRules";
 import { linkExerciseToLibraryInternal } from "./exercises";
-
-// MOCK_HISTORY is only used in history functions
-const MOCK_HISTORY: Workout[] = [
-  {
-    id: "past-1", user_id: "mock-user", workout_day_id: "day-6",
-    started_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-    completed_at: new Date(Date.now() - 3 * 86400000 + 75 * 60000).toISOString(),
-    notes: "Felt strong today", created_at: "",
-    workout_day: MOCK_DAYS.find((d) => d.id === "day-6"),
-  },
-  {
-    id: "past-2", user_id: "mock-user", workout_day_id: "day-4",
-    started_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-    completed_at: new Date(Date.now() - 5 * 86400000 + 60 * 60000).toISOString(),
-    notes: null, created_at: "",
-    workout_day: MOCK_DAYS.find((d) => d.id === "day-4"),
-  },
-  {
-    id: "past-3", user_id: "mock-user", workout_day_id: "day-2",
-    started_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-    completed_at: new Date(Date.now() - 7 * 86400000 + 90 * 60000).toISOString(),
-    notes: "PR on snatch", created_at: "",
-    workout_day: MOCK_DAYS.find((d) => d.id === "day-2"),
-  },
-];
 
 /** A history row: the workout plus what the list shows and searches (Phase 5.3/5.4). */
 export type WorkoutHistoryItem = Workout & {
@@ -40,23 +14,6 @@ export type WorkoutHistoryItem = Workout & {
 };
 
 export async function getWorkoutHistory(): Promise<WorkoutHistoryItem[]> {
-  if (DEMO_MODE) {
-    const completed = Array.from(mockStore.values())
-      .filter((s) => s.workout.completed_at)
-      .reverse()
-      .map((s) => ({
-        ...s.workout,
-        exercise_names: s.entries.map((e) => e.exercise?.name).filter((n): n is string => !!n),
-        volume_kg: sessionVolume(s.entries.flatMap((e) => e.set_entries ?? [])),
-      }));
-    const past = MOCK_HISTORY.map((w) => ({
-      ...w,
-      exercise_names: (MOCK_EXERCISES[w.workout_day_id ?? ""] ?? []).map((e) => e.name),
-      volume_kg: 0,
-    }));
-    return [...completed, ...past];
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -260,14 +217,6 @@ export async function exportWorkoutHistory(): Promise<string> {
 }
 
 export async function deleteWorkoutFromHistory(workoutId: string): Promise<void> {
-  if (DEMO_MODE) {
-    mockStore.delete(workoutId);
-    mockBonusCardio.delete(workoutId);
-    const idx = MOCK_HISTORY.findIndex((w) => w.id === workoutId);
-    if (idx >= 0) MOCK_HISTORY.splice(idx, 1);
-    return;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -287,15 +236,6 @@ export async function deleteWorkoutFromHistory(workoutId: string): Promise<void>
 
 export async function deleteWorkoutsBulk(workoutIds: string[]): Promise<void> {
   if (workoutIds.length === 0) return;
-  if (DEMO_MODE) {
-    workoutIds.forEach((id) => {
-      mockStore.delete(id);
-      mockBonusCardio.delete(id);
-      const idx = MOCK_HISTORY.findIndex((w) => w.id === id);
-      if (idx >= 0) MOCK_HISTORY.splice(idx, 1);
-    });
-    return;
-  }
 
   const supabase = await db();
   const userId = await getUserId();
@@ -312,8 +252,6 @@ export async function deleteWorkoutsBulk(workoutIds: string[]): Promise<void> {
 }
 
 export async function deleteAllImportedWorkouts(): Promise<{ deleted: number }> {
-  if (DEMO_MODE) return { deleted: 0 };
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -387,8 +325,6 @@ export type ImportSessionInput = {
 export async function importPastWorkouts(
   sessions: ImportSessionInput[]
 ): Promise<{ imported: number; error?: string }> {
-  if (DEMO_MODE) return { imported: 0 };
-
   const supabase = await db();
   const userId = await getUserId();
 

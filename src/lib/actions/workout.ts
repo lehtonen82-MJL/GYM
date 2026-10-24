@@ -2,8 +2,7 @@
 
 import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
 import { parseSchemePrescription } from "@/lib/programParser";
-import { DEMO_MODE, db, getUserId, uid, mockStore } from "./_shared";
-import { MOCK_PREV, MOCK_PROGRAM_DAYS, MOCK_PROGRAM_EXERCISES, demoDayToWorkoutDay } from "./_mocks";
+import { db, getUserId } from "./_shared";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
 import { linkExerciseToLibraryInternal } from "./exercises";
 
@@ -74,106 +73,6 @@ async function buildStartWorkoutResultFromExisting(
   };
 }
 
-function startWorkoutMock(workoutDayId: string): StartWorkoutResult | null {
-  const store = mockStore as Map<string, { workout: Workout; entries: WorkoutExerciseEntry[] }>;
-
-  const day = MOCK_PROGRAM_DAYS.find((d) => d.id === workoutDayId);
-  if (!day) return null;
-
-  const existing = Array.from(store.values()).find(
-    (stored) =>
-      stored.workout.workout_day_id === workoutDayId &&
-      !stored.workout.completed_at
-  );
-
-  if (existing) {
-    const suggestions: Record<string, number | null> = {};
-    for (const entry of existing.entries) {
-      const targetSets =
-        entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
-      const prev = MOCK_PREV[entry.exercise_id];
-      if (!prev) {
-        suggestions[entry.exercise_id] = null;
-        continue;
-      }
-      const maxW = Math.max(...prev.map((s) => s.weight_kg));
-      suggestions[entry.exercise_id] =
-        prev.length >= targetSets ? maxW + 2.5 : maxW;
-    }
-
-    return {
-      id: existing.workout.id,
-      workout: existing.workout,
-      entries: existing.entries,
-      suggestions,
-      tooHeavyFlags: {},
-    };
-  }
-
-  const workoutId = uid();
-  const exercises = MOCK_PROGRAM_EXERCISES
-    .filter((ex) => ex.workout_day_id === workoutDayId)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((ex) => ({
-      id: ex.id,
-      name: ex.exercise_name_snapshot,
-      target_sets: ex.target_sets ?? 3,
-      target_reps: parseInt(ex.target_reps_text ?? "5", 10) || 5,
-      scheme_text: ex.scheme_text,
-    }));
-
-  const entries: WorkoutExerciseEntry[] = exercises.map((ex) => {
-    const entryId = uid();
-    const wdeId = uid();
-    const prescription = parseSchemePrescription(ex.scheme_text);
-    const setCount = prescription.length > 0 ? prescription.length : ex.target_sets;
-    const sets = Array.from({ length: setCount }, (_, i) => ({
-      id: uid(),
-      workout_exercise_entry_id: entryId,
-      user_id: "mock-user",
-      set_number: i + 1,
-      weight_kg: prescription[i]?.weightKg ?? null,
-      reps: prescription[i]?.reps ?? null,
-      completed: false,
-      created_at: new Date().toISOString(),
-    }));
-    return {
-      id: entryId,
-      workout_id: workoutId,
-      exercise_id: ex.id,
-      workout_day_exercise_id: wdeId,
-      user_id: "mock-user",
-      created_at: new Date().toISOString(),
-      exercise: { id: ex.id, user_id: "mock-user", name: ex.name, created_at: "" },
-      workout_day_exercise: {
-        id: wdeId, workout_day_id: workoutDayId, exercise_id: ex.id,
-        user_id: "mock-user", order_index: 0,
-        target_sets: ex.target_sets, target_reps: ex.target_reps,
-        created_at: "",
-        exercise: { id: ex.id, user_id: "mock-user", name: ex.name, created_at: "" },
-      },
-      set_entries: sets,
-    };
-  });
-
-  const workout: Workout = {
-    id: workoutId, user_id: "mock-user", workout_day_id: workoutDayId,
-    started_at: new Date().toISOString(), completed_at: null, notes: null,
-    created_at: new Date().toISOString(), workout_day: demoDayToWorkoutDay(day),
-  };
-
-  const suggestions: Record<string, number | null> = {};
-  for (const ex of exercises) {
-    const prev = MOCK_PREV[ex.id];
-    if (!prev) { suggestions[ex.id] = null; continue; }
-    const maxW = Math.max(...prev.map((s) => s.weight_kg));
-    suggestions[ex.id] = prev.length >= ex.target_sets ? maxW + 2.5 : maxW;
-  }
-
-  store.set(workoutId, { workout, entries });
-  return { id: workoutId, workout, entries, suggestions, tooHeavyFlags: {} };
-}
-
 export async function startWorkout(
   workoutDayId: string,
   isDeload = false,
@@ -181,8 +80,6 @@ export async function startWorkout(
   deloadSetPct = 50,
   deloadReduceWarmups = false
 ): Promise<StartWorkoutResult | null> {
-  if (DEMO_MODE) return startWorkoutMock(workoutDayId);
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -496,7 +393,6 @@ export async function startDeloadWorkout(
     return startWorkout(primaryDayId, true, deloadWeightPct, deloadSetPct, deloadReduceWarmups);
   }
 
-  if (DEMO_MODE) return startWorkoutMock(primaryDayId);
 
   const supabase = await db();
   const userId = await getUserId();
@@ -775,10 +671,6 @@ export async function startDeloadWorkout(
 export async function getWorkout(
   workoutId: string
 ): Promise<{ workout: Workout; entries: WorkoutExerciseEntry[] } | null> {
-  if (DEMO_MODE) {
-    return mockStore.get(workoutId) ?? null;
-  }
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -846,15 +738,6 @@ export async function completeWorkout(
   workoutId: string,
   notes: string | null
 ) {
-  if (DEMO_MODE) {
-    const stored = mockStore.get(workoutId);
-    if (stored) {
-      stored.workout.completed_at = new Date().toISOString();
-      stored.workout.notes = notes;
-    }
-    return;
-  }
-
   const supabase = await db();
 
   // Mark workout complete
@@ -900,8 +783,6 @@ export async function swapWorkoutExercise(
   entryId: string,
   newExerciseId: string
 ): Promise<string> {
-  if (DEMO_MODE) return "";
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -940,8 +821,6 @@ export async function swapWorkoutExercise(
 export async function getLastUsedAlternative(
   programExerciseId: string
 ): Promise<{ exercise_id: string; exercise_name: string; date: string } | null> {
-  if (DEMO_MODE) return null;
-
   const supabase = await db();
   const userId = await getUserId();
 
@@ -975,8 +854,6 @@ export async function updateProgramExerciseDefault(
   programExerciseId: string,
   newExerciseId: string
 ): Promise<void> {
-  if (DEMO_MODE) return;
-
   const supabase = await db();
   const userId = await getUserId();
 
