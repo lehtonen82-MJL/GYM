@@ -66,6 +66,14 @@ describe("workout draft", () => {
     expect(merged.e1.map((s) => [s.id, s.weight_kg, s.completed])).toEqual([["s1", 100, true], ["new", 100, false]]);
     expect(merged.e2).toEqual(server.e2);
   });
+
+  it("drops server sets the lifter deleted during the workout, keeping the draft's order", () => {
+    const server = { e1: [set("s1"), set("s2", { set_number: 2 }), set("s3", { set_number: 3 })] };
+    const merged = mergeDraftSets(server, {
+      e1: [set("s1", { completed: true }), set("s2", { set_number: 2 }), set("new", { set_number: 3, weight_kg: 40 })],
+    });
+    expect(merged.e1.map((s) => [s.id, s.set_number])).toEqual([["s1", 1], ["s2", 2], ["new", 3]]);
+  });
 });
 
 describe("set transitions", () => {

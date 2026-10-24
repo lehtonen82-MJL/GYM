@@ -138,8 +138,9 @@ export function loadDraft<Cardio>(storage: SessionStorage, workoutId: string): W
 }
 
 /**
- * The server's sets with the draft applied: draft values patch matching sets, and sets the draft has
- * but the server doesn't (added during the workout) are appended.
+ * The server's sets with the workout draft applied. For an exercise the draft has sets for, the draft
+ * decides which sets exist and in what order: server sets get the draft's values, sets added during
+ * the workout come from the draft, and server sets missing from it were deleted during the workout.
  */
 export function mergeDraftSets(current: SetMap, draft: Record<string, DraftSet[]>): SetMap {
   const next: SetMap = {};
@@ -149,34 +150,33 @@ export function mergeDraftSets(current: SetMap, draft: Record<string, DraftSet[]
       next[entryId] = sets.map((set) => ({ ...set }));
       continue;
     }
-    const serverIds = new Set(sets.map((s) => s.id));
-    const draftById = new Map(draftSets.map((set) => [set.id, set]));
-    const merged = sets.map((set) => {
-      const patch = draftById.get(set.id);
-      if (!patch) return { ...set };
-      return {
-        ...set,
-        weight_kg: patch.weight_kg,
-        reps: patch.reps,
-        completed: patch.completed,
-        is_warmup: patch.is_warmup ?? set.is_warmup,
-        too_heavy: patch.too_heavy ?? set.too_heavy,
-        too_heavy_reps: patch.too_heavy_reps ?? set.too_heavy_reps,
-      };
-    });
-    for (const draftSet of draftSets) {
-      if (!serverIds.has(draftSet.id) && draftSet.workout_exercise_entry_id && draftSet.user_id) {
+    const serverById = new Map(sets.map((set) => [set.id, set]));
+    const merged: SetEntry[] = [];
+    for (const d of draftSets) {
+      const server = serverById.get(d.id);
+      if (server) {
         merged.push({
-          id: draftSet.id,
-          workout_exercise_entry_id: draftSet.workout_exercise_entry_id,
-          user_id: draftSet.user_id,
-          set_number: draftSet.set_number ?? merged.length + 1,
-          weight_kg: draftSet.weight_kg,
-          reps: draftSet.reps,
-          completed: draftSet.completed,
-          is_warmup: draftSet.is_warmup ?? false,
-          too_heavy: draftSet.too_heavy ?? false,
-          too_heavy_reps: draftSet.too_heavy_reps ?? null,
+          ...server,
+          set_number: d.set_number ?? server.set_number,
+          weight_kg: d.weight_kg,
+          reps: d.reps,
+          completed: d.completed,
+          is_warmup: d.is_warmup ?? server.is_warmup,
+          too_heavy: d.too_heavy ?? server.too_heavy,
+          too_heavy_reps: d.too_heavy_reps ?? server.too_heavy_reps,
+        });
+      } else if (d.workout_exercise_entry_id && d.user_id) {
+        merged.push({
+          id: d.id,
+          workout_exercise_entry_id: d.workout_exercise_entry_id,
+          user_id: d.user_id,
+          set_number: d.set_number ?? merged.length + 1,
+          weight_kg: d.weight_kg,
+          reps: d.reps,
+          completed: d.completed,
+          is_warmup: d.is_warmup ?? false,
+          too_heavy: d.too_heavy ?? false,
+          too_heavy_reps: d.too_heavy_reps ?? null,
           created_at: new Date().toISOString(),
         });
       }
