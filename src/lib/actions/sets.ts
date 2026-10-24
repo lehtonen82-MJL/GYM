@@ -1,7 +1,8 @@
 "use server";
 
-import { DEMO_MODE, db, getUserId, mockStore } from "./_shared";
+import { DEMO_MODE, db, getDefaultEquipment, getUserId, mockStore } from "./_shared";
 import { MOCK_PREV } from "./_mocks";
+import { pickLatestEntryForEquipment } from "@/lib/equipment";
 
 export type SetSyncEntry = {
   entryId: string;
@@ -19,14 +20,19 @@ export type SetSyncEntry = {
   }>;
 };
 
+/**
+ * Sets from the most recent completed workout where this exercise was done with
+ * `equipment` (defaults to the exercise's library tool). History is per tool.
+ */
 export async function getPreviousResults(
-  exerciseId: string
+  exerciseId: string,
+  equipment?: string | null
 ): Promise<{ weight_kg: number; reps: number }[]> {
   if (DEMO_MODE) return MOCK_PREV[exerciseId] ?? [];
 
   const supabase = await db();
   const userId = await getUserId();
-  const results = await getPreviousResultsInternal(supabase, userId, exerciseId);
+  const results = await getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
   return results.map((r) => ({ weight_kg: r.weight_kg, reps: r.reps }));
 }
 
@@ -34,7 +40,8 @@ export async function getPreviousResults(
 export async function getPreviousResultsInternal(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
-  exerciseId: string
+  exerciseId: string,
+  equipment?: string | null
 ): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean }[]> {
   // Step 1: get recent completed workout IDs ordered by actual workout date.
   // Exclude deload workouts — after an Easy Week the next normal session should
@@ -53,46 +60,52 @@ export async function getPreviousResultsInternal(
   const workoutIds = (recentWorkouts as { id: string }[]).map((w) => w.id);
 
   // Step 2: find exercise entries matching those workout IDs
-  const { data: entries } = await supabase
-    .from("workout_exercise_entries")
-    .select("id, workout_id, set_entries(weight_kg, reps, completed, set_number, is_warmup, too_heavy)")
-    .eq("exercise_id", exerciseId)
-    .eq("user_id", userId)
-    .in("workout_id", workoutIds);
+  const [{ data: entries }, defaults] = await Promise.all([
+    supabase
+      .from("workout_exercise_entries")
+      .select("id, workout_id, equipment_type, set_entries(weight_kg, reps, completed, set_number, is_warmup, too_heavy)")
+      .eq("exercise_id", exerciseId)
+      .eq("user_id", userId)
+      .in("workout_id", workoutIds),
+    getDefaultEquipment(supabase, userId, [exerciseId]),
+  ]);
 
   if (!entries || entries.length === 0) return [];
 
-  // Pick the entry from the most-recent completed workout
-  for (const workoutId of workoutIds) {
-    const entry = (entries as { workout_id: string; set_entries: unknown }[]).find(
-      (e) => e.workout_id === workoutId
-    );
-    if (entry?.set_entries) {
-      const sets = entry.set_entries as {
-        weight_kg: number;
-        reps: number;
-        set_number: number;
-        completed: boolean;
-        is_warmup: boolean;
-        too_heavy: boolean;
-      }[];
-      // Use sets that have any data entered (don't require completed=true,
-      // because sets can have completed=false if user didn't tap checkmark)
-      const withData = sets
-        .filter((s) => s.weight_kg !== null || s.reps !== null)
-        .sort((a, b) => a.set_number - b.set_number)
-        .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false, too_heavy: s.too_heavy ?? false }));
-      if (withData.length > 0) return withData;
-    }
-  }
-  return [];
+  type SetRow = {
+    weight_kg: number;
+    reps: number;
+    set_number: number;
+    completed: boolean;
+    is_warmup: boolean;
+    too_heavy: boolean;
+  };
+  // Use sets that have any data entered (don't require completed=true,
+  // because sets can have completed=false if user didn't tap checkmark)
+  const setsWithData = (e: { set_entries: unknown }) =>
+    ((e.set_entries ?? []) as SetRow[]).filter((s) => s.weight_kg !== null || s.reps !== null);
+
+  // Pick the entry from the most-recent completed workout done with the same tool
+  const entry = pickLatestEntryForEquipment(
+    entries as { workout_id: string; equipment_type: string | null; set_entries: unknown }[],
+    workoutIds,
+    equipment,
+    defaults[exerciseId],
+    (e) => setsWithData(e).length > 0
+  );
+  if (!entry) return [];
+
+  return setsWithData(entry)
+    .sort((a, b) => a.set_number - b.set_number)
+    .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false, too_heavy: s.too_heavy ?? false }));
 }
 
 export async function getSuggestedWeight(
   exerciseId: string,
-  targetSets: number
+  targetSets: number,
+  equipment?: string | null
 ): Promise<number | null> {
-  const prev = await getPreviousResults(exerciseId);
+  const prev = await getPreviousResults(exerciseId, equipment);
   if (prev.length === 0) return null;
   const maxWeight = Math.max(...prev.map((s) => s.weight_kg ?? 0));
   const allCompleted = prev.length >= targetSets;
@@ -104,9 +117,10 @@ export async function getSuggestedWeightInternal(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
   exerciseId: string,
-  targetSets: number
+  targetSets: number,
+  equipment?: string | null
 ): Promise<number | null> {
-  const prev = await getPreviousResultsInternal(supabase, userId, exerciseId);
+  const prev = await getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
   // Only consider work sets for weight suggestion
   const workSets = prev.filter((s) => !s.is_warmup);
   if (workSets.length === 0) return null;
@@ -277,7 +291,9 @@ export async function saveTooHeavySets(
 export async function getLastTooHeavyFlags(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
-  exerciseIds: string[]
+  exerciseIds: string[],
+  /** Tool per exercise for the new session; missing = the exercise's default tool. */
+  equipmentByExercise: Record<string, string | null | undefined> = {}
 ): Promise<Record<string, { setNumber: number; achievedReps: number | null }[]>> {
   if (exerciseIds.length === 0) return {};
 
@@ -295,35 +311,38 @@ export async function getLastTooHeavyFlags(
   const workoutIds = (recentWorkouts as { id: string }[]).map((w) => w.id);
 
   // Fetch exercise entries with their sets for those workouts
-  const { data: entryRows } = await supabase
-    .from("workout_exercise_entries")
-    .select("exercise_id, workout_id, set_entries(set_number, too_heavy, too_heavy_reps)")
-    .eq("user_id", userId)
-    .in("exercise_id", exerciseIds)
-    .in("workout_id", workoutIds);
+  const [{ data: entryRows }, defaults] = await Promise.all([
+    supabase
+      .from("workout_exercise_entries")
+      .select("exercise_id, workout_id, equipment_type, set_entries(set_number, too_heavy, too_heavy_reps)")
+      .eq("user_id", userId)
+      .in("exercise_id", exerciseIds)
+      .in("workout_id", workoutIds),
+    getDefaultEquipment(supabase, userId, exerciseIds),
+  ]);
 
   if (!entryRows || entryRows.length === 0) return {};
 
   const rows = entryRows as {
     exercise_id: string;
     workout_id: string;
+    equipment_type: string | null;
     set_entries: { set_number: number; too_heavy: boolean | null; too_heavy_reps: number | null }[];
   }[];
 
-  // For each exercise, find the most recent entry and extract too_heavy set info
+  // For each exercise, find the most recent entry with the same tool and extract too_heavy set info
   const flags: Record<string, { setNumber: number; achievedReps: number | null }[]> = {};
   for (const exId of exerciseIds) {
-    const matching = rows.filter((r) => r.exercise_id === exId);
-    if (matching.length === 0) continue;
-    for (const wId of workoutIds) {
-      const entry = matching.find((r) => r.workout_id === wId);
-      if (entry) {
-        const heavySets = (entry.set_entries ?? [])
-          .filter((s) => s.too_heavy === true)
-          .map((s) => ({ setNumber: s.set_number, achievedReps: s.too_heavy_reps ?? null }));
-        flags[exId] = heavySets;
-        break;
-      }
+    const entry = pickLatestEntryForEquipment(
+      rows.filter((r) => r.exercise_id === exId),
+      workoutIds,
+      equipmentByExercise[exId],
+      defaults[exId]
+    );
+    if (entry) {
+      flags[exId] = (entry.set_entries ?? [])
+        .filter((s) => s.too_heavy === true)
+        .map((s) => ({ setNumber: s.set_number, achievedReps: s.too_heavy_reps ?? null }));
     }
   }
   return flags;

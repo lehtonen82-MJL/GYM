@@ -1,24 +1,34 @@
 "use server";
 
 import type { ExercisePR } from "@/lib/types";
-import { DEMO_MODE, db, getUserId } from "./_shared";
+import { DEMO_MODE, db, getDefaultEquipment, getUserId } from "./_shared";
+import { matchesEquipment } from "@/lib/equipment";
 
 /**
- * Fetch all PRs for a specific exercise.
+ * Fetch PRs for a specific exercise done with `equipment`
+ * (defaults to the exercise's library tool). PRs are tracked per tool.
  */
-export async function getExercisePRs(exerciseId: string): Promise<ExercisePR[]> {
+export async function getExercisePRs(
+  exerciseId: string,
+  equipment?: string | null
+): Promise<ExercisePR[]> {
   if (DEMO_MODE) return [];
 
   const supabase = await db();
   const userId = await getUserId();
 
-  const { data } = await supabase
-    .from("exercise_prs")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("exercise_id", exerciseId);
+  const [{ data }, defaults] = await Promise.all([
+    supabase
+      .from("exercise_prs")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("exercise_id", exerciseId),
+    getDefaultEquipment(supabase, userId, [exerciseId]),
+  ]);
 
-  return (data ?? []) as ExercisePR[];
+  return ((data ?? []) as ExercisePR[]).filter((pr) =>
+    matchesEquipment(pr.equipment_type, equipment, defaults[exerciseId])
+  );
 }
 
 /**

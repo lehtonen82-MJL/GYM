@@ -22,6 +22,30 @@ export async function getUserId(): Promise<string> {
   return user.id;
 }
 
+/**
+ * exercise_id → equipment_type of its linked library definition (null when unlinked).
+ * Entries without an explicit equipment_type were performed with this default tool.
+ */
+export async function getDefaultEquipment(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  exerciseIds: string[]
+): Promise<Record<string, string | null>> {
+  if (exerciseIds.length === 0) return {};
+  const { data } = await supabase
+    .from("exercises")
+    .select("id, definition:exercise_definitions(equipment_type)")
+    .eq("user_id", userId)
+    .in("id", exerciseIds);
+
+  const result: Record<string, string | null> = {};
+  for (const ex of data ?? []) {
+    const def = Array.isArray(ex.definition) ? ex.definition[0] : ex.definition;
+    result[ex.id as string] = (def as { equipment_type?: string } | null)?.equipment_type ?? null;
+  }
+  return result;
+}
+
 // ── MockStore type and globalThis declarations ──────────
 
 export type MockStore = { workout: Workout; entries: WorkoutExerciseEntry[] };

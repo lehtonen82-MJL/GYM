@@ -59,8 +59,8 @@ export default function ExerciseCard({
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getPreviousResults(entry.exercise_id).then(setPrevResults);
-  }, [entry.exercise_id]);
+    getPreviousResults(entry.exercise_id, entry.equipment_type).then(setPrevResults);
+  }, [entry.exercise_id, entry.equipment_type]);
 
   useEffect(() => {
     // Show "💡 Last time" hint only when there is no current swap

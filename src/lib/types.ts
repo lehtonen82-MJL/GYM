@@ -72,6 +72,8 @@ export type ExercisePR = {
   user_id: string;
   exercise_id: string;
   pr_type: ExercisePRType;
+  /** Tool the PR was set with (migration 017/018); null for unlinked exercises */
+  equipment_type?: string | null;
   value: number;
   achieved_at: string;
   created_at: string;

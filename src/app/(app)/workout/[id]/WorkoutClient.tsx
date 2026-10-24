@@ -368,6 +368,7 @@ export default function WorkoutClient({
         return {
           ...e,
           exercise_id: newExerciseId,
+          equipment_type: null,
           exercise: { ...e.exercise!, id: newExerciseId, name: newExerciseName },
           original_exercise_id: original?.id ?? e.exercise_id,
           original_exercise: original,
@@ -447,11 +448,9 @@ export default function WorkoutClient({
         )
       );
 
-      // Update suggestion for new exercise
-      if (result.suggestion !== null) {
-        // suggestions is passed in as prop — update via a local override map
-        setSuggestionOverrides((prev) => ({ ...prev, [result.exerciseId]: result.suggestion }));
-      }
+      // Update suggestion for the new tool via the local override map (suggestions is a prop).
+      // Also when null, so the previous tool's suggestion is not shown for a tool with no history.
+      setSuggestionOverrides((prev) => ({ ...prev, [result.exerciseId]: result.suggestion }));
 
       // Load options for the new exerciseId
       const opts = await getEquipmentOptions(result.exerciseId);

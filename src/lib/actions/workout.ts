@@ -46,7 +46,9 @@ async function buildStartWorkoutResultFromExisting(
     entries.map(async (entry) => {
       const targetSets =
         entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
-      const weight = await getSuggestedWeightInternal(supabase, userId, entry.exercise_id, targetSets);
+      const weight = await getSuggestedWeightInternal(
+        supabase, userId, entry.exercise_id, targetSets, entry.equipment_type
+      );
       return [entry.exercise_id, weight] as [string, number | null];
     })
   );
@@ -54,11 +56,13 @@ async function buildStartWorkoutResultFromExisting(
     suggestions[exerciseId] = weight;
   }
 
-  // Fetch too_heavy flags from previous completed workouts for these exercises
+  // Fetch too_heavy flags from previous completed workouts for these exercises,
+  // scoped to the tool each entry is tagged with
   const tooHeavyFlags = await getLastTooHeavyFlags(
     supabase,
     userId,
-    entries.map((e) => e.exercise_id)
+    entries.map((e) => e.exercise_id),
+    Object.fromEntries(entries.map((e) => [e.exercise_id, e.equipment_type]))
   );
 
   return {
@@ -866,18 +870,20 @@ export async function completeWorkout(
     const userId = await getUserId();
     const { data: entries } = await supabase
       .from("workout_exercise_entries")
-      .select("exercise_id")
+      .select("exercise_id, equipment_type")
       .eq("workout_id", workoutId)
       .eq("user_id", userId)
       .not("exercise_id", "is", null);
 
     if (entries?.length) {
+      // PRs are scoped per tool (migration 018); null = the exercise's default tool
       await Promise.all(
         entries.map((e) =>
           supabase.rpc("upsert_exercise_prs", {
             p_user_id: userId,
             p_exercise_id: e.exercise_id,
             p_workout_started_at: workout.started_at,
+            p_equipment_type: e.equipment_type ?? null,
           })
         )
       );
@@ -916,7 +922,9 @@ export async function swapWorkoutExercise(
 
   const { error } = await supabase
     .from("workout_exercise_entries")
-    .update({ exercise_id: newExerciseId, original_exercise_id: originalId })
+    // Reset the tool: the old exercise's equipment tag doesn't apply to the new one,
+    // and history/PRs are filtered by it (NULL = new exercise's default tool)
+    .update({ exercise_id: newExerciseId, original_exercise_id: originalId, equipment_type: null })
     .eq("id", entryId)
     .eq("user_id", userId);
 

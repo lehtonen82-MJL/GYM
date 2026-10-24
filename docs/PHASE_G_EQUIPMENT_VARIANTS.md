@@ -77,6 +77,31 @@ entry that already has logged sets re-tags those sets to the new tool (same entr
 - **G6** — Wire `EquipmentToggle` into WorkoutClient (switch mid-exercise, re-suggest weight).
 - **G7** — History/PR views show per-equipment; manual verification + `npm run build`.
 
+## Status (2026-10-24)
+- **Done:** G1 (migration 017), G4 (`changeEntryEquipment`), G5/G6 (`EquipmentToggle` in the
+  workout screen), **G3** (below).
+- **Deviation from the design:** `allowed_equipment` / `default_equipment` (G2) were not built.
+  The dropdown lists all 13 tools; when a sibling library definition exists for the tool the
+  entry is swapped to that exercise, otherwise only `entry.equipment_type` is tagged.
+- **G3 implementation:**
+  - Effective tool of an entry = `entry.equipment_type ?? definition.equipment_type`
+    (`src/lib/equipment.ts`, unit-tested). Entries are created untagged, so untagged = default tool.
+  - `getPreviousResults*`, `getSuggestedWeight*`, `getLastTooHeavyFlags` take an optional tool and
+    only use history done with the same effective tool. No tool given = the default tool.
+  - Resuming an in-progress workout computes suggestions and too-heavy flags for each entry's tool.
+  - `swapWorkoutExercise` resets `equipment_type` to NULL (the old exercise's tool doesn't carry over).
+  - `changeEntryEquipment` now returns a suggestion for the new tool in both branches
+    (previously `null` when only tagging); the client clears a stale suggestion.
+  - PRs: migration **018** makes uniqueness `(user_id, exercise_id, pr_type, equipment_type)`
+    and adds `p_equipment_type` to `upsert_exercise_prs`. `completeWorkout` passes the entry's
+    tool; `getExercisePRs(exerciseId, equipment?)` filters by tool.
+  - Must apply `018_equipment_scoped_prs.sql` in Supabase **before** deploying this code,
+    otherwise the 4-arg RPC call fails and PRs stop updating.
+- **Still open:** suggestions are keyed by `exercise_id`, so two entries of the same exercise
+  with different tools share one suggestion slot; G2 (if wanted), G7 (history/progress views per tool — `getExerciseProgress`
+  and `getAllExercisePRs` still mix tools), entries are not tagged with the default tool at
+  creation (harmless given the effective-tool rule).
+
 ## Out of scope (deferred)
 - Gym/equipment ownership profile + availability filtering (the "Both" option) — can layer
   on later using `allowed_equipment` ∩ owned-equipment.

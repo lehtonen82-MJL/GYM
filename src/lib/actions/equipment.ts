@@ -120,26 +120,38 @@ export async function changeEntryEquipment(
   const supabase = await db();
   const userId = await getUserId();
 
-  // No definition → just tag equipment_type, keep current exercise
-  if (!newDefinitionId) {
-    const { data: current } = await supabase
-      .from("workout_exercise_entries")
-      .select("exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(id, name)")
-      .eq("id", entryId)
-      .eq("user_id", userId)
-      .maybeSingle();
+  // Target sets drive the suggestion in both branches
+  const { data: entry } = await supabase
+    .from("workout_exercise_entries")
+    .select("exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(id, name), workout_day_exercise:workout_day_exercises(target_sets)")
+    .eq("id", entryId)
+    .eq("user_id", userId)
+    .maybeSingle();
 
+  const entryTyped = entry as {
+    exercise_id: string;
+    exercise: { id: string; name: string } | null;
+    workout_day_exercise: { target_sets: number } | null;
+  } | null;
+  const targetSets = entryTyped?.workout_day_exercise?.target_sets ?? 3;
+
+  // No definition → just tag equipment_type, keep current exercise.
+  // History is filtered by equipment_type, so the suggestion comes from this tool only.
+  if (!newDefinitionId) {
     await supabase
       .from("workout_exercise_entries")
       .update({ equipment_type: newEquipmentType })
       .eq("id", entryId)
       .eq("user_id", userId);
 
-    const cur = current as { exercise_id: string; exercise: { id: string; name: string } | null } | null;
+    const exerciseId = entryTyped?.exercise_id ?? "";
+    const suggestion = exerciseId
+      ? await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, newEquipmentType)
+      : null;
     return {
-      exerciseId: cur?.exercise_id ?? "",
-      exerciseName: cur?.exercise?.name ?? "",
-      suggestion: null,
+      exerciseId,
+      exerciseName: entryTyped?.exercise?.name ?? "",
+      suggestion,
     };
   }
 
@@ -184,23 +196,13 @@ export async function changeEntryEquipment(
     exerciseId = created.id as string;
   }
 
-  const { data: entry } = await supabase
-    .from("workout_exercise_entries")
-    .select("workout_day_exercise:workout_day_exercises(target_sets)")
-    .eq("id", entryId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  const entryTyped = entry as { workout_day_exercise: { target_sets: number } | null } | null;
-  const targetSets = entryTyped?.workout_day_exercise?.target_sets ?? 3;
-
   await supabase
     .from("workout_exercise_entries")
     .update({ exercise_id: exerciseId, equipment_type: newEquipmentType })
     .eq("id", entryId)
     .eq("user_id", userId);
 
-  const suggestion = await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets);
+  const suggestion = await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, newEquipmentType);
 
   return { exerciseId, exerciseName, suggestion };
 }
