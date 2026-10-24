@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/code-review/SKILL.md",
       "computedHash": "57cfd4ceb011f05e58a1a4f4cad3b2e03419d371f8990f4bcb32ff0d435a039f"
+    },
+    "setup-matt-pocock-skills": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
+      "computedHash": "1d35d0afa3ded88c9324d38db08b2cff91cd03e0e11d64786bee41385cd7b9fb"
     }
   }
 }
