@@ -3,7 +3,7 @@
 import type { Workout } from "@/lib/types";
 import { DEMO_MODE, db, getUserId, mockStore, mockBonusCardio } from "./_shared";
 import { MOCK_DAYS, MOCK_EXERCISES } from "./_mocks";
-import { sessionVolume, type VolumeSet } from "@/lib/volume";
+import { exerciseSummary, sessionVolume, type RuleSet } from "@/lib/setRules";
 import { linkExerciseToLibraryInternal } from "./exercises";
 
 // MOCK_HISTORY is only used in history functions
@@ -79,11 +79,11 @@ export async function getWorkoutHistory(): Promise<WorkoutHistoryItem[]> {
     .in("workout_id", workouts.map((w) => w.id))
     .order("created_at");
 
-  const byWorkout = new Map<string, { names: string[]; sets: VolumeSet[] }>();
+  const byWorkout = new Map<string, { names: string[]; sets: RuleSet[] }>();
   for (const row of (entryRows ?? []) as unknown as {
     workout_id: string;
     exercise: { name: string } | null;
-    set_entries: VolumeSet[] | null;
+    set_entries: RuleSet[] | null;
   }[]) {
     const acc = byWorkout.get(row.workout_id) ?? { names: [], sets: [] };
     if (row.exercise?.name && !acc.names.includes(row.exercise.name)) acc.names.push(row.exercise.name);
@@ -179,9 +179,8 @@ export async function exportWorkoutHistory(): Promise<string> {
       const workSets = sets.filter((s) => !s.is_warmup);
       const warmupSets = sets.filter((s) => s.is_warmup);
 
-      // Volume = sum(weight * reps) for work sets
-      const totalVolume = workSets.reduce((sum, s) => sum + ((s.weight_kg ?? 0) * (s.reps ?? 0)), 0);
-      const topWorkSet = workSets.reduce((best, s) => ((s.weight_kg ?? 0) > (best.weight_kg ?? 0) ? s : best), workSets[0]);
+      // Top set, volume and work-set count come from completed work sets (setRules)
+      const summary = exerciseSummary(sets);
       const tooHeavyCount = workSets.filter((s) => s.too_heavy).length;
 
       const exName = e.exercise?.name ?? "Unknown";
@@ -189,8 +188,8 @@ export async function exportWorkoutHistory(): Promise<string> {
 
       // Track progression — compact: "date:topWeight×reps:vol:sets(:⚠N)"
       if (!exerciseProgression[exName]) exerciseProgression[exName] = [];
-      if (workSets.length > 0) {
-        let entry = `${dateStr}:${topWorkSet?.weight_kg ?? 0}×${topWorkSet?.reps ?? 0}:${totalVolume}:${workSets.length}`;
+      if (summary.top) {
+        let entry = `${dateStr}:${summary.top.weight_kg}×${summary.top.reps}:${summary.volume}:${summary.workSets}`;
         if (tooHeavyCount > 0) entry += `:⚠${tooHeavyCount}`;
         exerciseProgression[exName].push(entry);
       }
@@ -221,8 +220,8 @@ export async function exportWorkoutHistory(): Promise<string> {
         ...(e.original_exercise ? { swapped_from: e.original_exercise.name } : {}),
         ...(warmupSets.length > 0 ? { warmup: warmupSets.map(fmtSet) } : {}),
         sets: workSets.map(fmtSet),
-        volume: totalVolume,
-        top: topWorkSet ? `${topWorkSet.weight_kg}×${topWorkSet.reps}` : null,
+        volume: summary.volume,
+        top: summary.top ? `${summary.top.weight_kg}×${summary.top.reps}` : null,
       };
     });
 

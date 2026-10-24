@@ -27,3 +27,15 @@ _Avoid_: Pending set, empty set
 **Volume**:
 The external load lifted in a workout: the sum of weight × reps over its completed work sets. Bodyweight sets add nothing.
 _Avoid_: Tonnage, workload, total weight
+
+**Top set**:
+The heaviest completed work set of an exercise in one workout.
+_Avoid_: Best set, max set
+
+**Previous results**:
+The sets of an exercise from the lifter's most recent finished workout with it on the same equipment (Easy Week workouts excluded): its completed work and warmup sets, or, when none of those sets was checked off, every set with a weight or reps entered. The basis for the next workout's planned sets and suggested weight.
+_Avoid_: Last time, history
+
+**Suggested weight**:
+The weight proposed for an exercise's next work sets, derived from the previous results' work sets.
+_Avoid_: Recommended weight, target weight

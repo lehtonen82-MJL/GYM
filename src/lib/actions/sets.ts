@@ -3,6 +3,7 @@
 import { DEMO_MODE, db, getDefaultEquipment, getUserId, mockStore } from "./_shared";
 import { MOCK_PREV } from "./_mocks";
 import { pickLatestEntryForEquipment } from "@/lib/equipment";
+import { previousResultSets, suggestedWeight } from "@/lib/setRules";
 
 export type SetSyncEntry = {
   entryId: string;
@@ -73,17 +74,14 @@ export async function getPreviousResultsInternal(
   if (!entries || entries.length === 0) return [];
 
   type SetRow = {
-    weight_kg: number;
-    reps: number;
+    weight_kg: number | null;
+    reps: number | null;
     set_number: number;
     completed: boolean;
     is_warmup: boolean;
     too_heavy: boolean;
   };
-  // Use sets that have any data entered (don't require completed=true,
-  // because sets can have completed=false if user didn't tap checkmark)
-  const setsWithData = (e: { set_entries: unknown }) =>
-    ((e.set_entries ?? []) as SetRow[]).filter((s) => s.weight_kg !== null || s.reps !== null);
+  const previousSets = (e: { set_entries: unknown }) => previousResultSets((e.set_entries ?? []) as SetRow[]);
 
   // Pick the entry from the most-recent completed workout done with the same tool
   const entry = pickLatestEntryForEquipment(
@@ -91,11 +89,11 @@ export async function getPreviousResultsInternal(
     workoutIds,
     equipment,
     defaults[exerciseId],
-    (e) => setsWithData(e).length > 0
+    (e) => previousSets(e).length > 0
   );
   if (!entry) return [];
 
-  return setsWithData(entry)
+  return previousSets(entry)
     .sort((a, b) => a.set_number - b.set_number)
     .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false, too_heavy: s.too_heavy ?? false }));
 }
@@ -105,11 +103,11 @@ export async function getSuggestedWeight(
   targetSets: number,
   equipment?: string | null
 ): Promise<number | null> {
-  const prev = await getPreviousResults(exerciseId, equipment);
-  if (prev.length === 0) return null;
-  const maxWeight = Math.max(...prev.map((s) => s.weight_kg ?? 0));
-  const allCompleted = prev.length >= targetSets;
-  return allCompleted ? maxWeight + 2.5 : maxWeight;
+  if (DEMO_MODE) return suggestedWeight(MOCK_PREV[exerciseId] ?? [], targetSets);
+
+  const supabase = await db();
+  const userId = await getUserId();
+  return getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, equipment);
 }
 
 // Internal version that reuses an existing client — avoids repeated auth round-trips
@@ -121,11 +119,7 @@ export async function getSuggestedWeightInternal(
   equipment?: string | null
 ): Promise<number | null> {
   const prev = await getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
-  // Only consider work sets for weight suggestion
-  const workSets = prev.filter((s) => !s.is_warmup);
-  if (workSets.length === 0) return null;
-  const maxWeight = Math.max(...workSets.map((s) => s.weight_kg ?? 0));
-  return workSets.length >= targetSets ? maxWeight + 2.5 : maxWeight;
+  return suggestedWeight(prev, targetSets);
 }
 
 export async function updateSet(

@@ -27,7 +27,7 @@ import {
 import AddExerciseModal from "@/components/AddExerciseModal";
 import EquipmentToggle from "@/components/EquipmentToggle";
 import { formatSet, formatShortDate, formatVolume } from "@/lib/format";
-import { sessionVolume } from "@/lib/volume";
+import { sessionVolume } from "@/lib/setRules";
 import RestTimer from "@/components/RestTimer";
 import { useSettings } from "@/lib/settings";
 import BonusCardioCapture, {

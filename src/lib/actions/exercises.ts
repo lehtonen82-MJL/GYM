@@ -5,6 +5,7 @@ import { DEMO_MODE, db, getDefaultEquipment, getUserId } from "./_shared";
 import { matchesEquipment, summarizeEquipmentUsage, type EquipmentUsage } from "@/lib/equipment";
 import { buildLibraryIndex, findDefinitionMatch, type LibraryIndex } from "@/lib/exerciseMatching";
 import { MOCK_EXERCISES } from "./_mocks";
+import { exerciseSummary, type RuleSet } from "@/lib/setRules";
 
 function dedupMockExercises() {
   const all = Object.values(MOCK_EXERCISES).flat();
@@ -276,13 +277,11 @@ export async function getExerciseProgress(exerciseId: string, equipment?: string
   const userId = await getUserId();
   const defaults = await getDefaultEquipment(supabase, userId, [exerciseId]);
 
-  // Get all sets for this exercise, grouped by workout date.
-  // Include sets with weight entered (weighted exercises) OR reps entered (bodyweight exercises).
-  // Rely on workout.completed_at IS NOT NULL (whole workout was finished).
+  // All sets for this exercise in finished workouts; setRules decides which count (completed work sets).
   const { data } = await supabase
     .from("set_entries")
     .select(
-      "weight_kg, reps, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, equipment_type, workout_day_exercise:workout_day_exercises(target_reps), workout:workouts!inner(started_at, completed_at))"
+      "weight_kg, reps, completed, is_warmup, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, equipment_type, workout:workouts!inner(started_at, completed_at))"
     )
     .eq("workout_exercise_entry.exercise_id", exerciseId)
     .eq("user_id", userId)
@@ -290,39 +289,27 @@ export async function getExerciseProgress(exerciseId: string, equipment?: string
 
   if (!data || data.length === 0) return [];
 
-  // Group by date: pick top set (highest weight) AND sum total volume AND count sets
-  const byDate = new Map<string, { weight_kg: number; reps: number; sets: number; volume: number }>();
+  const setsByDate = new Map<string, RuleSet[]>();
   for (const row of data) {
     const we = row.workout_exercise_entry as unknown as {
       equipment_type: string | null;
       workout: { started_at: string; completed_at: string | null };
-      workout_day_exercise: { target_reps: number } | null;
     };
     if (!we?.workout?.completed_at) continue;
     if (!matchesEquipment(we.equipment_type, equipment, defaults[exerciseId])) continue;
     const date = we.workout.started_at.split("T")[0];
-    const existing = byDate.get(date);
-    const w = row.weight_kg ?? 0;
-    const r = row.reps ?? we.workout_day_exercise?.target_reps ?? 0;
-    const setVolume = w * r;
-    if (!existing) {
-      byDate.set(date, { weight_kg: w, reps: r, sets: 1, volume: setVolume });
-    } else {
-      existing.sets += 1;
-      existing.volume += setVolume;
-      // For weighted exercises: top set = highest weight
-      // For bodyweight exercises (w=0): top set = highest reps
-      const isBodyweight = w === 0 && existing.weight_kg === 0;
-      if (isBodyweight ? r > existing.reps : w > existing.weight_kg) {
-        existing.weight_kg = w;
-        existing.reps = r;
-      }
-    }
+    const list = setsByDate.get(date) ?? [];
+    list.push(row as RuleSet);
+    setsByDate.set(date, list);
   }
 
-  return Array.from(byDate.entries())
+  // Per date: top set, volume and number of completed work sets
+  return Array.from(setsByDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, vals]) => ({ date, ...vals }));
+    .flatMap(([date, sets]) => {
+      const { top, volume, workSets } = exerciseSummary(sets);
+      return top ? [{ date, weight_kg: top.weight_kg, reps: top.reps, sets: workSets, volume }] : [];
+    });
 }
 
 export async function getExerciseDefinitions(filters?: {
