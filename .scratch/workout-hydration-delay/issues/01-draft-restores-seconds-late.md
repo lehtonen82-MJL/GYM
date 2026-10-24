@@ -1,6 +1,6 @@
 # Workout draft is restored ~6 s after the workout screen appears
 
-Status: needs-triage
+Status: closed
 Category: bug
 
 Found 2026-10-24 testing production (gym-six-ochre.vercel.app) in the desktop app's browser.
@@ -18,3 +18,13 @@ The hydrate/save effects are structurally unchanged from before the workoutSessi
 (172388a), so this is likely older. Next step: reproduce locally with React profiling to find what
 delays the passive effects (suspects: Next 16 route/Activity behaviour, server actions started from
 ExerciseCard effects).
+
+## Comments
+
+### Resolution (2026-10-24)
+
+Cause: the restore ran in an effect, and its state update only committed once the first server action
+(ExerciseCard's previous-results fetch, ~5.8 s in production) finished — Next.js runs server actions in
+transitions, one at a time. WorkoutClient only renders in the browser, so the draft is now read in the
+state initializers: the first render already shows it and nothing waits for a server action. The slow
+first server action itself (cold start?) is a separate question.

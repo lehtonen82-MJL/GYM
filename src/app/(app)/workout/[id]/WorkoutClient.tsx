@@ -84,12 +84,17 @@ export default function WorkoutClient({
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [entries, setEntries] = useState<WorkoutExerciseEntry[]>(initialEntries);
 
+  // The workout draft saved on this device, read once while setting up state so the first render
+  // already shows it (this component only renders in the browser). Restoring it in an effect left the
+  // screen showing the server's sets for seconds whenever a server action was in flight.
+  const [draft] = useState(() => (readOnly ? null : loadDraft<BonusCardioDraft>(browserStorage, workout.id)));
+
   const [setsMap, setSetsMap] = useState<SetMap>(() => {
     const map: SetMap = {};
     for (const entry of initialEntries) {
       map[entry.id] = (entry.set_entries ?? []).map((s) => ({ ...s }));
     }
-    return map;
+    return draft ? mergeDraftSets(map, draft.setsByEntryId) : map;
   });
 
   // Track which set IDs existed in DB when this workout was loaded.
@@ -111,9 +116,13 @@ export default function WorkoutClient({
     programExerciseId: string | null;
   } | null>(null);
 
-  const [activeEntryId, setActiveEntryId] = useState<string | null>(entries[0]?.id ?? null);
-  const [notes, setNotes] = useState("");
-  const [showSummary, setShowSummary] = useState(false);
+  const [activeEntryId, setActiveEntryId] = useState<string | null>(() =>
+    draft && (draft.activeEntryId === null || initialEntries.some((e) => e.id === draft.activeEntryId))
+      ? draft.activeEntryId
+      : (initialEntries[0]?.id ?? null)
+  );
+  const [notes, setNotes] = useState(() => (typeof draft?.notes === "string" ? draft.notes : ""));
+  const [showSummary, setShowSummary] = useState(() => draft?.showSummary === true);
   const [autoAdvanceLocked, setAutoAdvanceLocked] = useState(false);
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -121,14 +130,15 @@ export default function WorkoutClient({
   const [templateName, setTemplateName] = useState("");
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [hydratedDraft, setHydratedDraft] = useState(false);
   // Equipment variant state: options keyed by exerciseId, changing tracks which entry is mid-swap
   const [equipmentOptions, setEquipmentOptions] = useState<Record<string, EquipmentOption[]>>({});
   const [changingEquipment, setChangingEquipment] = useState<string | null>(null);
   // Overrides for suggestions after an equipment swap (new exerciseId → suggestion)
   const [suggestionOverrides, setSuggestionOverrides] = useState<Record<string, number | null>>({});
-  const [bonusCardioDraft, setBonusCardioDraft] = useState<BonusCardioDraft>(
-    bonusCardio
+  const [bonusCardioDraft, setBonusCardioDraft] = useState<BonusCardioDraft>(() =>
+    draft?.bonusCardioDraft
+      ? draft.bonusCardioDraft
+      : bonusCardio
       ? {
           machine_type: "rower",
           distance_m: bonusCardio.distance_m,
@@ -150,26 +160,7 @@ export default function WorkoutClient({
   }, [readOnly, workout.completed_at, workout.id]);
 
   useEffect(() => {
-    if (readOnly) {
-      setHydratedDraft(true);
-      return;
-    }
-
-    const draft = loadDraft<BonusCardioDraft>(browserStorage, workout.id);
-    if (draft) {
-      setSetsMap((prev) => mergeDraftSets(prev, draft.setsByEntryId));
-      if (typeof draft.notes === "string") setNotes(draft.notes);
-      if (draft.bonusCardioDraft) setBonusCardioDraft(draft.bonusCardioDraft);
-      if (typeof draft.showSummary === "boolean") setShowSummary(draft.showSummary);
-      if (draft.activeEntryId === null || entries.some((entry) => entry.id === draft.activeEntryId)) {
-        setActiveEntryId(draft.activeEntryId ?? null);
-      }
-    }
-    setHydratedDraft(true);
-  }, [entries, readOnly, workout.id]);
-
-  useEffect(() => {
-    if (readOnly || !hydratedDraft) return;
+    if (readOnly) return;
 
     saveDraft(browserStorage, workout.id, {
       setsByEntryId: setsMap,
@@ -181,7 +172,6 @@ export default function WorkoutClient({
   }, [
     activeEntryId,
     bonusCardioDraft,
-    hydratedDraft,
     notes,
     readOnly,
     setsMap,
