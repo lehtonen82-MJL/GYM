@@ -26,7 +26,9 @@ import {
 } from "@/lib/actions";
 import AddExerciseModal from "@/components/AddExerciseModal";
 import EquipmentToggle from "@/components/EquipmentToggle";
-import { formatSet, formatShortDate } from "@/lib/format";
+import { formatSet, formatShortDate, formatVolume } from "@/lib/format";
+import { sessionVolume } from "@/lib/volume";
+import RestTimer from "@/components/RestTimer";
 import { useSettings } from "@/lib/settings";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
@@ -132,7 +134,9 @@ export default function WorkoutClient({
   bonusCardio = null,
 }: Props) {
   // Mutable copy of entries that updates on exercise swaps
-  const { unit } = useSettings();
+  const { unit, restSeconds } = useSettings();
+  // Rest countdown: epoch ms when it ends; started by checking off a set
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [entries, setEntries] = useState<WorkoutExerciseEntry[]>(initialEntries);
 
   const [setsMap, setSetsMap] = useState<SetMap>(() => {
@@ -604,6 +608,9 @@ export default function WorkoutClient({
     }
   }
 
+  // Session tonnage (work sets, kg) for the summary and history detail
+  const totalVolume = sessionVolume(Object.values(setsMap).flat());
+
   if (readOnly) {
     return (
       <div className="space-y-4 pb-8">
@@ -618,6 +625,7 @@ export default function WorkoutClient({
                   day: "numeric",
                   year: "numeric",
                 })}
+                {totalVolume > 0 && <> · Volume {formatVolume(totalVolume, unit)}</>}
               </p>
             )}
           </div>
@@ -702,7 +710,14 @@ export default function WorkoutClient({
           </button>
         </div>
         <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
-          <h2 className="text-lg font-semibold text-white">{workout.workout_day?.name}</h2>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold text-white">{workout.workout_day?.name}</h2>
+            {totalVolume > 0 && (
+              <p className="text-muted text-sm">
+                Volume <span className="text-white font-semibold">{formatVolume(totalVolume, unit)}</span>
+              </p>
+            )}
+          </div>
 
           {entries.map((entry) => {
             const allSets = (setsMap[entry.id] ?? []).filter((s) => s.weight_kg || s.reps || s.completed);
@@ -861,6 +876,18 @@ export default function WorkoutClient({
             programExerciseId={entry.workout_day_exercise_id ?? null}
             originalExerciseName={entry.original_exercise?.name ?? null}
             onSwapExercise={(newId, newName) => void handleSwapExercise(entry.id, newId, newName)}
+            onSetCompleted={() => {
+              if (restSeconds > 0) setRestEndsAt(Date.now() + restSeconds * 1000);
+            }}
+            restTimer={
+              activeEntryId === entry.id && restEndsAt !== null ? (
+                <RestTimer
+                  endsAt={restEndsAt}
+                  onAdd={(s) => setRestEndsAt((t) => (t ?? Date.now()) + s * 1000)}
+                  onDismiss={() => setRestEndsAt(null)}
+                />
+              ) : undefined
+            }
             equipmentToggle={
               opts.length > 0 ? (
                 <EquipmentToggle

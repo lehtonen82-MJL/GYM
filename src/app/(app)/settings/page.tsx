@@ -1,13 +1,14 @@
 "use client";
 
 import { useSettings } from "@/lib/settings";
-import { formatWeight, type WeightUnit } from "@/lib/format";
+import { formatPace, formatWeight, type WeightUnit } from "@/lib/format";
 import ExerciseLibrarySection from "./ExerciseLibrarySection";
 
 export default function SettingsPage() {
   const {
     navPosition, setNavPosition,
     unit, setUnit,
+    restSeconds, setRestSeconds,
     debugBorders, setDebugBorders,
     deloadWeightPct, setDeloadWeightPct,
     deloadSetPct, setDeloadSetPct,
@@ -79,6 +80,32 @@ export default function SettingsPage() {
             ))}
           </div>
           <p className="text-muted text-xs">Weights are always saved in kg — this only changes how they are shown and entered.</p>
+        </div>
+      </section>
+
+      {/* Rest timer */}
+      <section className="bg-card rounded-2xl border border-border divide-y divide-border">
+        <div className="p-4">
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Rest timer</h2>
+          <p className="text-muted text-xs mt-1">Starts when you check off a set</p>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 60, 90, 120, 180, 240].map((s) => (
+              <button
+                key={s}
+                onClick={() => setRestSeconds(s)}
+                aria-pressed={restSeconds === s}
+                className={`py-2.5 rounded-xl border-2 text-sm font-medium transition ${
+                  restSeconds === s
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted"
+                }`}
+              >
+                {s === 0 ? "Off" : formatPace(s)}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 

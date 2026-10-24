@@ -359,6 +359,14 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 5 — Quick-win usability (independent sub-tasks; any subset ships) · RISK: low
 
+> **Status 2026-10-24: done (all four).** 5.1 `src/lib/plates.ts` (exact min-plate search, kg and lb plate sets) +
+> `PlateCalculatorModal` from a "Plates" button in the active exercise card (the set rows had no room for another
+> control). 5.2 there was no rest timer, only the EMOM interval timer — added `RestTimer`: starts when a set is
+> checked off, shown in the active card (+15s / Skip, vibrates at 0), length in Settings → Rest timer (Off–4:00,
+> default 2:00). 5.3 `getWorkoutHistory` now returns exercise names + volume; History has a search box
+> (`src/lib/historyFilter.ts`: exercise, title, notes, date; all words must match). 5.4 `src/lib/volume.ts`
+> (work sets with weight and reps, warmups excluded) on the workout summary, history rows and history detail.
+
 **Task 5.1 — Plate calculator**
 - Files (new): `src/lib/plates.ts` (pure `platesFor(targetKg, barKg, available[])`), `src/components/PlateCalculatorModal.tsx`; trigger from a set row.
 - Done when: entering 100 kg shows per-side plates.

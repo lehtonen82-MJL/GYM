@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import SetRow from "./SetRow";
 import IntervalTimer from "./IntervalTimer";
+import PlateCalculatorModal from "./PlateCalculatorModal";
 import SwapExerciseModal from "./SwapExerciseModal";
 import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
 import { getPreviousResults, getLastUsedAlternative } from "@/lib/actions";
@@ -28,6 +29,10 @@ type ExerciseCardProps = {
   onSwapExercise?: (newExerciseId: string, newExerciseName: string) => void;
   /** Equipment toggle rendered below header when active */
   equipmentToggle?: React.ReactNode;
+  /** Called when a set is checked off (starts the rest timer) */
+  onSetCompleted?: () => void;
+  /** Rest countdown rendered above the sets when active */
+  restTimer?: React.ReactNode;
 };
 
 function renumber(sets: SetEntry[]): SetEntry[] {
@@ -47,10 +52,13 @@ export default function ExerciseCard({
   originalExerciseName,
   onSwapExercise,
   equipmentToggle,
+  onSetCompleted,
+  restTimer,
 }: ExerciseCardProps) {
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
   const { unit } = useSettings();
   const [showTimer, setShowTimer] = useState(false);
+  const [showPlates, setShowPlates] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showTooHeavyPicker, setShowTooHeavyPicker] = useState(false);
   const [showRepsStep, setShowRepsStep] = useState(false);
@@ -107,6 +115,7 @@ export default function ExerciseCard({
     // When completing a set, if reps was never entered, treat the placeholder (targetReps) as achieved
     const repsUpdate = completing && set.reps === null ? { reps: targetReps } : {};
     updateSet(setId, { completed: completing, ...repsUpdate });
+    if (completing) onSetCompleted?.();
   }
 
   function handleTypeToggle(setId: string) {
@@ -266,6 +275,7 @@ export default function ExerciseCard({
       {/* Sets */}
       {isActive && (
         <div className="px-3 pb-3 space-y-2">
+          {restTimer}
           {sets.map((set, idx) => (
             <SetRow
               key={set.id}
@@ -313,6 +323,13 @@ export default function ExerciseCard({
               >
                 <span>⏱</span>
                 <span>Interval Timer</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPlates(true)}
+                className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm font-semibold border border-zinc-700 active:bg-zinc-700"
+              >
+                Plates
               </button>
               <button
                 type="button"
@@ -461,6 +478,19 @@ export default function ExerciseCard({
           targetReps={targetReps}
           onSetsChange={onSetsChange}
           onClose={() => setShowTimer(false)}
+        />
+      )}
+
+      {showPlates && (
+        <PlateCalculatorModal
+          // Next set to load: first unfinished work set with a weight, else the suggestion
+          initialWeightKg={
+            sets.find((s) => !s.completed && !s.is_warmup && s.weight_kg)?.weight_kg ??
+            suggestedWeight ??
+            sets.find((s) => s.weight_kg)?.weight_kg ??
+            null
+          }
+          onClose={() => setShowPlates(false)}
         />
       )}
 

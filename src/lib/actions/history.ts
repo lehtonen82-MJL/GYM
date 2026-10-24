@@ -2,7 +2,8 @@
 
 import type { Workout } from "@/lib/types";
 import { DEMO_MODE, db, getUserId, mockStore, mockBonusCardio } from "./_shared";
-import { MOCK_DAYS } from "./_mocks";
+import { MOCK_DAYS, MOCK_EXERCISES } from "./_mocks";
+import { sessionVolume } from "@/lib/volume";
 import { linkExerciseToLibraryInternal } from "./exercises";
 
 // MOCK_HISTORY is only used in history functions
@@ -30,13 +31,30 @@ const MOCK_HISTORY: Workout[] = [
   },
 ];
 
-export async function getWorkoutHistory(): Promise<Workout[]> {
+/** A history row: the workout plus what the list shows and searches (Phase 5.3/5.4). */
+export type WorkoutHistoryItem = Workout & {
+  /** Exercises in the order they were added */
+  exercise_names: string[];
+  /** Session tonnage in kg (work sets, see src/lib/volume.ts) */
+  volume_kg: number;
+};
+
+export async function getWorkoutHistory(): Promise<WorkoutHistoryItem[]> {
   if (DEMO_MODE) {
     const completed = Array.from(mockStore.values())
       .filter((s) => s.workout.completed_at)
-      .map((s) => s.workout)
-      .reverse();
-    return [...completed, ...MOCK_HISTORY];
+      .reverse()
+      .map((s) => ({
+        ...s.workout,
+        exercise_names: s.entries.map((e) => e.exercise?.name).filter((n): n is string => !!n),
+        volume_kg: sessionVolume(s.entries.flatMap((e) => e.set_entries ?? [])),
+      }));
+    const past = MOCK_HISTORY.map((w) => ({
+      ...w,
+      exercise_names: (MOCK_EXERCISES[w.workout_day_id ?? ""] ?? []).map((e) => e.name),
+      volume_kg: 0,
+    }));
+    return [...completed, ...past];
   }
 
   const supabase = await db();
@@ -50,7 +68,34 @@ export async function getWorkoutHistory(): Promise<Workout[]> {
     .order("started_at", { ascending: false })
     .limit(50);
 
-  return data ?? [];
+  const workouts = (data ?? []) as Workout[];
+  if (workouts.length === 0) return [];
+
+  // One query for every listed workout's exercises + sets
+  const { data: entryRows } = await supabase
+    .from("workout_exercise_entries")
+    .select("workout_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(name), set_entries(weight_kg, reps, is_warmup)")
+    .eq("user_id", userId)
+    .in("workout_id", workouts.map((w) => w.id))
+    .order("created_at");
+
+  const byWorkout = new Map<string, { names: string[]; sets: { weight_kg: number | null; reps: number | null; is_warmup: boolean | null }[] }>();
+  for (const row of (entryRows ?? []) as unknown as {
+    workout_id: string;
+    exercise: { name: string } | null;
+    set_entries: { weight_kg: number | null; reps: number | null; is_warmup: boolean | null }[] | null;
+  }[]) {
+    const acc = byWorkout.get(row.workout_id) ?? { names: [], sets: [] };
+    if (row.exercise?.name && !acc.names.includes(row.exercise.name)) acc.names.push(row.exercise.name);
+    acc.sets.push(...(row.set_entries ?? []));
+    byWorkout.set(row.workout_id, acc);
+  }
+
+  return workouts.map((w) => ({
+    ...w,
+    exercise_names: byWorkout.get(w.id)?.names ?? [],
+    volume_kg: sessionVolume(byWorkout.get(w.id)?.sets ?? []),
+  }));
 }
 
 /**

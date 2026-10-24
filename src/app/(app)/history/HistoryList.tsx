@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   deleteWorkoutFromHistory,
   deleteWorkoutsBulk,
   deleteAllImportedWorkouts,
   exportWorkoutHistory,
+  type WorkoutHistoryItem,
 } from "@/lib/actions";
 import type { Workout } from "@/lib/types";
-import { formatDuration, formatShortDate } from "@/lib/format";
+import { formatDuration, formatShortDate, formatVolume } from "@/lib/format";
+import { filterWorkouts } from "@/lib/historyFilter";
+import { useSettings } from "@/lib/settings";
 import ImportWorkoutModal from "./ImportWorkoutModal";
 
 function isImported(w: Workout) {
@@ -20,8 +23,27 @@ function isImported(w: Workout) {
   );
 }
 
-export default function HistoryList({ workouts }: { workouts: Workout[] }) {
+function workoutTitle(w: Workout): string {
+  return w.workout_day?.name === "Imported" && w.notes?.startsWith("[Import]")
+    ? w.notes.replace(/^\[Import\]\s*/, "") || "Imported"
+    : (w.workout_day?.name ?? w.import_session_name ?? "Workout");
+}
+
+export default function HistoryList({ workouts: allWorkouts }: { workouts: WorkoutHistoryItem[] }) {
   const router = useRouter();
+  const { unit } = useSettings();
+
+  // Search (exercise, title, notes, date) — select/delete act on the visible rows
+  const [query, setQuery] = useState("");
+  const workouts = useMemo(
+    () =>
+      filterWorkouts(
+        allWorkouts.map((w) => ({ ...w, title: workoutTitle(w) })),
+        query,
+        formatShortDate
+      ),
+    [allWorkouts, query]
+  );
 
   // Normal-mode state
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -36,7 +58,7 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [confirmClearImported, setConfirmClearImported] = useState(false);
 
-  const hasImported = workouts.some(isImported);
+  const hasImported = allWorkouts.some(isImported);
 
   // ── Normal single delete ────────────────────────────────────────────────────
   const handleDeleteConfirmed = async (workoutId: string) => {
@@ -138,6 +160,19 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
 
   return (
     <div className="space-y-3">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search exercise, workout, notes or date"
+        aria-label="Search history"
+        className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base placeholder:text-zinc-600"
+      />
+      {query && (
+        <p className="text-muted text-xs" role="status">
+          {workouts.length} of {allWorkouts.length} workouts
+        </p>
+      )}
       {/* Toolbar */}
       <div className="flex items-center gap-2">
         {!selectMode ? (
@@ -283,9 +318,7 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="text-white font-semibold">
-                      {w.workout_day?.name === "Imported" && w.notes?.startsWith("[Import]")
-                        ? w.notes.replace(/^\[Import\]\s*/, "") || "Imported"
-                        : (w.workout_day?.name ?? w.import_session_name ?? "Workout")}
+                      {workoutTitle(w)}
                     </p>
                     {imported && (
                       <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
@@ -302,9 +335,7 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                 <Link href={`/workout/${w.id}`} className="min-w-0 flex-1 active:opacity-80 transition-opacity">
                   <div className="flex items-center gap-2">
                     <p className="text-white font-semibold">
-                      {w.workout_day?.name === "Imported" && w.notes?.startsWith("[Import]")
-                        ? w.notes.replace(/^\[Import\]\s*/, "") || "Imported"
-                        : (w.workout_day?.name ?? w.import_session_name ?? "Workout")}
+                      {workoutTitle(w)}
                     </p>
                     {imported && (
                       <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
@@ -314,8 +345,19 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                     )}
                   </div>
                   <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
+                  {w.exercise_names.length > 0 && (
+                    <p className="text-muted text-xs mt-1 line-clamp-1">{w.exercise_names.join(" · ")}</p>
+                  )}
                   <p className="text-white text-sm mt-2">{formatShortDate(w.started_at)}</p>
-                  <p className="text-muted text-xs">{formatDuration(w.started_at, w.completed_at)}</p>
+                  <p className="text-muted text-xs">
+                    {formatDuration(w.started_at, w.completed_at)}
+                    {w.volume_kg > 0 && (
+                      <>
+                        {formatDuration(w.started_at, w.completed_at) ? " · " : ""}
+                        {formatVolume(w.volume_kg, unit)}
+                      </>
+                    )}
+                  </p>
                   {w.notes && !w.notes.startsWith("[Import]") && (
                     <p className="text-muted text-sm mt-2 line-clamp-1">{w.notes}</p>
                   )}
