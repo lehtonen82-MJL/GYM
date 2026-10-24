@@ -7,7 +7,7 @@
 Files run in lexical order of their names:
 
 ```
-000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 020
+000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 021
 ```
 
 Letter suffixes (`004a`/`004b`, `010a`/`010b`) replaced duplicate numbers without renumbering
@@ -28,6 +28,9 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   without `015`'s 1RM fix, plus 32 hand-added kettlebell definitions now captured as `012b`).
   Rehearsed first on a local copy of the production data; PRs recomputed by `019` (75 → 82).
   A CSV backup of every public table taken just before the run lives outside the repo.
+- **Pending:** `021` (atomic workout writes). The app from commit "feat: atomic workout writes"
+  on needs it: apply `setup.sql` **before** deploying that code, or starting and finishing
+  workouts fail (a finish keeps the workout draft on the device, so no sets are lost).
 
 ## Rules for new migrations
 

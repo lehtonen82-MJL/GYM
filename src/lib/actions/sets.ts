@@ -124,87 +124,15 @@ export async function updateSet(
   await supabase.from("set_entries").update(data).eq("id", setId);
 }
 
-export async function syncWorkoutSets(
-  entriesData: SetSyncEntry[],
-  originalSetIds: string[]
-): Promise<void> {
+/**
+ * Save a finished workout's sets in one transaction (save_workout_sets RPC, migration 021): deletes the
+ * sets in `originalSetIds` that are gone, upserts every current set, and sets each program exercise's
+ * target_sets to its work-set count.
+ */
+export async function syncWorkoutSets(entriesData: SetSyncEntry[], originalSetIds: string[]): Promise<void> {
   const supabase = await db();
-  const userId = await getUserId();
-  const errors: string[] = [];
-
-  const currentSetIds = new Set(entriesData.flatMap((e) => e.sets.map((s) => s.id)));
-  const originalIdsSet = new Set(originalSetIds);
-
-  // 1. Delete sets that existed originally but are no longer present
-  const toDelete = originalSetIds.filter((id) => !currentSetIds.has(id));
-  if (toDelete.length > 0) {
-    const { error } = await supabase.from("set_entries").delete().in("id", toDelete).eq("user_id", userId);
-    if (error) errors.push(`delete: ${error.message}`);
-  }
-
-  // 2. For each entry: upsert all current sets
-  for (const { entryId, workoutDayExerciseId, sets } of entriesData) {
-    for (const set of sets) {
-      const isNew = !originalIdsSet.has(set.id);
-      if (isNew) {
-        const { error } = await supabase.from("set_entries").insert({
-          id: set.id,
-          workout_exercise_entry_id: entryId,
-          user_id: userId,
-          set_number: set.set_number,
-          weight_kg: set.weight_kg,
-          reps: set.reps,
-          completed: set.completed,
-          is_warmup: set.is_warmup,
-          too_heavy: set.too_heavy,
-          too_heavy_reps: set.too_heavy_reps ?? null,
-        });
-        if (error) errors.push(`insert set ${set.set_number}: ${error.message}`);
-      } else {
-        const { error } = await supabase.from("set_entries").update({
-          set_number: set.set_number,
-          weight_kg: set.weight_kg,
-          reps: set.reps,
-          completed: set.completed,
-          is_warmup: set.is_warmup,
-          too_heavy: set.too_heavy,
-          too_heavy_reps: set.too_heavy_reps ?? null,
-        }).eq("id", set.id).eq("user_id", userId);
-        if (error) errors.push(`update set ${set.set_number}: ${error.message}`);
-      }
-    }
-
-    // 3. Update workout_day_exercises.target_sets to work set count
-    if (workoutDayExerciseId) {
-      const workSetCount = sets.filter((s) => !s.is_warmup).length;
-      if (workSetCount > 0) {
-        await supabase.from("workout_day_exercises")
-          .update({ target_sets: workSetCount })
-          .eq("id", workoutDayExerciseId)
-          .eq("user_id", userId);
-      }
-    }
-  }
-
-  if (errors.length > 0) {
-    throw new Error(`Failed to save sets: ${errors.join("; ")}`);
-  }
-}
-
-export async function saveSets(
-  sets: { id: string; weight_kg: number | null; reps: number | null; completed: boolean }[]
-) {
-  const supabase = await db();
-  for (const set of sets) {
-    await supabase
-      .from("set_entries")
-      .update({
-        weight_kg: set.weight_kg,
-        reps: set.reps,
-        completed: set.completed,
-      })
-      .eq("id", set.id);
-  }
+  const { error } = await supabase.rpc("save_workout_sets", { p_entries: entriesData, p_original_ids: originalSetIds });
+  if (error) throw new Error(`Failed to save sets: ${error.message}`);
 }
 
 export async function saveTooHeavySets(

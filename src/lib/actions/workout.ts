@@ -2,7 +2,7 @@
 
 import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
 import { parseSchemePrescription } from "@/lib/programParser";
-import { planSets, type PlanInput, type PlannedSet } from "@/lib/plannedSets";
+import { planSets, type PlanInput } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
 import { db, getUserId } from "./_shared";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
@@ -85,56 +85,43 @@ type WdeRow = {
 };
 
 /**
- * Adds the program exercises to a new workout: one entry each with its planned sets (planSets), plus
- * the suggested weights and too-heavy flags the client needs. In an Easy Week the suggestion is last
- * time's top weight, without the +2.5 kg progression.
+ * Starts a workout from program exercises: plans each one's sets (planSets) and creates the workout,
+ * its entries and their sets in one transaction (start_workout RPC, migration 021), so an interrupted
+ * start leaves nothing behind. Also returns the suggested weights and too-heavy flags the client needs;
+ * in an Easy Week the suggestion is last time's top weight, without the +2.5 kg progression.
  */
 async function addPlannedExercises(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
-  workout: Workout,
+  newWorkout: { workout_day_id: string; is_deload: boolean; notes: string | null; workout_day: unknown },
   wdes: WdeRow[],
   deload?: PlanInput["deload"]
-): Promise<StartWorkoutResult> {
-  const [entryResults, prevResultsAll] = await Promise.all([
-    Promise.all(
-      wdes.map((wde) =>
-        supabase
-          .from("workout_exercise_entries")
-          .insert({ workout_id: workout.id, exercise_id: wde.exercise_id, workout_day_exercise_id: wde.id, user_id: userId })
-          .select("*")
-          .single()
-      )
-    ),
-    Promise.all(wdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id))),
-  ]);
+): Promise<StartWorkoutResult | null> {
+  const prevResultsAll = await Promise.all(wdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id)));
 
-  const setRows: (PlannedSet & { workout_exercise_entry_id: string; user_id: string; completed: boolean })[] = [];
-  const created: { entry: WorkoutExerciseEntry; wde: WdeRow; previous: (typeof prevResultsAll)[number] }[] = [];
-  wdes.forEach((wde, i) => {
-    const entry = entryResults[i].data as WorkoutExerciseEntry | null;
-    if (!entry) return;
-    const previous = prevResultsAll[i] ?? [];
-    const planned = planSets({ prescription: parseSchemePrescription(wde.scheme_text), targetSets: wde.target_sets, previous, deload });
-    for (const set of planned) setRows.push({ ...set, workout_exercise_entry_id: entry.id, user_id: userId, completed: false });
-    created.push({ entry, wde, previous });
+  const { data, error } = await supabase.rpc("start_workout", {
+    p_workout: { workout_day_id: newWorkout.workout_day_id, is_deload: newWorkout.is_deload, notes: newWorkout.notes },
+    p_entries: wdes.map((wde, i) => ({
+      exercise_id: wde.exercise_id,
+      workout_day_exercise_id: wde.id,
+      sets: planSets({ prescription: parseSchemePrescription(wde.scheme_text), targetSets: wde.target_sets, previous: prevResultsAll[i] ?? [], deload }),
+    })),
   });
-
-  // Single round-trip for all sets
-  const { data: insertedSets } = await supabase.from("set_entries").insert(setRows).select("*").order("set_number");
-  const setsByEntryId: Record<string, NonNullable<WorkoutExerciseEntry["set_entries"]>> = {};
-  for (const s of insertedSets ?? []) {
-    (setsByEntryId[s.workout_exercise_entry_id as string] ??= []).push(s);
+  if (error || !data) {
+    console.error("[startWorkout] start_workout RPC failed:", error?.message);
+    return null;
   }
+  const created = data as { workout: Workout; entries: WorkoutExerciseEntry[] };
+  const workout = { ...created.workout, workout_day: newWorkout.workout_day } as Workout;
 
   const suggestions: Record<string, number | null> = {};
-  const entries: WorkoutExerciseEntry[] = created.map(({ entry, wde, previous }) => {
-    suggestions[wde.exercise_id] = suggestedWeight(previous, deload ? Number.POSITIVE_INFINITY : wde.target_sets);
+  const entries: WorkoutExerciseEntry[] = created.entries.map((entry, i) => {
+    const wde = wdes[i];
+    suggestions[wde.exercise_id] = suggestedWeight(prevResultsAll[i] ?? [], deload ? Number.POSITIVE_INFINITY : wde.target_sets);
     return {
       ...entry,
       exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
       workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
-      set_entries: setsByEntryId[entry.id] ?? [],
     };
   });
 
@@ -180,15 +167,6 @@ export async function startWorkout(
     );
     if (resumed) return resumed;
   }
-
-  // 2. Create workout row
-  const { data: workout, error: wErr } = await supabase
-    .from("workouts")
-    .insert({ user_id: userId, workout_day_id: workoutDayId, is_deload: isDeload })
-    .select("*")
-    .single();
-  if (wErr || !workout) return null;
-  workout.workout_day = day;
 
   // 3. Get exercises — try legacy workout_day_exercises first, fall back to program_exercises.
   // This handles both old data (wde table) and programs built/imported via the program builder
@@ -293,7 +271,7 @@ export async function startWorkout(
   return addPlannedExercises(
     supabase,
     userId,
-    workout as Workout,
+    { workout_day_id: workoutDayId, is_deload: isDeload, notes: null, workout_day: day },
     resolvedWdes,
     isDeload ? { weightPct: deloadWeightPct, setPct: deloadSetPct, reduceWarmups: deloadReduceWarmups } : undefined
   );
@@ -337,18 +315,6 @@ export async function startDeloadWorkout(
   ];
   const autoNote = `Easy week — ${dayNames.join(" + ")}`;
 
-  // Create workout row tied to the primary day
-  const { data: workout, error: wErr } = await supabase
-    .from("workouts")
-    .insert({
-      user_id: userId,
-      workout_day_id: primaryDayId,
-      is_deload: true,
-      notes: autoNote,
-    })
-    .select("*, workout_day:workout_days(*)")
-    .single();
-  if (wErr || !workout) return null;
 
   // Collect exercises from all days in order, deduplicated by exercise_id
   const allDayIds = [primaryDayId, ...additionalDayIds];
@@ -442,7 +408,8 @@ export async function startDeloadWorkout(
 
   if (allWdes.length === 0) return null;
 
-  return addPlannedExercises(supabase, userId, workout as Workout, allWdes, {
+  const newWorkout = { workout_day_id: primaryDayId, is_deload: true, notes: autoNote, workout_day: primaryDay };
+  return addPlannedExercises(supabase, userId, newWorkout, allWdes, {
     weightPct: deloadWeightPct,
     setPct: deloadSetPct,
     reduceWarmups: deloadReduceWarmups,

@@ -396,7 +396,7 @@ export default function WorkoutClient({
       } catch (syncError) {
         // Show the error but keep localStorage intact so no data is lost
         const msg = syncError instanceof Error ? syncError.message : String(syncError);
-        alert(`Could not save all sets to server — your workout data is preserved locally.\n\nDetails: ${msg}\n\nPlease make sure the database migration has been applied (add is_warmup column) and try again.`);
+        alert(`Could not save all sets to server — your workout data is preserved locally.\n\nDetails: ${msg}\n\nPlease make sure the database is up to date (migration 021) and try again.`);
         return;
       }
 

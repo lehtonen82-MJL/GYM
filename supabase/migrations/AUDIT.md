@@ -182,3 +182,10 @@ No schema change on a fresh database.
 
 - added: 160 rows in `exercise_definitions` (147 → 307), aliases for existing rows
 - added: function link_unlinked_exercises()
+
+#### `021_atomic_workout_writes.sql` (Phase 4, added after this audit)
+
+- added: function start_workout(jsonb,jsonb) — workout + entries + planned sets in one transaction
+- added: function save_workout_sets(jsonb,uuid[]) — a finished workout's sets in one transaction
+- added: function workout_sets_payload(jsonb) — helper for save_workout_sets
+- All `SECURITY INVOKER`: row-level security applies. Checked by `tests/rpc_test.sql`.

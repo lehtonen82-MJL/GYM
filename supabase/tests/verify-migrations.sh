@@ -2,7 +2,8 @@
 # Applies supabase/setup.sql to a throwaway local Postgres and checks that it
 #   1. builds a fresh database,
 #   2. can be re-run (idempotent),
-#   3. keeps existing data on re-run and computes PRs per tool,
+#   3. keeps existing data on re-run and computes PRs per tool, and the workout RPCs
+#      (start_workout, save_workout_sets) are atomic and respect row-level security,
 #   4. matches the committed snapshot supabase/schema.sql (unless --update-snapshot).
 #
 # Needs psql + pg_dump and a local Postgres you can create databases on, e.g.
@@ -43,6 +44,9 @@ if [[ "$result" != "$expected" ]]; then
   echo "FAIL: expected $expected" >&2
   exit 1
 fi
+
+echo "   workout RPCs (start_workout, save_workout_sets)"
+"${PSQL[@]}" -d "$DB" -f tests/rpc_test.sql
 
 echo "4/4 schema snapshot"
 "${PSQL[@]}" -d "$DB" -c "TRUNCATE auth.users CASCADE"
