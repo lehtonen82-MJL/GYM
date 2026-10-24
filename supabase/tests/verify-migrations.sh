@@ -34,11 +34,11 @@ result=$("${PSQL[@]}" -d "$DB" -tA -c "
   SELECT
     (SELECT count(*) FROM set_entries) || ' sets, ' ||
     (SELECT count(*) FROM exercise_definitions) || ' definitions, linked=' ||
-    (SELECT (exercise_definition_id IS NOT NULL)::text FROM exercises) || ', prs=' ||
+    (SELECT string_agg(name || '=' || (exercise_definition_id IS NOT NULL)::text, ' ' ORDER BY name) FROM exercises) || ', prs=' ||
     (SELECT string_agg(equipment_type || ':' || pr_type || '=' || value, ' ' ORDER BY equipment_type, pr_type)
        FROM exercise_prs)")
 echo "   $result"
-expected="3 sets, 115 definitions, linked=true, prs=barbell:1rm_estimate=116.67 barbell:max_volume=1000.00 barbell:max_weight=100.00 dumbbell:1rm_estimate=45.60 dumbbell:max_volume=288.00 dumbbell:max_weight=36.00"
+expected="3 sets, 283 definitions, linked=Bench Press=true My Custom Thing=false OHP=true, prs=barbell:1rm_estimate=116.67 barbell:max_volume=1000.00 barbell:max_weight=100.00 dumbbell:1rm_estimate=45.60 dumbbell:max_volume=288.00 dumbbell:max_weight=36.00"
 if [[ "$result" != "$expected" ]]; then
   echo "FAIL: expected $expected" >&2
   exit 1

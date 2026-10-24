@@ -172,3 +172,7 @@ No schema change on a fresh database.
 
 No schema change on a fresh database.
 
+#### `020_expand_exercise_library.sql` (Phase E, added after this audit)
+
+- added: 168 rows in `exercise_definitions` (115 → 283), aliases for existing rows
+- added: function link_unlinked_exercises()

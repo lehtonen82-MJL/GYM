@@ -3,6 +3,7 @@
 import type { ExerciseDefinition, ProgramExerciseAlternative } from "@/lib/types";
 import { DEMO_MODE, db, getDefaultEquipment, getUserId } from "./_shared";
 import { matchesEquipment, summarizeEquipmentUsage, type EquipmentUsage } from "@/lib/equipment";
+import { buildLibraryIndex, findDefinitionMatch, type LibraryIndex } from "@/lib/exerciseMatching";
 import { MOCK_EXERCISES } from "./_mocks";
 
 function dedupMockExercises() {
@@ -355,9 +356,24 @@ export async function getExerciseDefinitions(filters?: {
   return (data ?? []) as ExerciseDefinition[];
 }
 
+// The library is global and only changes with migrations: cache the index per server
+// process for a few minutes instead of re-reading ~300 rows for every link.
+const LIBRARY_TTL_MS = 5 * 60 * 1000;
+let libraryCache: { at: number; index: LibraryIndex<ExerciseDefinition> } | null = null;
+
+async function getLibraryIndex(
+  supabase: Awaited<ReturnType<typeof db>>
+): Promise<LibraryIndex<ExerciseDefinition>> {
+  if (libraryCache && Date.now() - libraryCache.at < LIBRARY_TTL_MS) return libraryCache.index;
+  const { data } = await supabase.from("exercise_definitions").select("*");
+  const index = buildLibraryIndex((data ?? []) as ExerciseDefinition[]);
+  if (data?.length) libraryCache = { at: Date.now(), index };
+  return index;
+}
+
 /**
- * Given a display name, look up a matching exercise_definition by normalized_name
- * or alias. Returns the definition id if found, otherwise null.
+ * Given a display name, find the matching exercise_definition (name or alias, spelling-
+ * insensitive — see src/lib/exerciseMatching.ts). Returns null when none or ambiguous.
  */
 export async function matchExerciseToLibrary(
   name: string
@@ -365,60 +381,24 @@ export async function matchExerciseToLibrary(
   if (DEMO_MODE) return null;
 
   const supabase = await db();
-  const normalized = name.toLowerCase().trim().replace(/\s+/g, " ");
-
-  // Exact normalized_name match
-  const { data: exact } = await supabase
-    .from("exercise_definitions")
-    .select("*")
-    .eq("normalized_name", normalized)
-    .maybeSingle();
-
-  if (exact) return exact as ExerciseDefinition;
-
-  // Alias match: check if normalized appears in the aliases array
-  const { data: aliased } = await supabase
-    .from("exercise_definitions")
-    .select("*")
-    .contains("aliases", [normalized])
-    .maybeSingle();
-
-  return (aliased as ExerciseDefinition | null) ?? null;
+  return findDefinitionMatch(name, await getLibraryIndex(supabase));
 }
 
 /**
  * Internal: link a newly created exercise to the library, reusing an existing supabase client.
  * Only fires when exercise_definition_id is not already set.
- * Silently skips if no matching definition is found.
+ * Silently skips if no matching definition is found. Returns whether it linked.
  */
 export async function linkExerciseToLibraryInternal(
   supabase: Awaited<ReturnType<typeof db>>,
   userId: string,
   exerciseId: string,
   exerciseName: string
-): Promise<void> {
-  const normalized = exerciseName.toLowerCase().trim().replace(/\s+/g, " ");
+): Promise<boolean> {
+  const def = findDefinitionMatch(exerciseName, await getLibraryIndex(supabase));
+  if (!def) return false;
 
-  // Exact normalized_name match first
-  let { data: def } = await supabase
-    .from("exercise_definitions")
-    .select("id, is_bodyweight, is_main_lift, equipment_type")
-    .eq("normalized_name", normalized)
-    .maybeSingle();
-
-  // Alias match fallback
-  if (!def) {
-    const { data: aliased } = await supabase
-      .from("exercise_definitions")
-      .select("id, is_bodyweight, is_main_lift, equipment_type")
-      .contains("aliases", [normalized])
-      .maybeSingle();
-    def = aliased;
-  }
-
-  if (!def) return;
-
-  await supabase
+  const { error } = await supabase
     .from("exercises")
     .update({
       exercise_definition_id: def.id,
@@ -428,6 +408,41 @@ export async function linkExerciseToLibraryInternal(
     })
     .eq("id", exerciseId)
     .eq("user_id", userId);
+  return !error;
+}
+
+/** User exercises the library doesn't recognize (no definition) — shown in Settings. */
+export async function getUnlinkedExercises(): Promise<{ id: string; name: string }[]> {
+  if (DEMO_MODE) return [];
+
+  const supabase = await db();
+  const userId = await getUserId();
+  const { data } = await supabase
+    .from("exercises")
+    .select("id, name")
+    .eq("user_id", userId)
+    .is("exercise_definition_id", null)
+    .order("name");
+  return (data ?? []) as { id: string; name: string }[];
+}
+
+/**
+ * Try to link every unlinked user exercise with the current library + matching rules.
+ * Run after library updates (Settings → Exercise library → Re-link).
+ */
+export async function relinkAllExercises(): Promise<{ linked: number; remaining: number }> {
+  if (DEMO_MODE) return { linked: 0, remaining: 0 };
+
+  const supabase = await db();
+  const userId = await getUserId();
+  libraryCache = null; // pick up a just-applied migration
+  const unlinked = await getUnlinkedExercises();
+
+  let linked = 0;
+  for (const ex of unlinked) {
+    if (await linkExerciseToLibraryInternal(supabase, userId, ex.id, ex.name)) linked++;
+  }
+  return { linked, remaining: unlinked.length - linked };
 }
 
 /**

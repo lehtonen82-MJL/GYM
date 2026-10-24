@@ -154,6 +154,39 @@ end;
 $$;
 
 --
+-- Name: link_unlinked_exercises(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.link_unlinked_exercises() RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_linked integer;
+BEGIN
+  WITH matches AS (
+    SELECT DISTINCT ON (e.id) e.id AS exercise_id, d.id AS def_id,
+           d.is_bodyweight, d.is_main_lift, d.equipment_type
+    FROM exercises e
+    JOIN exercise_definitions d
+      ON d.normalized_name = COALESCE(e.normalized_name, lower(trim(e.name)))
+      OR d.aliases @> ARRAY[COALESCE(e.normalized_name, lower(trim(e.name)))]
+    WHERE e.exercise_definition_id IS NULL
+    -- exact name beats alias
+    ORDER BY e.id, (d.normalized_name = COALESCE(e.normalized_name, lower(trim(e.name)))) DESC
+  )
+  UPDATE exercises e SET
+    exercise_definition_id = m.def_id,
+    is_bodyweight          = m.is_bodyweight,
+    is_main_lift           = m.is_main_lift,
+    category               = m.equipment_type
+  FROM matches m
+  WHERE e.id = m.exercise_id;
+  GET DIAGNOSTICS v_linked = ROW_COUNT;
+  RETURN v_linked;
+END;
+$$;
+
+--
 -- Name: set_active_program(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 

@@ -2,6 +2,7 @@
 
 import { useSettings } from "@/lib/settings";
 import { formatWeight, type WeightUnit } from "@/lib/format";
+import ExerciseLibrarySection from "./ExerciseLibrarySection";
 
 export default function SettingsPage() {
   const {
@@ -170,6 +171,8 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+
+      <ExerciseLibrarySection />
 
       {/* Developer */}
       <section className="bg-card rounded-2xl border border-border divide-y divide-border">
