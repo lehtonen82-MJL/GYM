@@ -32,7 +32,8 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   commit "feat: atomic workout writes" on needs it. The SQL Editor warns about "destructive
   operations" for `021` (the DELETE inside `save_workout_sets`): confirm with **Run query**,
   otherwise nothing is applied.
-- **Pending:** `022` (row ownership on writes). Policies only; the app needs no change for it.
+- **2026-10-24:** `022` (row ownership on writes) applied on its own in the SQL Editor (policies
+  only; checked afterwards: all 10 policies carry the ownership WITH CHECK).
 
 ## Rules for new migrations
 
