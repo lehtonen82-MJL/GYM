@@ -22,6 +22,12 @@ _Avoid_: Logged set, finished set, set with data
 A set row that exists in a workout but has not been checked off, even if a weight and reps are already filled in.
 _Avoid_: Pending set, empty set
 
+### Workouts
+
+**Easy Week**:
+A deliberately lighter workout: fewer sets and reduced weights, with no weight progression suggested.
+_Avoid_: Deload (in user-facing text), recovery week
+
 ### Measures
 
 **Volume**:

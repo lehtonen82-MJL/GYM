@@ -7,7 +7,7 @@ import type {
 } from "@/lib/types";
 import { db, getUserId } from "./_shared";
 import { type StartWorkoutResult } from "./workout";
-import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
+import { getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
 
 // ════════════════════════════════════════════════════════
 // START BLANK WORKOUT
@@ -315,28 +315,21 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
 
   const workoutId = workout.id as string;
 
-  // Create entries + sets + fetch suggestions in parallel per exercise
-  const [entryResults, prevResults] = await Promise.all([
-    Promise.all(
-      templateExercises.map((ex) =>
-        supabase
-          .from("workout_exercise_entries")
-          .insert({
-            workout_id: workoutId,
-            exercise_id: ex.exercise_id,
-            workout_day_exercise_id: null,
-            user_id: userId,
-          })
-          .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
-          .single()
-      )
-    ),
-    Promise.all(
-      templateExercises.map((ex) =>
-        getPreviousResultsInternal(supabase, userId, ex.exercise_id)
-      )
-    ),
-  ]);
+  // Create one entry per template exercise
+  const entryResults = await Promise.all(
+    templateExercises.map((ex) =>
+      supabase
+        .from("workout_exercise_entries")
+        .insert({
+          workout_id: workoutId,
+          exercise_id: ex.exercise_id,
+          workout_day_exercise_id: null,
+          user_id: userId,
+        })
+        .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
+        .single()
+    )
+  );
 
   // Batch-insert all sets
   const allSetRows: object[] = [];

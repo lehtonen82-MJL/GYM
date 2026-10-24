@@ -2,6 +2,8 @@
 
 import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
 import { parseSchemePrescription } from "@/lib/programParser";
+import { planSets, type PlanInput, type PlannedSet } from "@/lib/plannedSets";
+import { suggestedWeight } from "@/lib/setRules";
 import { db, getUserId } from "./_shared";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
 import { linkExerciseToLibraryInternal } from "./exercises";
@@ -73,6 +75,73 @@ async function buildStartWorkoutResultFromExisting(
   };
 }
 
+type WdeRow = {
+  id: string;
+  exercise_id: string;
+  target_sets: number;
+  target_reps?: number;
+  scheme_text?: string;
+  exercise: unknown;
+};
+
+/**
+ * Adds the program exercises to a new workout: one entry each with its planned sets (planSets), plus
+ * the suggested weights and too-heavy flags the client needs. In an Easy Week the suggestion is last
+ * time's top weight, without the +2.5 kg progression.
+ */
+async function addPlannedExercises(
+  supabase: Awaited<ReturnType<typeof db>>,
+  userId: string,
+  workout: Workout,
+  wdes: WdeRow[],
+  deload?: PlanInput["deload"]
+): Promise<StartWorkoutResult> {
+  const [entryResults, prevResultsAll] = await Promise.all([
+    Promise.all(
+      wdes.map((wde) =>
+        supabase
+          .from("workout_exercise_entries")
+          .insert({ workout_id: workout.id, exercise_id: wde.exercise_id, workout_day_exercise_id: wde.id, user_id: userId })
+          .select("*")
+          .single()
+      )
+    ),
+    Promise.all(wdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id))),
+  ]);
+
+  const setRows: (PlannedSet & { workout_exercise_entry_id: string; user_id: string; completed: boolean })[] = [];
+  const created: { entry: WorkoutExerciseEntry; wde: WdeRow; previous: (typeof prevResultsAll)[number] }[] = [];
+  wdes.forEach((wde, i) => {
+    const entry = entryResults[i].data as WorkoutExerciseEntry | null;
+    if (!entry) return;
+    const previous = prevResultsAll[i] ?? [];
+    const planned = planSets({ prescription: parseSchemePrescription(wde.scheme_text), targetSets: wde.target_sets, previous, deload });
+    for (const set of planned) setRows.push({ ...set, workout_exercise_entry_id: entry.id, user_id: userId, completed: false });
+    created.push({ entry, wde, previous });
+  });
+
+  // Single round-trip for all sets
+  const { data: insertedSets } = await supabase.from("set_entries").insert(setRows).select("*").order("set_number");
+  const setsByEntryId: Record<string, NonNullable<WorkoutExerciseEntry["set_entries"]>> = {};
+  for (const s of insertedSets ?? []) {
+    (setsByEntryId[s.workout_exercise_entry_id as string] ??= []).push(s);
+  }
+
+  const suggestions: Record<string, number | null> = {};
+  const entries: WorkoutExerciseEntry[] = created.map(({ entry, wde, previous }) => {
+    suggestions[wde.exercise_id] = suggestedWeight(previous, deload ? Number.POSITIVE_INFINITY : wde.target_sets);
+    return {
+      ...entry,
+      exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
+      workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
+      set_entries: setsByEntryId[entry.id] ?? [],
+    };
+  });
+
+  const tooHeavyFlags = await getLastTooHeavyFlags(supabase, userId, entries.map((e) => e.exercise_id));
+  return { id: workout.id, workout, entries, suggestions, tooHeavyFlags };
+}
+
 export async function startWorkout(
   workoutDayId: string,
   isDeload = false,
@@ -124,14 +193,6 @@ export async function startWorkout(
   // 3. Get exercises — try legacy workout_day_exercises first, fall back to program_exercises.
   // This handles both old data (wde table) and programs built/imported via the program builder
   // (which stores exercises in program_exercises, not workout_day_exercises).
-  type WdeRow = {
-    id: string;
-    exercise_id: string;
-    target_sets: number;
-    target_reps?: number;
-    scheme_text?: string;
-    exercise: unknown;
-  };
   let resolvedWdes: WdeRow[] = [];
 
   const { data: legacyWdes } = await supabase
@@ -229,156 +290,13 @@ export async function startWorkout(
 
   if (resolvedWdes.length === 0) return null;
 
-  // 4. Create exercise entries AND fetch previous results in parallel
-  const [entryResults, prevResultsAll] = await Promise.all([
-    Promise.all(
-      resolvedWdes.map((wde) =>
-        supabase
-          .from("workout_exercise_entries")
-          .insert({
-            workout_id: workout.id,
-            exercise_id: wde.exercise_id,
-            workout_day_exercise_id: wde.id,
-            user_id: userId,
-          })
-          .select("*")
-          .single()
-      )
-    ),
-    Promise.all(
-      resolvedWdes.map((wde) =>
-        getPreviousResultsInternal(supabase, userId, wde.exercise_id)
-      )
-    ),
-  ]);
-
-  // 5. Collect all set rows and batch-insert in a single query
-  type SetRow = {
-    workout_exercise_entry_id: string;
-    user_id: string;
-    set_number: number;
-    weight_kg: number | null;
-    reps: number | null;
-    completed: boolean;
-    is_warmup: boolean;
-  };
-  const allSetRows: SetRow[] = [];
-  const entryWdeMap: Array<{ entry: Record<string, unknown>; wde: WdeRow }> = [];
-
-  for (let i = 0; i < resolvedWdes.length; i++) {
-    const { data: entry } = entryResults[i];
-    if (!entry) continue;
-    const wde = resolvedWdes[i];
-    const prescription = parseSchemePrescription(wde.scheme_text);
-    const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
-    const prevResults = prevResultsAll[i] ?? [];
-
-    // Separate warmup and work sets from history
-    const prevWarmups = prevResults.filter((s) => s.is_warmup);
-    const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
-
-    // Work set count: larger of program target or previous work sets
-    let workSetCount = Math.max(baseCount, prevWorkSets.length);
-    // Warmup count: carry over from history
-    let warmupCount = prevWarmups.length;
-
-    // ── Deload modifier ────────────────────────────────────────────────────────
-    // Weight %: always applied to both warmup and work sets.
-    // Set count %: applied to work sets always; applied to warmup sets only if deloadReduceWarmups.
-    if (isDeload) {
-      workSetCount = Math.max(1, Math.ceil(workSetCount * deloadSetPct / 100));
-      if (deloadReduceWarmups) {
-        warmupCount = Math.max(0, Math.ceil(warmupCount * deloadSetPct / 100));
-      }
-    }
-
-    let setNumber = 1;
-    // Warmup sets first
-    for (let j = 0; j < warmupCount; j++) {
-      const prev = prevWarmups[j];
-      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
-      let weightKg = prev?.weight_kg ?? null;
-      if (isDeload && weightKg != null) {
-        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
-      }
-      allSetRows.push({
-        workout_exercise_entry_id: entry.id as string,
-        user_id: userId,
-        set_number: setNumber++,
-        weight_kg: weightKg,
-        reps: prev?.reps ?? prevReps ?? null,
-        completed: false,
-        is_warmup: true,
-      });
-    }
-    // Work sets
-    for (let j = 0; j < workSetCount; j++) {
-      const prev = prevWorkSets[j];
-      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
-      let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
-      if (isDeload && weightKg != null) {
-        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
-      }
-      allSetRows.push({
-        workout_exercise_entry_id: entry.id as string,
-        user_id: userId,
-        set_number: setNumber++,
-        weight_kg: weightKg,
-        reps: prescription[j]?.reps ?? prevReps ?? null,
-        completed: false,
-        is_warmup: false,
-      });
-    }
-    entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });
-  }
-
-  // Single round-trip for all sets
-  const { data: allSets } = await supabase
-    .from("set_entries")
-    .insert(allSetRows)
-    .select("*")
-    .order("set_number");
-
-  // Group sets by entry id
-  const setsByEntryId: Record<string, unknown[]> = {};
-  for (const s of allSets ?? []) {
-    const eid = (s as { workout_exercise_entry_id: string }).workout_exercise_entry_id;
-    if (!setsByEntryId[eid]) setsByEntryId[eid] = [];
-    setsByEntryId[eid].push(s);
-  }
-
-  // 6. Compute suggestions from already-fetched previous results (no extra DB calls)
-  const entries: WorkoutExerciseEntry[] = [];
-  const suggestions: Record<string, number | null> = {};
-
-  for (let i = 0; i < entryWdeMap.length; i++) {
-    const { entry, wde } = entryWdeMap[i];
-    const prevResults = prevResultsAll[i] ?? [];
-    // Only consider work sets for suggestion
-    const workSets = prevResults.filter((s) => !s.is_warmup);
-    if (workSets.length === 0) {
-      suggestions[wde.exercise_id] = null;
-    } else {
-      const maxWeight = Math.max(...workSets.map((s) => s.weight_kg ?? 0));
-      suggestions[wde.exercise_id] =
-        workSets.length >= wde.target_sets ? maxWeight + 2.5 : maxWeight;
-    }
-    entries.push({
-      ...(entry as WorkoutExerciseEntry),
-      exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
-      workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
-      set_entries: (setsByEntryId[entry.id as string] ?? []) as WorkoutExerciseEntry["set_entries"],
-    });
-  }
-
-  // Fetch too_heavy flags from previous workouts
-  const tooHeavyFlags = await getLastTooHeavyFlags(
+  return addPlannedExercises(
     supabase,
     userId,
-    entries.map((e) => e.exercise_id)
+    workout as Workout,
+    resolvedWdes,
+    isDeload ? { weightPct: deloadWeightPct, setPct: deloadSetPct, reduceWarmups: deloadReduceWarmups } : undefined
   );
-
-  return { id: workout.id, workout, entries, suggestions, tooHeavyFlags };
 }
 
 export async function startDeloadWorkout(
@@ -436,14 +354,6 @@ export async function startDeloadWorkout(
   const allDayIds = [primaryDayId, ...additionalDayIds];
   const seenExerciseIds = new Set<string>();
 
-  type WdeRow = {
-    id: string;
-    exercise_id: string;
-    target_sets: number;
-    target_reps?: number;
-    scheme_text?: string;
-    exercise: unknown;
-  };
   const allWdes: WdeRow[] = [];
 
   for (const dayId of allDayIds) {
@@ -532,140 +442,11 @@ export async function startDeloadWorkout(
 
   if (allWdes.length === 0) return null;
 
-  // Fetch previous results for all exercises in parallel
-  const prevResultsAll = await Promise.all(
-    allWdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id))
-  );
-
-  // Create entries and sets
-  const entryResults = await Promise.all(
-    allWdes.map((wde) =>
-      supabase
-        .from("workout_exercise_entries")
-        .insert({
-          workout_id: (workout as { id: string }).id,
-          exercise_id: wde.exercise_id,
-          workout_day_exercise_id: wde.id,
-          user_id: userId,
-        })
-        .select("*")
-        .single()
-    )
-  );
-
-  type SetRow = {
-    workout_exercise_entry_id: string;
-    user_id: string;
-    set_number: number;
-    weight_kg: number | null;
-    reps: number | null;
-    completed: boolean;
-    is_warmup: boolean;
-  };
-  const allSetRows: SetRow[] = [];
-  const entryWdeMap: Array<{ entry: Record<string, unknown>; wde: WdeRow }> = [];
-
-  for (let i = 0; i < allWdes.length; i++) {
-    const { data: entry } = entryResults[i];
-    if (!entry) continue;
-    const wde = allWdes[i];
-    const prescription = parseSchemePrescription(wde.scheme_text);
-    const baseCount = prescription.length > 0 ? prescription.length : wde.target_sets;
-    const prevResults = prevResultsAll[i] ?? [];
-
-    // Separate warmup and work sets from history
-    const prevWarmups = prevResults.filter((s) => s.is_warmup);
-    const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
-
-    const workSetCount = Math.max(1, Math.ceil(Math.max(baseCount, prevWorkSets.length) * deloadSetPct / 100));
-    let warmupCount = prevWarmups.length;
-    if (deloadReduceWarmups) {
-      warmupCount = Math.max(0, Math.ceil(warmupCount * deloadSetPct / 100));
-    }
-
-    let setNumber = 1;
-    // Warmup sets first — weight always reduced
-    for (let j = 0; j < warmupCount; j++) {
-      const prev = prevWarmups[j];
-      let weightKg = prev?.weight_kg ?? null;
-      if (weightKg != null) {
-        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
-      }
-      allSetRows.push({
-        workout_exercise_entry_id: entry.id as string,
-        user_id: userId,
-        set_number: setNumber++,
-        weight_kg: weightKg,
-        reps: prev?.reps ?? null,
-        completed: false,
-        is_warmup: true,
-      });
-    }
-    // Work sets — weight reduced, count reduced
-    for (let j = 0; j < workSetCount; j++) {
-      const prev = prevWorkSets[j];
-      const prevReps = prev?.too_heavy ? null : (prev?.reps ?? null);
-      let weightKg = prescription[j]?.weightKg ?? prev?.weight_kg ?? null;
-      if (weightKg != null) {
-        weightKg = Math.round((weightKg * deloadWeightPct / 100) / 2.5) * 2.5;
-      }
-      allSetRows.push({
-        workout_exercise_entry_id: entry.id as string,
-        user_id: userId,
-        set_number: setNumber++,
-        weight_kg: weightKg,
-        reps: prescription[j]?.reps ?? prevReps ?? null,
-        completed: false,
-        is_warmup: false,
-      });
-    }
-    entryWdeMap.push({ entry: entry as Record<string, unknown>, wde });
-  }
-
-  const { data: allSets } = await supabase
-    .from("set_entries")
-    .insert(allSetRows)
-    .select("*")
-    .order("set_number");
-
-  const setsByEntryId: Record<string, unknown[]> = {};
-  for (const s of allSets ?? []) {
-    const eid = (s as { workout_exercise_entry_id: string }).workout_exercise_entry_id;
-    if (!setsByEntryId[eid]) setsByEntryId[eid] = [];
-    setsByEntryId[eid].push(s);
-  }
-
-  const entries: WorkoutExerciseEntry[] = [];
-  const suggestions: Record<string, number | null> = {};
-  for (let i = 0; i < entryWdeMap.length; i++) {
-    const { entry, wde } = entryWdeMap[i];
-    const prevResults = prevResultsAll[i] ?? [];
-    const workSets = prevResults.filter((s) => !s.is_warmup);
-    suggestions[wde.exercise_id] =
-      workSets.length === 0
-        ? null
-        : Math.max(...workSets.map((s) => s.weight_kg ?? 0));
-    entries.push({
-      ...(entry as WorkoutExerciseEntry),
-      exercise: wde.exercise as WorkoutExerciseEntry["exercise"],
-      workout_day_exercise: wde as WorkoutExerciseEntry["workout_day_exercise"],
-      set_entries: (setsByEntryId[entry.id as string] ?? []) as WorkoutExerciseEntry["set_entries"],
-    });
-  }
-
-  const tooHeavyFlags = await getLastTooHeavyFlags(
-    supabase,
-    userId,
-    entries.map((e) => e.exercise_id)
-  );
-
-  return {
-    id: (workout as { id: string }).id,
-    workout: workout as Workout,
-    entries,
-    suggestions,
-    tooHeavyFlags,
-  };
+  return addPlannedExercises(supabase, userId, workout as Workout, allWdes, {
+    weightPct: deloadWeightPct,
+    setPct: deloadSetPct,
+    reduceWarmups: deloadReduceWarmups,
+  });
 }
 
 export async function getWorkout(
