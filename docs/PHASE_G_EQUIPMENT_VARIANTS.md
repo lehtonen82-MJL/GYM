@@ -79,7 +79,7 @@ entry that already has logged sets re-tags those sets to the new tool (same entr
 
 ## Status (2026-10-24)
 - **Done:** G1 (migration 017), G4 (`changeEntryEquipment`), G5/G6 (`EquipmentToggle` in the
-  workout screen), **G3** (below).
+  workout screen), **G3** and **G7** (below).
 - **Deviation from the design:** `allowed_equipment` / `default_equipment` (G2) were not built.
   The dropdown lists all 13 tools; when a sibling library definition exists for the tool the
   entry is swapped to that exercise, otherwise only `entry.equipment_type` is tagged.
@@ -97,10 +97,19 @@ entry that already has logged sets re-tags those sets to the new tool (same entr
     tool; `getExercisePRs(exerciseId, equipment?)` filters by tool.
   - Must apply `018_equipment_scoped_prs.sql` in Supabase **before** deploying this code,
     otherwise the 4-arg RPC call fails and PRs stop updating.
+- **G7 implementation:**
+  - `getExerciseEquipmentUsage(exerciseId)` lists the tools an exercise was done with
+    (most recent first); `getExerciseProgress(exerciseId, equipment?)` filters by tool.
+  - Progress page shows a tool picker when an exercise has history with more than one tool;
+    chart and PR strip follow the selected tool (starts on the most recently used one).
+    Demo data: Bench Press has barbell + dumbbell history.
+  - `EquipmentToggle` shows the definition's default tool for an untagged entry
+    (previously fell back to the first option, "Barbell"). `EquipmentOption.is_default` added.
+  - Equipment labels live in `src/lib/equipment.ts` (`EQUIPMENT_LABELS`, `equipmentLabel`).
 - **Still open:** suggestions are keyed by `exercise_id`, so two entries of the same exercise
-  with different tools share one suggestion slot; G2 (if wanted), G7 (history/progress views per tool — `getExerciseProgress`
-  and `getAllExercisePRs` still mix tools), entries are not tagged with the default tool at
-  creation (harmless given the effective-tool rule).
+  with different tools share one suggestion slot; G2 (if wanted); `getAllExercisePRs` (unused)
+  still keys by exercise only; entries are not tagged with the default tool at creation
+  (harmless given the effective-tool rule).
 
 ## Out of scope (deferred)
 - Gym/equipment ownership profile + availability filtering (the "Both" option) — can layer

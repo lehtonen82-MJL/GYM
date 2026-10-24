@@ -1,12 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getExerciseProgress, getExercisePRs, getRowingHistory, type RowingDataPoint } from "@/lib/actions";
+import { useState, useEffect, useRef } from "react";
+import {
+  getExerciseEquipmentUsage,
+  getExerciseProgress,
+  getExercisePRs,
+  getRowingHistory,
+  type RowingDataPoint,
+} from "@/lib/actions";
+import type { EquipmentUsage } from "@/lib/equipment";
 import type { ExercisePR } from "@/lib/types";
 
 type Exercise = { id: string; name: string };
 type DataPoint = { date: string; weight_kg: number; reps: number; sets: number; volume: number };
 type Tab = "lifting" | "rowing";
+
+/** Progress + PRs for one exercise, scoped to one tool (undefined = the exercise's default tool). */
+async function fetchLifting(
+  exerciseId: string,
+  equipment: string | null | undefined
+): Promise<[DataPoint[], ExercisePR[]]> {
+  const [progressData, prData] = await Promise.all([
+    getExerciseProgress(exerciseId, equipment),
+    getExercisePRs(exerciseId, equipment),
+  ]);
+  return [(progressData ?? []).filter(Boolean) as DataPoint[], prData];
+}
 
 function formatPace(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -113,6 +132,11 @@ export default function ProgressClient({
   const [data, setData] = useState<DataPoint[]>([]);
   const [liftingLoading, setLiftingLoading] = useState(!!exercises[0]?.id);
   const [prs, setPRs] = useState<ExercisePR[]>([]);
+  // Tools this exercise was done with; history and PRs are tracked per tool
+  const [equipmentUsage, setEquipmentUsage] = useState<EquipmentUsage[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<string | null | undefined>(undefined);
+  // Latest lifting request wins (exercise change vs. tool tap)
+  const liftingRequest = useRef(0);
 
   // Rowing state
   const [rowingData, setRowingData] = useState<RowingDataPoint[]>([]);
@@ -124,17 +148,35 @@ export default function ProgressClient({
     let cancelled = false;
     setLiftingLoading(true);
     setPRs([]);
-    Promise.all([
-      getExerciseProgress(selectedId),
-      getExercisePRs(selectedId),
-    ]).then(([progressData, prData]) => {
-      if (cancelled) return;
-      setData((progressData ?? []).filter(Boolean) as DataPoint[]);
-      setPRs(prData);
-      setLiftingLoading(false);
-    });
+    const request = ++liftingRequest.current;
+    getExerciseEquipmentUsage(selectedId)
+      .then((usage) => {
+        if (cancelled || request !== liftingRequest.current) return;
+        setEquipmentUsage(usage);
+        // Start on the most recently used tool
+        const equipment = usage[0]?.equipment_type ?? undefined;
+        setSelectedEquipment(equipment);
+        return fetchLifting(selectedId, equipment).then(([progressData, prData]) => {
+          if (cancelled || request !== liftingRequest.current) return;
+          setData(progressData);
+          setPRs(prData);
+          setLiftingLoading(false);
+        });
+      });
     return () => { cancelled = true; };
   }, [selectedId]);
+
+  async function handleSelectEquipment(equipment: string | null) {
+    if (equipment === selectedEquipment) return;
+    const request = ++liftingRequest.current;
+    setSelectedEquipment(equipment);
+    setLiftingLoading(true);
+    const [progressData, prData] = await fetchLifting(selectedId, equipment);
+    if (request !== liftingRequest.current) return;
+    setData(progressData);
+    setPRs(prData);
+    setLiftingLoading(false);
+  }
 
   useEffect(() => {
     if (tab !== "rowing" || rowingFetched) return;
@@ -195,6 +237,26 @@ export default function ProgressClient({
               </option>
             ))}
           </select>
+
+          {equipmentUsage.length > 1 && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Equipment">
+              {equipmentUsage.map((u) => (
+                <button
+                  key={u.equipment_type ?? "none"}
+                  type="button"
+                  onClick={() => handleSelectEquipment(u.equipment_type)}
+                  aria-pressed={u.equipment_type === selectedEquipment}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    u.equipment_type === selectedEquipment
+                      ? "bg-blue-600 border-blue-500 text-white"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 active:text-zinc-200"
+                  }`}
+                >
+                  {u.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {liftingLoading ? (
             <div className="bg-card rounded-2xl border border-border p-4">

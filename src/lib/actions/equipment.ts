@@ -2,6 +2,7 @@
 
 import { DEMO_MODE, db, getUserId } from "./_shared";
 import { getSuggestedWeightInternal } from "./sets";
+import { EQUIPMENT_ORDER, equipmentLabel } from "@/lib/equipment";
 
 export type EquipmentOption = {
   equipment_type: string;
@@ -9,38 +10,22 @@ export type EquipmentOption = {
   /** Empty string when no library definition exists for this type — entry gets tagged but exercise is not swapped. */
   definition_id: string;
   exercise_name: string;
+  /** The exercise definition's own tool — what an untagged entry was performed with. */
+  is_default: boolean;
 };
 
-const EQUIPMENT_LABELS: Record<string, string> = {
-  barbell: "Barbell",
-  dumbbell: "Dumbbell",
-  cable: "Cable",
-  machine_plate: "Machine (plate)",
-  machine_stack: "Machine (stack)",
-  smith: "Smith Machine",
-  bodyweight: "Bodyweight",
-  kettlebell: "Kettlebell",
-  trap_bar: "Trap Bar",
-  band: "Band",
-  suspension: "TRX",
-  cardio_machine: "Cardio Machine",
-  other: "Other",
-};
-
-const EQUIPMENT_ORDER = [
-  "barbell", "dumbbell", "cable", "machine_plate", "machine_stack",
-  "smith", "bodyweight", "kettlebell", "trap_bar", "band", "suspension",
-  "cardio_machine", "other",
-];
-
-function allEquipmentTypes(siblingMap: Map<string, { id: string; name: string }>): EquipmentOption[] {
+function allEquipmentTypes(
+  siblingMap: Map<string, { id: string; name: string }>,
+  defaultEquipment: string | null
+): EquipmentOption[] {
   return EQUIPMENT_ORDER.map((eq) => {
     const sibling = siblingMap.get(eq);
     return {
       equipment_type: eq,
-      label: EQUIPMENT_LABELS[eq] ?? eq,
+      label: equipmentLabel(eq),
       definition_id: sibling?.id ?? "",
       exercise_name: sibling?.name ?? "",
+      is_default: eq === defaultEquipment,
     };
   });
 }
@@ -73,11 +58,11 @@ export async function getEquipmentOptions(
   // 2. Get current definition → movement + muscle
   const { data: def } = await supabase
     .from("exercise_definitions")
-    .select("movement_pattern, primary_muscle")
+    .select("movement_pattern, primary_muscle, equipment_type")
     .eq("id", exercise.exercise_definition_id as string)
     .maybeSingle();
 
-  if (!def) return allEquipmentTypes(new Map());
+  if (!def) return allEquipmentTypes(new Map(), null);
 
   // 3. Find sibling definitions sharing movement + muscle (if both are set)
   const siblingMap = new Map<string, { id: string; name: string }>();
@@ -97,7 +82,7 @@ export async function getEquipmentOptions(
     }
   }
 
-  return allEquipmentTypes(siblingMap);
+  return allEquipmentTypes(siblingMap, (def.equipment_type as string | null) ?? null);
 }
 
 /**

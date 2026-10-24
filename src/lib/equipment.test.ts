@@ -1,4 +1,10 @@
-import { effectiveEquipment, matchesEquipment, pickLatestEntryForEquipment } from "./equipment";
+import {
+  effectiveEquipment,
+  equipmentLabel,
+  matchesEquipment,
+  pickLatestEntryForEquipment,
+  summarizeEquipmentUsage,
+} from "./equipment";
 
 describe("effectiveEquipment", () => {
   it("prefers the explicit entry tool", () => {
@@ -52,5 +58,39 @@ describe("pickLatestEntryForEquipment", () => {
 
   it("returns null when the tool was never used", () => {
     expect(pickLatestEntryForEquipment(entries, workoutIds, "kettlebell", "barbell")).toBeNull();
+  });
+});
+
+describe("summarizeEquipmentUsage", () => {
+  it("groups by effective tool, most recent first", () => {
+    const usage = summarizeEquipmentUsage(
+      [
+        { equipment_type: null, started_at: "2026-01-01T10:00:00Z" },
+        { equipment_type: "dumbbell", started_at: "2026-02-01T10:00:00Z" },
+        { equipment_type: "barbell", started_at: "2026-01-15T10:00:00Z" },
+      ],
+      "barbell"
+    );
+    expect(usage).toEqual([
+      { equipment_type: "dumbbell", label: "Dumbbell", last_used: "2026-02-01T10:00:00Z" },
+      { equipment_type: "barbell", label: "Barbell", last_used: "2026-01-15T10:00:00Z" },
+    ]);
+  });
+
+  it("labels unlinked exercises without a tool", () => {
+    const usage = summarizeEquipmentUsage([{ equipment_type: null, started_at: "2026-01-01" }], null);
+    expect(usage).toEqual([{ equipment_type: null, label: "Unspecified", last_used: "2026-01-01" }]);
+  });
+
+  it("is empty without history", () => {
+    expect(summarizeEquipmentUsage([], "barbell")).toEqual([]);
+  });
+});
+
+describe("equipmentLabel", () => {
+  it("maps known tools and falls back to the raw value", () => {
+    expect(equipmentLabel("machine_stack")).toBe("Machine (stack)");
+    expect(equipmentLabel("sled")).toBe("sled");
+    expect(equipmentLabel(null)).toBe("Unspecified");
   });
 });

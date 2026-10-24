@@ -1,7 +1,8 @@
 "use server";
 
 import type { ExerciseDefinition, ProgramExerciseAlternative } from "@/lib/types";
-import { DEMO_MODE, db, getUserId } from "./_shared";
+import { DEMO_MODE, db, getDefaultEquipment, getUserId } from "./_shared";
+import { matchesEquipment, summarizeEquipmentUsage, type EquipmentUsage } from "@/lib/equipment";
 import { MOCK_EXERCISES } from "./_mocks";
 
 function dedupMockExercises() {
@@ -10,7 +11,26 @@ function dedupMockExercises() {
   return all.filter((ex) => { if (seen.has(ex.id)) return false; seen.add(ex.id); return true; });
 }
 
-function getExerciseProgressMock(exerciseId: string) {
+// Demo: bench press has also been done with dumbbells, to exercise the tool picker
+const MOCK_EQUIPMENT_USAGE: Record<string, EquipmentUsage[]> = {
+  "ex-bench": [
+    { equipment_type: "barbell", label: "Barbell", last_used: "2026-03-02" },
+    { equipment_type: "dumbbell", label: "Dumbbell", last_used: "2026-02-23" },
+  ],
+};
+
+const MOCK_PROGRESS_BY_EQUIPMENT: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
+  "ex-bench:dumbbell": [
+    { date: "2026-01-29", weight_kg: 32, reps: 8, sets: 3, volume: 768 },
+    { date: "2026-02-12", weight_kg: 34, reps: 8, sets: 3, volume: 816 },
+    { date: "2026-02-23", weight_kg: 36, reps: 7, sets: 3, volume: 756 },
+  ],
+};
+
+function getExerciseProgressMock(exerciseId: string, equipment?: string | null) {
+  if (equipment && MOCK_PROGRESS_BY_EQUIPMENT[`${exerciseId}:${equipment}`]) {
+    return MOCK_PROGRESS_BY_EQUIPMENT[`${exerciseId}:${equipment}`];
+  }
   const MOCK_PROGRESS: Record<string, { date: string; weight_kg: number; reps: number; sets: number; volume: number }[]> = {
     "ex-bench": [
       { date: "2026-01-05", weight_kg: 90,   reps: 5, sets: 4, volume: 1800 },
@@ -212,11 +232,48 @@ export async function getOrCreateExerciseFromLibrary(
   return created?.id ?? null;
 }
 
-export async function getExerciseProgress(exerciseId: string) {
-  if (DEMO_MODE) return getExerciseProgressMock(exerciseId);
+/**
+ * Tools this exercise has been performed with in completed workouts, most recent first.
+ * Used by the progress page to pick which tool's history to chart.
+ */
+export async function getExerciseEquipmentUsage(exerciseId: string): Promise<EquipmentUsage[]> {
+  if (DEMO_MODE) return MOCK_EQUIPMENT_USAGE[exerciseId] ?? [];
 
   const supabase = await db();
   const userId = await getUserId();
+
+  const [{ data }, defaults] = await Promise.all([
+    supabase
+      .from("workout_exercise_entries")
+      .select("equipment_type, workout:workouts!inner(started_at, completed_at)")
+      .eq("exercise_id", exerciseId)
+      .eq("user_id", userId)
+      .not("workout.completed_at", "is", null),
+    getDefaultEquipment(supabase, userId, [exerciseId]),
+  ]);
+
+  const rows = (data ?? []) as unknown as {
+    equipment_type: string | null;
+    workout: { started_at: string; completed_at: string | null } | null;
+  }[];
+  return summarizeEquipmentUsage(
+    rows
+      .filter((r) => r.workout?.completed_at)
+      .map((r) => ({ equipment_type: r.equipment_type, started_at: r.workout!.started_at })),
+    defaults[exerciseId]
+  );
+}
+
+/**
+ * Per-date top set / volume for an exercise done with `equipment`
+ * (defaults to the exercise's library tool). History is tracked per tool.
+ */
+export async function getExerciseProgress(exerciseId: string, equipment?: string | null) {
+  if (DEMO_MODE) return getExerciseProgressMock(exerciseId, equipment);
+
+  const supabase = await db();
+  const userId = await getUserId();
+  const defaults = await getDefaultEquipment(supabase, userId, [exerciseId]);
 
   // Get all sets for this exercise, grouped by workout date.
   // Include sets with weight entered (weighted exercises) OR reps entered (bodyweight exercises).
@@ -224,7 +281,7 @@ export async function getExerciseProgress(exerciseId: string) {
   const { data } = await supabase
     .from("set_entries")
     .select(
-      "weight_kg, reps, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, workout_day_exercise:workout_day_exercises(target_reps), workout:workouts!inner(started_at, completed_at))"
+      "weight_kg, reps, workout_exercise_entry:workout_exercise_entries!inner(exercise_id, equipment_type, workout_day_exercise:workout_day_exercises(target_reps), workout:workouts!inner(started_at, completed_at))"
     )
     .eq("workout_exercise_entry.exercise_id", exerciseId)
     .eq("user_id", userId)
@@ -236,10 +293,12 @@ export async function getExerciseProgress(exerciseId: string) {
   const byDate = new Map<string, { weight_kg: number; reps: number; sets: number; volume: number }>();
   for (const row of data) {
     const we = row.workout_exercise_entry as unknown as {
+      equipment_type: string | null;
       workout: { started_at: string; completed_at: string | null };
       workout_day_exercise: { target_reps: number } | null;
     };
     if (!we?.workout?.completed_at) continue;
+    if (!matchesEquipment(we.equipment_type, equipment, defaults[exerciseId])) continue;
     const date = we.workout.started_at.split("T")[0];
     const existing = byDate.get(date);
     const w = row.weight_kg ?? 0;

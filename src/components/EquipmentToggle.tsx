@@ -12,9 +12,12 @@ type Props = {
 export default function EquipmentToggle({ currentEquipment, options, onChange, disabled }: Props) {
   if (options.length === 0) return null;
 
+  // An untagged entry was performed with the definition's default tool
+  const value = currentEquipment ?? options.find((o) => o.is_default)?.equipment_type ?? "";
+
   return (
     <select
-      value={currentEquipment ?? ""}
+      value={value}
       disabled={disabled}
       onChange={(e) => {
         const opt = options.find((o) => o.equipment_type === e.target.value);
