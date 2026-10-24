@@ -31,3 +31,8 @@ export function filterWorkouts<T extends SearchableWorkout>(
     return words.every((word) => haystack.includes(word));
   });
 }
+
+/** The selected ids that are still visible — selections hidden by the search are dropped. */
+export function visibleSelection(selectedIds: Set<string>, visible: { id: string }[]): string[] {
+  return visible.filter((w) => selectedIds.has(w.id)).map((w) => w.id);
+}

@@ -12,7 +12,7 @@ import {
 } from "@/lib/actions";
 import type { Workout } from "@/lib/types";
 import { formatDuration, formatShortDate, formatVolume } from "@/lib/format";
-import { filterWorkouts } from "@/lib/historyFilter";
+import { filterWorkouts, visibleSelection } from "@/lib/historyFilter";
 import { useSettings } from "@/lib/settings";
 import ImportWorkoutModal from "./ImportWorkoutModal";
 
@@ -98,7 +98,8 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
     });
   };
 
-  const allSelected = workouts.length > 0 && selectedIds.size === workouts.length;
+  const visibleSelectedIds = visibleSelection(selectedIds, workouts);
+  const allSelected = workouts.length > 0 && visibleSelectedIds.length === workouts.length;
 
   const toggleSelectAll = () => {
     if (allSelected) {
@@ -110,11 +111,11 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
 
   // ── Bulk delete selected ────────────────────────────────────────────────────
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
+    if (visibleSelectedIds.length === 0) return;
     setBulkDeleting(true);
     setConfirmBulk(false);
     try {
-      await deleteWorkoutsBulk([...selectedIds]);
+      await deleteWorkoutsBulk(visibleSelectedIds);
       router.refresh();
       exitSelectMode();
     } catch (err) {
@@ -238,11 +239,11 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
             ) : (
               <button
                 type="button"
-                onClick={() => { if (selectedIds.size > 0) setConfirmBulk(true); }}
-                disabled={selectedIds.size === 0 || bulkDeleting}
+                onClick={() => { if (visibleSelectedIds.length > 0) setConfirmBulk(true); }}
+                disabled={visibleSelectedIds.length === 0 || bulkDeleting}
                 className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm active:bg-red-700 disabled:opacity-40 disabled:bg-zinc-800 disabled:text-zinc-500"
               >
-                {bulkDeleting ? "Deleting…" : `Delete (${selectedIds.size})`}
+                {bulkDeleting ? "Deleting…" : `Delete (${visibleSelectedIds.length})`}
               </button>
             )}
           </>
