@@ -9,6 +9,7 @@ import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
 import { getPreviousResults, getLastUsedAlternative } from "@/lib/actions";
 import { useSettings } from "@/lib/settings";
 import { formatSet, formatWeight } from "@/lib/format";
+import { addSet, toggleSetCompleted } from "@/lib/workoutSession";
 
 type ExerciseCardProps = {
   entry: WorkoutExerciseEntry;
@@ -111,11 +112,8 @@ export default function ExerciseCard({
   function handleToggleComplete(setId: string) {
     const set = sets.find((s) => s.id === setId);
     if (!set) return;
-    const completing = !set.completed;
-    // When completing a set, if reps was never entered, treat the placeholder (targetReps) as achieved
-    const repsUpdate = completing && set.reps === null ? { reps: targetReps } : {};
-    updateSet(setId, { completed: completing, ...repsUpdate });
-    if (completing) onSetCompleted?.();
+    onSetsChange(toggleSetCompleted(sets, setId, targetReps));
+    if (!set.completed) onSetCompleted?.();
   }
 
   function handleTypeToggle(setId: string) {
@@ -138,19 +136,7 @@ export default function ExerciseCard({
   }
 
   function handleAddSet() {
-    const last = sets[sets.length - 1];
-    const newSet: SetEntry = {
-      id: crypto.randomUUID(),
-      workout_exercise_entry_id: entry.id,
-      user_id: entry.user_id,
-      set_number: sets.length + 1,
-      weight_kg: last?.weight_kg ?? null,
-      reps: last?.reps ?? null,
-      completed: false,
-      is_warmup: false,
-      created_at: new Date().toISOString(),
-    };
-    onSetsChange([...sets, newSet]);
+    onSetsChange(addSet(sets, { entryId: entry.id, userId: entry.user_id }));
   }
 
   const completedCount = sets.filter((s) => s.completed && !s.is_warmup).length;

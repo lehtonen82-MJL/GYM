@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { browserStorage, saveStartResult } from "@/lib/workoutSession";
 import { startBlankWorkout } from "@/lib/actions";
 
 export default function StartBlankWorkoutButton() {
@@ -15,9 +16,7 @@ export default function StartBlankWorkoutButton() {
     try {
       const result = await startBlankWorkout();
       if (!result) throw new Error("Failed to create workout");
-      const serialized = JSON.stringify(result);
-      sessionStorage.setItem(`workout-${result.id}`, serialized);
-      localStorage.setItem(`workout-${result.id}`, serialized);
+      saveStartResult(browserStorage, result);
       router.push(`/workout/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

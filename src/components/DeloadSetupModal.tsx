@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { browserStorage, saveStartResult } from "@/lib/workoutSession";
 import { startDeloadWorkout } from "@/lib/actions";
 import { useSettings } from "@/lib/settings";
 import type { WorkoutDay } from "@/lib/types";
@@ -86,9 +87,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
       const extra = mode === "compact" ? additionalDayIds : [];
       const result = await startDeloadWorkout(primaryDayId, extra, deloadWeightPct, deloadSetPct, deloadReduceWarmups);
       if (result) {
-        const serialized = JSON.stringify(result);
-        sessionStorage.setItem(`workout-${result.id}`, serialized);
-        localStorage.setItem(`workout-${result.id}`, serialized);
+        saveStartResult(browserStorage, result);
         // Mark additional merged days as done for this week so ProgramSlotsGrid can flag them
         if (extra.length > 0) {
           const now = new Date();

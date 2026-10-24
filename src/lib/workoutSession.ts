@@ -1,0 +1,280 @@
+// The in-progress workout on the lifter's device (see GLOSSARY.md): its start result and workout
+// draft in storage, and the set transitions the workout screen applies.
+
+import type { SetSyncEntry, StartWorkoutResult } from "@/lib/actions";
+import type { SetEntry, WorkoutExerciseEntry } from "@/lib/types";
+import { planSets, type PlanInput } from "@/lib/plannedSets";
+
+/** Sets per exercise entry id */
+export type SetMap = Record<string, SetEntry[]>;
+
+// ── Storage seam ───────────────────────────────────────────
+
+/** Key/value storage the session lives in: the browser in the app, memory in tests. */
+export interface SessionStorage {
+  read(key: string): string | null;
+  write(key: string, value: string): void;
+  remove(key: string): void;
+}
+
+/**
+ * Browser adapter. Writes go to localStorage only; reads also check sessionStorage, where older
+ * versions wrote start results too.
+ */
+export const browserStorage: SessionStorage = {
+  read: (key) => sessionStorage.getItem(key) ?? localStorage.getItem(key),
+  write: (key, value) => localStorage.setItem(key, value),
+  remove: (key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  },
+};
+
+/** In-memory adapter, optionally pre-filled. */
+export function memoryStorage(initial: Record<string, string> = {}): SessionStorage {
+  const data = new Map(Object.entries(initial));
+  return {
+    read: (key) => data.get(key) ?? null,
+    write: (key, value) => void data.set(key, value),
+    remove: (key) => void data.delete(key),
+  };
+}
+
+// Keys are unchanged from earlier versions so an in-progress workout survives an app update.
+const startKey = (workoutId: string) => `workout-${workoutId}`;
+const draftKey = (workoutId: string) => `workout-draft-${workoutId}`;
+
+// ── Start result ───────────────────────────────────────────
+
+export function saveStartResult(storage: SessionStorage, result: StartWorkoutResult): void {
+  storage.write(startKey(result.id), JSON.stringify(result));
+}
+
+type TooHeavyFlags = StartWorkoutResult["tooHeavyFlags"];
+
+/** Older versions stored too-heavy flags as a boolean or a list of set numbers. */
+function normalizeTooHeavyFlags(raw: Record<string, unknown>): TooHeavyFlags {
+  const flags: TooHeavyFlags = {};
+  for (const [exerciseId, val] of Object.entries(raw)) {
+    if (!Array.isArray(val) || val.length === 0) flags[exerciseId] = [];
+    else if (typeof val[0] === "number") flags[exerciseId] = (val as number[]).map((n) => ({ setNumber: n, achievedReps: null }));
+    else flags[exerciseId] = val as TooHeavyFlags[string];
+  }
+  return flags;
+}
+
+export function loadStartResult(storage: SessionStorage, workoutId: string): StartWorkoutResult | null {
+  const raw = storage.read(startKey(workoutId));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      ...parsed,
+      suggestions: parsed.suggestions ?? {},
+      tooHeavyFlags: normalizeTooHeavyFlags(parsed.tooHeavyFlags ?? {}),
+    } as StartWorkoutResult;
+  } catch {
+    return null;
+  }
+}
+
+/** Forget the in-progress workout on this device: its start result and its workout draft. */
+export function clearSession(storage: SessionStorage, workoutId: string): void {
+  storage.remove(startKey(workoutId));
+  storage.remove(draftKey(workoutId));
+}
+
+// ── Workout draft ──────────────────────────────────────────
+
+type DraftSet = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy" | "too_heavy_reps" | "set_number" | "workout_exercise_entry_id" | "user_id">;
+
+/** What the workout screen keeps on the device while a workout is in progress. */
+export type WorkoutDraft<Cardio = unknown> = {
+  setsByEntryId: Record<string, DraftSet[]>;
+  notes: string;
+  bonusCardioDraft: Cardio;
+  showSummary: boolean;
+  activeEntryId: string | null;
+};
+
+type StoredDraft<Cardio> = WorkoutDraft<Cardio> & { version: 1; updatedAt: string };
+
+export function saveDraft<Cardio>(storage: SessionStorage, workoutId: string, draft: WorkoutDraft<Cardio>): void {
+  const stored: StoredDraft<Cardio> = {
+    ...draft,
+    setsByEntryId: Object.fromEntries(
+      Object.entries(draft.setsByEntryId).map(([entryId, sets]) => [
+        entryId,
+        sets.map((set) => ({
+          id: set.id,
+          weight_kg: set.weight_kg,
+          reps: set.reps,
+          completed: set.completed,
+          is_warmup: set.is_warmup ?? false,
+          too_heavy: set.too_heavy ?? false,
+          too_heavy_reps: set.too_heavy_reps ?? null,
+          set_number: set.set_number,
+          workout_exercise_entry_id: set.workout_exercise_entry_id,
+          user_id: set.user_id,
+        })),
+      ])
+    ),
+    version: 1,
+    updatedAt: new Date().toISOString(),
+  };
+  storage.write(draftKey(workoutId), JSON.stringify(stored));
+}
+
+/** The saved workout draft, or null when there is none (or it is from an unknown version). */
+export function loadDraft<Cardio>(storage: SessionStorage, workoutId: string): WorkoutDraft<Cardio> | null {
+  const raw = storage.read(draftKey(workoutId));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as StoredDraft<Cardio>;
+    return parsed?.version === 1 ? { ...parsed, setsByEntryId: parsed.setsByEntryId ?? {} } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The server's sets with the draft applied: draft values patch matching sets, and sets the draft has
+ * but the server doesn't (added during the workout) are appended.
+ */
+export function mergeDraftSets(current: SetMap, draft: Record<string, DraftSet[]>): SetMap {
+  const next: SetMap = {};
+  for (const [entryId, sets] of Object.entries(current)) {
+    const draftSets = draft[entryId] ?? [];
+    if (draftSets.length === 0) {
+      next[entryId] = sets.map((set) => ({ ...set }));
+      continue;
+    }
+    const serverIds = new Set(sets.map((s) => s.id));
+    const draftById = new Map(draftSets.map((set) => [set.id, set]));
+    const merged = sets.map((set) => {
+      const patch = draftById.get(set.id);
+      if (!patch) return { ...set };
+      return {
+        ...set,
+        weight_kg: patch.weight_kg,
+        reps: patch.reps,
+        completed: patch.completed,
+        is_warmup: patch.is_warmup ?? set.is_warmup,
+        too_heavy: patch.too_heavy ?? set.too_heavy,
+        too_heavy_reps: patch.too_heavy_reps ?? set.too_heavy_reps,
+      };
+    });
+    for (const draftSet of draftSets) {
+      if (!serverIds.has(draftSet.id) && draftSet.workout_exercise_entry_id && draftSet.user_id) {
+        merged.push({
+          id: draftSet.id,
+          workout_exercise_entry_id: draftSet.workout_exercise_entry_id,
+          user_id: draftSet.user_id,
+          set_number: draftSet.set_number ?? merged.length + 1,
+          weight_kg: draftSet.weight_kg,
+          reps: draftSet.reps,
+          completed: draftSet.completed,
+          is_warmup: draftSet.is_warmup ?? false,
+          too_heavy: draftSet.too_heavy ?? false,
+          too_heavy_reps: draftSet.too_heavy_reps ?? null,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+    next[entryId] = merged;
+  }
+  return next;
+}
+
+// ── Set transitions ────────────────────────────────────────
+
+/** Check a set off or undo it. Checking off a set with no reps entered counts the target reps as done. */
+export function toggleSetCompleted(sets: SetEntry[], setId: string, targetReps: number): SetEntry[] {
+  return sets.map((s) => {
+    if (s.id !== setId) return s;
+    const completing = !s.completed;
+    return { ...s, completed: completing, ...(completing && s.reps === null ? { reps: targetReps } : {}) };
+  });
+}
+
+/** Append a planned work set that copies the last set's weight and reps. */
+export function addSet(
+  sets: SetEntry[],
+  owner: { entryId: string; userId: string },
+  newId: () => string = () => crypto.randomUUID()
+): SetEntry[] {
+  const last = sets[sets.length - 1];
+  return [
+    ...sets,
+    {
+      id: newId(),
+      workout_exercise_entry_id: owner.entryId,
+      user_id: owner.userId,
+      set_number: sets.length + 1,
+      weight_kg: last?.weight_kg ?? null,
+      reps: last?.reps ?? null,
+      completed: false,
+      is_warmup: false,
+      created_at: new Date().toISOString(),
+    },
+  ];
+}
+
+/**
+ * Flag sets as too heavy (checking them off, with the reps actually achieved when given) or clear
+ * the flag again.
+ */
+export function markTooHeavy(sets: SetEntry[], setIds: string[], value: boolean, achievedReps?: number | null): SetEntry[] {
+  return sets.map((s) => {
+    if (!setIds.includes(s.id)) return s;
+    if (!value) return { ...s, too_heavy: false, too_heavy_reps: null };
+    return { ...s, too_heavy: true, too_heavy_reps: achievedReps ?? null, completed: true, reps: achievedReps ?? s.reps };
+  });
+}
+
+/** The planned sets of an exercise swapped in mid-workout, from that exercise's previous results. */
+export function swapSets(
+  owner: { entryId: string; userId: string; targetSets: number },
+  previous: PlanInput["previous"],
+  newId: () => string = () => crypto.randomUUID()
+): SetEntry[] {
+  return planSets({ prescription: [], targetSets: owner.targetSets, previous }).map((planned) => ({
+    ...planned,
+    id: newId(),
+    workout_exercise_entry_id: owner.entryId,
+    user_id: owner.userId,
+    completed: false,
+    too_heavy: false,
+    too_heavy_reps: null,
+    created_at: new Date().toISOString(),
+  }));
+}
+
+// ── Finishing ──────────────────────────────────────────────
+
+/** Whether finishing would leave planned sets that have a weight or reps entered (empty ones don't count). */
+export function hasIncompleteSets(setsMap: SetMap): boolean {
+  return Object.values(setsMap).some((sets) => sets.some((s) => !s.completed && (s.weight_kg !== null || s.reps !== null)));
+}
+
+/** The sets to save when the workout is finished, per exercise entry. */
+export function finishPayload(
+  entries: Pick<WorkoutExerciseEntry, "id" | "workout_day_exercise_id" | "user_id">[],
+  setsMap: SetMap
+): SetSyncEntry[] {
+  return entries.map((entry) => ({
+    entryId: entry.id,
+    workoutDayExerciseId: entry.workout_day_exercise_id ?? null,
+    userId: entry.user_id,
+    sets: (setsMap[entry.id] ?? []).map((s) => ({
+      id: s.id,
+      set_number: s.set_number,
+      weight_kg: s.weight_kg,
+      reps: s.reps,
+      completed: s.completed,
+      is_warmup: s.is_warmup ?? false,
+      too_heavy: s.too_heavy ?? false,
+      too_heavy_reps: s.too_heavy_reps ?? null,
+    })),
+  }));
+}

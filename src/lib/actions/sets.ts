@@ -27,11 +27,10 @@ export type SetSyncEntry = {
 export async function getPreviousResults(
   exerciseId: string,
   equipment?: string | null
-): Promise<{ weight_kg: number; reps: number }[]> {
+): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean }[]> {
   const supabase = await db();
   const userId = await getUserId();
-  const results = await getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
-  return results.map((r) => ({ weight_kg: r.weight_kg, reps: r.reps }));
+  return getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
 }
 
 // Internal version that reuses an existing client — avoids repeated auth round-trips

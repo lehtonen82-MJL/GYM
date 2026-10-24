@@ -28,6 +28,20 @@ import AddExerciseModal from "@/components/AddExerciseModal";
 import EquipmentToggle from "@/components/EquipmentToggle";
 import { formatSet, formatShortDate, formatVolume } from "@/lib/format";
 import { sessionVolume } from "@/lib/setRules";
+import {
+  browserStorage,
+  clearSession,
+  finishPayload,
+  hasIncompleteSets,
+  loadDraft,
+  loadStartResult,
+  markTooHeavy,
+  mergeDraftSets,
+  saveDraft,
+  saveStartResult,
+  swapSets,
+  type SetMap,
+} from "@/lib/workoutSession";
 import RestTimer from "@/components/RestTimer";
 import { useSettings } from "@/lib/settings";
 import BonusCardioCapture, {
@@ -35,18 +49,6 @@ import BonusCardioCapture, {
   hasBonusCardioData,
   type BonusCardioDraft,
 } from "./BonusCardioCapture";
-
-type SetMap = Record<string, SetEntry[]>;
-type DraftSetPatch = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy" | "too_heavy_reps" | "set_number" | "workout_exercise_entry_id" | "user_id">;
-type WorkoutDraftSnapshot = {
-  version: 1;
-  setsByEntryId: Record<string, DraftSetPatch[]>;
-  notes: string;
-  bonusCardioDraft: BonusCardioDraft;
-  showSummary: boolean;
-  activeEntryId: string | null;
-  updatedAt: string;
-};
 
 type Props = {
   workout: Workout;
@@ -57,10 +59,6 @@ type Props = {
   bonusCardio?: WorkoutBonusCardio | null;
 };
 
-function draftStorageKey(workoutId: string): string {
-  return `workout-draft-${workoutId}`;
-}
-
 function hasDraftContent(
   setsMap: SetMap,
   notes: string,
@@ -70,59 +68,6 @@ function hasDraftContent(
     sets.some((set) => set.completed || set.weight_kg !== null || set.reps !== null)
   );
   return hasSetInput || notes.trim().length > 0 || hasBonusCardioData(bonusCardioDraft);
-}
-
-function mergeSetsWithDraft(current: SetMap, draft: Record<string, DraftSetPatch[]>): SetMap {
-  const next: SetMap = {};
-
-  for (const [entryId, sets] of Object.entries(current)) {
-    const draftSets = draft[entryId] ?? [];
-    if (draftSets.length === 0) {
-      next[entryId] = sets.map((set) => ({ ...set }));
-      continue;
-    }
-
-    const serverIds = new Set(sets.map((s) => s.id));
-    const draftById = new Map(draftSets.map((set) => [set.id, set]));
-
-    // Patch existing server sets with draft values
-    const merged = sets.map((set) => {
-      const patch = draftById.get(set.id);
-      if (!patch) return { ...set };
-      return {
-        ...set,
-        weight_kg: patch.weight_kg,
-        reps: patch.reps,
-        completed: patch.completed,
-        is_warmup: patch.is_warmup ?? set.is_warmup,
-        too_heavy: patch.too_heavy ?? set.too_heavy,
-        too_heavy_reps: patch.too_heavy_reps ?? set.too_heavy_reps,
-      };
-    });
-
-    // Append sets from draft that don't exist on server (added during workout)
-    for (const draftSet of draftSets) {
-      if (!serverIds.has(draftSet.id) && draftSet.workout_exercise_entry_id && draftSet.user_id) {
-        merged.push({
-          id: draftSet.id,
-          workout_exercise_entry_id: draftSet.workout_exercise_entry_id,
-          user_id: draftSet.user_id,
-          set_number: draftSet.set_number ?? merged.length + 1,
-          weight_kg: draftSet.weight_kg,
-          reps: draftSet.reps,
-          completed: draftSet.completed,
-          is_warmup: draftSet.is_warmup ?? false,
-          too_heavy: draftSet.too_heavy ?? false,
-          too_heavy_reps: draftSet.too_heavy_reps ?? null,
-          created_at: new Date().toISOString(),
-        });
-      }
-    }
-
-    next[entryId] = merged;
-  }
-
-  return next;
 }
 
 export default function WorkoutClient({
@@ -201,9 +146,7 @@ export default function WorkoutClient({
 
   useEffect(() => {
     if (!readOnly || !workout.completed_at) return;
-    localStorage.removeItem(draftStorageKey(workout.id));
-    localStorage.removeItem(`workout-${workout.id}`);
-    sessionStorage.removeItem(`workout-${workout.id}`);
+    clearSession(browserStorage, workout.id);
   }, [readOnly, workout.completed_at, workout.id]);
 
   useEffect(() => {
@@ -212,67 +155,29 @@ export default function WorkoutClient({
       return;
     }
 
-    const key = draftStorageKey(workout.id);
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      setHydratedDraft(true);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as WorkoutDraftSnapshot;
-      if (parsed?.version !== 1) {
-        setHydratedDraft(true);
-        return;
+    const draft = loadDraft<BonusCardioDraft>(browserStorage, workout.id);
+    if (draft) {
+      setSetsMap((prev) => mergeDraftSets(prev, draft.setsByEntryId));
+      if (typeof draft.notes === "string") setNotes(draft.notes);
+      if (draft.bonusCardioDraft) setBonusCardioDraft(draft.bonusCardioDraft);
+      if (typeof draft.showSummary === "boolean") setShowSummary(draft.showSummary);
+      if (draft.activeEntryId === null || entries.some((entry) => entry.id === draft.activeEntryId)) {
+        setActiveEntryId(draft.activeEntryId ?? null);
       }
-
-      setSetsMap((prev) => mergeSetsWithDraft(prev, parsed.setsByEntryId ?? {}));
-      if (typeof parsed.notes === "string") setNotes(parsed.notes);
-      if (parsed.bonusCardioDraft) setBonusCardioDraft(parsed.bonusCardioDraft);
-      if (typeof parsed.showSummary === "boolean") setShowSummary(parsed.showSummary);
-      if (
-        parsed.activeEntryId === null ||
-        entries.some((entry) => entry.id === parsed.activeEntryId)
-      ) {
-        setActiveEntryId(parsed.activeEntryId ?? null);
-      }
-    } catch {
-      // Ignore malformed local draft.
-    } finally {
-      setHydratedDraft(true);
     }
+    setHydratedDraft(true);
   }, [entries, readOnly, workout.id]);
 
   useEffect(() => {
     if (readOnly || !hydratedDraft) return;
 
-    const snapshot: WorkoutDraftSnapshot = {
-      version: 1,
-      setsByEntryId: Object.fromEntries(
-        Object.entries(setsMap).map(([entryId, sets]) => [
-          entryId,
-          sets.map((set) => ({
-            id: set.id,
-            weight_kg: set.weight_kg,
-            reps: set.reps,
-            completed: set.completed,
-            is_warmup: set.is_warmup ?? false,
-            too_heavy: set.too_heavy ?? false,
-            too_heavy_reps: set.too_heavy_reps ?? null,
-            set_number: set.set_number,
-            workout_exercise_entry_id: set.workout_exercise_entry_id,
-            user_id: set.user_id,
-          })),
-        ])
-      ),
+    saveDraft(browserStorage, workout.id, {
+      setsByEntryId: setsMap,
       notes,
       bonusCardioDraft,
       showSummary,
       activeEntryId,
-      updatedAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem(draftStorageKey(workout.id), JSON.stringify(snapshot));
+    });
   }, [
     activeEntryId,
     bonusCardioDraft,
@@ -328,25 +233,7 @@ export default function WorkoutClient({
   );
 
   function handleTooHeavySetsChange(entryId: string, setIds: string[], value: boolean, achievedReps?: number | null) {
-    // Update local state — mark completed and set achieved reps when flagging as too heavy
-    setSetsMap((prev) => ({
-      ...prev,
-      [entryId]: (prev[entryId] ?? []).map((s) => {
-        if (!setIds.includes(s.id)) return s;
-        if (value) {
-          return {
-            ...s,
-            too_heavy: true,
-            too_heavy_reps: achievedReps ?? null,
-            completed: true,
-            // Show achieved reps in the input (if provided), otherwise keep existing
-            reps: achievedReps != null ? achievedReps : s.reps,
-          };
-        } else {
-          return { ...s, too_heavy: false, too_heavy_reps: null };
-        }
-      }),
-    }));
+    setSetsMap((prev) => ({ ...prev, [entryId]: markTooHeavy(prev[entryId] ?? [], setIds, value, achievedReps) }));
     // Persist to DB
     saveTooHeavySets(setIds, value, achievedReps).catch(() => {
       // Revert on failure
@@ -389,20 +276,7 @@ export default function WorkoutClient({
       const entry = entries.find((e) => e.id === entryId);
       if (!entry) return prev;
       const targetSets = entry.workout_day_exercise?.target_sets ?? (prev[entryId] ?? []).length;
-      const newSets: SetEntry[] = Array.from({ length: targetSets }, (_, i) => ({
-        id: crypto.randomUUID(),
-        workout_exercise_entry_id: entryId,
-        user_id: entry.user_id,
-        set_number: i + 1,
-        weight_kg: prevResults[i]?.weight_kg ?? null,
-        reps: prevResults[i]?.reps ?? null,
-        completed: false,
-        is_warmup: false,
-        too_heavy: false,
-        too_heavy_reps: null,
-        created_at: new Date().toISOString(),
-      }));
-      return { ...prev, [entryId]: newSets };
+      return { ...prev, [entryId]: swapSets({ entryId, userId: entry.user_id, targetSets }, prevResults) };
     });
 
     // Prompt to update the program if this entry is linked to one
@@ -487,18 +361,9 @@ export default function WorkoutClient({
 
     setEntries((prev) => {
       const next = [...prev, newEntry];
-      // Persist updated entries to localStorage so reloading the page doesn't lose them.
-      if (typeof window !== "undefined") {
-        const storageKey = `workout-${workout.id}`;
-        const raw = sessionStorage.getItem(storageKey) ?? localStorage.getItem(storageKey);
-        if (raw) {
-          try {
-            const updated = JSON.stringify({ ...JSON.parse(raw), entries: next });
-            sessionStorage.setItem(storageKey, updated);
-            localStorage.setItem(storageKey, updated);
-          } catch { /* ignore */ }
-        }
-      }
+      // Keep the stored start result in step so a reload still shows the added exercise.
+      const stored = loadStartResult(browserStorage, workout.id);
+      if (stored) saveStartResult(browserStorage, { ...stored, entries: next });
       return next;
     });
     setSetsMap((prev) => ({
@@ -513,15 +378,7 @@ export default function WorkoutClient({
   }
 
   function handleFinishClick() {
-    const hasIncomplete = entries.some((entry) => {
-      const sets = setsMap[entry.id] ?? [];
-      return sets.some((s) => {
-        // Skip empty/unused sets (added but never filled in)
-        if (s.weight_kg === null && s.reps === null && !s.completed) return false;
-        // A set with data is considered incomplete only if not checked off
-        return !s.completed;
-      });
-    });
+    const hasIncomplete = hasIncompleteSets(setsMap);
     if (hasIncomplete) {
       setShowIncompleteWarning(true);
     } else {
@@ -532,21 +389,7 @@ export default function WorkoutClient({
   async function handleFinish() {
     setSaving(true);
     try {
-      const entriesData = entries.map((entry) => ({
-        entryId: entry.id,
-        workoutDayExerciseId: entry.workout_day_exercise_id ?? null,
-        userId: entry.user_id,
-        sets: (setsMap[entry.id] ?? []).map((s) => ({
-          id: s.id,
-          set_number: s.set_number,
-          weight_kg: s.weight_kg,
-          reps: s.reps,
-          completed: s.completed,
-          is_warmup: s.is_warmup ?? false,
-          too_heavy: s.too_heavy ?? false,
-          too_heavy_reps: s.too_heavy_reps ?? null,
-        })),
-      }));
+      const entriesData = finishPayload(entries, setsMap);
 
       try {
         await syncWorkoutSets(entriesData, originalSetIds);
@@ -567,11 +410,7 @@ export default function WorkoutClient({
 
       await completeWorkout(workout.id, notes || null);
 
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(`workout-${workout.id}`);
-        localStorage.removeItem(`workout-${workout.id}`);
-        localStorage.removeItem(draftStorageKey(workout.id));
-      }
+      clearSession(browserStorage, workout.id);
 
       // Offer to save as a reusable template for freestyle or mixed workouts
       const isFreestyle = workout.workout_day_id == null;
@@ -593,11 +432,7 @@ export default function WorkoutClient({
   async function handleDiscard() {
     setDiscarding(true);
     try {
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(`workout-${workout.id}`);
-        localStorage.removeItem(`workout-${workout.id}`);
-        localStorage.removeItem(draftStorageKey(workout.id));
-      }
+      clearSession(browserStorage, workout.id);
       await deleteWorkoutFromHistory(workout.id);
       router.push("/today");
     } catch {

@@ -6,6 +6,7 @@ import WorkoutClient from "./WorkoutClient";
 import type { StartWorkoutResult } from "@/lib/actions";
 import { getWorkout, getWorkoutBonusCardio } from "@/lib/actions";
 import type { WorkoutBonusCardio } from "@/lib/types";
+import { browserStorage, clearSession, loadStartResult } from "@/lib/workoutSession";
 
 export default function WorkoutPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,45 +17,11 @@ export default function WorkoutPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    function getStoredWorkout(workoutId: string): StartWorkoutResult | null {
-      const key = `workout-${workoutId}`;
-      const candidates = [sessionStorage.getItem(key), localStorage.getItem(key)];
-      for (const raw of candidates) {
-        if (!raw) continue;
-        try {
-          const parsed = JSON.parse(raw);
-          // Normalize: old stored tooHeavyFlags may be bool, number[], or new {setNumber,achievedReps}[]
-          const rawFlags = parsed.tooHeavyFlags ?? {};
-          const normalizedFlags: Record<string, { setNumber: number; achievedReps: number | null }[]> = {};
-          for (const [key, val] of Object.entries(rawFlags)) {
-            if (!Array.isArray(val)) {
-              normalizedFlags[key] = [];
-            } else if (val.length === 0) {
-              normalizedFlags[key] = [];
-            } else if (typeof val[0] === "number") {
-              // Old format: number[] → convert to new shape with null achievedReps
-              normalizedFlags[key] = (val as number[]).map((n) => ({ setNumber: n, achievedReps: null }));
-            } else {
-              normalizedFlags[key] = val as { setNumber: number; achievedReps: number | null }[];
-            }
-          }
-          return {
-            ...parsed,
-            suggestions: parsed.suggestions ?? {},
-            tooHeavyFlags: normalizedFlags,
-          } as StartWorkoutResult;
-        } catch {
-          // Keep trying next source.
-        }
-      }
-      return null;
-    }
-
     async function load() {
       // 1. Try local client stores — only for in-progress workouts.
       //    Completed workouts must be fetched from server so we get the real
       //    set_entries (localStorage only holds the initial empty template).
-      const stored = getStoredWorkout(id);
+      const stored = loadStartResult(browserStorage, id);
       if (stored && !stored.workout.completed_at) {
         setData(stored);
         setReadOnly(false);
@@ -62,11 +29,8 @@ export default function WorkoutPage() {
         return;
       }
 
-      // Clean up any stale localStorage for completed workouts
-      if (stored?.workout.completed_at) {
-        localStorage.removeItem(`workout-${id}`);
-        sessionStorage.removeItem(`workout-${id}`);
-      }
+      // Clean up a stale start result for completed workouts
+      if (stored?.workout.completed_at) clearSession(browserStorage, id);
 
       // 2. Fetch from server (history view or completed workout)
       const result = await getWorkout(id);

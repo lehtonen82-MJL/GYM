@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { browserStorage, saveStartResult } from "@/lib/workoutSession";
 import {
   getWorkoutTemplate,
   startWorkoutFromTemplate,
@@ -45,9 +46,7 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
     try {
       const result = await startWorkoutFromTemplate(templateId);
       if (result) {
-        const serialized = JSON.stringify(result);
-        sessionStorage.setItem(`workout-${result.id}`, serialized);
-        localStorage.setItem(`workout-${result.id}`, serialized);
+        saveStartResult(browserStorage, result);
         router.push(`/workout/${result.id}`);
       }
     } finally {

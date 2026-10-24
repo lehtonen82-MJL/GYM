@@ -24,6 +24,14 @@ _Avoid_: Pending set, empty set
 
 ### Workouts
 
+**In-progress workout**:
+A workout that has been started but not yet finished or discarded.
+_Avoid_: Active workout, open workout, session
+
+**Workout draft**:
+The unsaved state of an in-progress workout kept on the lifter's device — sets, notes and cardio entered so far — so nothing is lost on reload or without a connection.
+_Avoid_: Local copy, cache, autosave
+
 **Easy Week**:
 A deliberately lighter workout: fewer sets and reduced weights, with no weight progression suggested.
 _Avoid_: Deload (in user-facing text), recovery week

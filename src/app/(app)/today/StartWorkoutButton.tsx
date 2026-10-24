@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { browserStorage, saveStartResult } from "@/lib/workoutSession";
 import { startWorkout, startDeloadWorkout } from "@/lib/actions";
 import { useEasyWeekMode } from "./useEasyWeekMode";
 import { useSettings } from "@/lib/settings";
@@ -27,9 +28,7 @@ export default function StartWorkoutButton({
         ? await startDeloadWorkout(workoutDayId, [], deloadWeightPct, deloadSetPct, deloadReduceWarmups)
         : await startWorkout(workoutDayId);
       if (result) {
-        const serialized = JSON.stringify(result);
-        sessionStorage.setItem(`workout-${result.id}`, serialized);
-        localStorage.setItem(`workout-${result.id}`, serialized);
+        saveStartResult(browserStorage, result);
         router.push(`/workout/${result.id}`);
       }
     } finally {
