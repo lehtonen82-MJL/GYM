@@ -8,12 +8,13 @@ import {
   type LibraryDefinition,
 } from "./exerciseMatching";
 
-// Build the library the way the migrations leave it: seed rows from 012 + 020,
+// Build the library the way the migrations leave it: seed rows from 012 + 012b + 020,
 // then 020's alias additions/removals.
 function loadLibrary(): LibraryDefinition[] {
   const dir = join(__dirname, "../../supabase/migrations");
   const sql =
     readFileSync(join(dir, "012_seed_exercise_definitions.sql"), "utf8") +
+    readFileSync(join(dir, "012b_seed_kettlebell_definitions.sql"), "utf8") +
     readFileSync(join(dir, "020_expand_exercise_library.sql"), "utf8");
   const strings = (s: string) => [...s.matchAll(/'((?:[^']|'')+)'/g)].map((m) => m[1].replace(/''/g, "'"));
 
@@ -39,7 +40,7 @@ const match = (name: string) => findDefinitionMatch(name, index)?.name ?? null;
 
 describe("library seed data", () => {
   it("has the expected size", () => {
-    expect(library).toHaveLength(283);
+    expect(library).toHaveLength(307);
   });
 
   it("has no loose key shared by two definitions", () => {

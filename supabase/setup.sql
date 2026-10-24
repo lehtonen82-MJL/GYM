@@ -8,7 +8,7 @@
 -- Safe on a new project and on an existing one (all steps are
 -- re-runnable). Runs in one transaction: any error rolls back everything.
 --
--- Migrations: 23 (000_base_schema.sql … 020_expand_exercise_library.sql)
+-- Migrations: 24 (000_base_schema.sql … 020_expand_exercise_library.sql)
 -- ============================================================
 
 BEGIN;
@@ -915,6 +915,53 @@ VALUES
 
 ON CONFLICT (normalized_name) DO NOTHING;
 
+-- >>>>>>>>>> migrations/012b_seed_kettlebell_definitions.sql
+
+-- ============================================================
+-- Migration 012b: Kettlebell definitions
+--
+-- These 32 rows were added to the production database directly (not via a
+-- migration). Captured from production on 2026-10-24 so a fresh database matches it.
+-- Already applied on production: ON CONFLICT DO NOTHING leaves those rows untouched.
+-- ============================================================
+
+INSERT INTO exercise_definitions
+  (name, normalized_name, aliases, equipment_type, primary_muscle, secondary_muscles, movement_pattern, is_bodyweight, is_cardio, is_bilateral, is_main_lift)
+VALUES
+('Double Kettlebell Clean', 'double kettlebell clean', ARRAY['double kb clean', 'kb double clean']::text[], 'kettlebell', 'back_upper', ARRAY['glutes', 'hamstrings']::text[], 'olympic', false, false, true, false),
+('Double Kettlebell Deadlift', 'double kettlebell deadlift', ARRAY['double kb deadlift']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings', 'back_upper']::text[], 'hinge', false, false, true, false),
+('Double Kettlebell Front Squat', 'double kettlebell front squat', ARRAY['double kb front squat', 'kb front squat', 'kb rack squat']::text[], 'kettlebell', 'quads', ARRAY['glutes', 'core']::text[], 'squat', false, false, true, false),
+('Double Kettlebell Press', 'double kettlebell press', ARRAY['double kb press', 'kb double overhead press', 'double kb overhead press']::text[], 'kettlebell', 'shoulders', ARRAY['triceps']::text[], 'vertical_push', false, false, true, false),
+('Double Kettlebell Push Press', 'double kettlebell push press', ARRAY['double kb push press']::text[], 'kettlebell', 'shoulders', ARRAY['triceps', 'glutes', 'quads']::text[], 'vertical_push', false, false, true, false),
+('Double Kettlebell Row', 'double kettlebell row', ARRAY['double kb row']::text[], 'kettlebell', 'back_lats', ARRAY['biceps', 'back_upper']::text[], 'horizontal_pull', false, false, true, false),
+('Double Kettlebell Snatch', 'double kettlebell snatch', ARRAY['double kb snatch', 'kb double snatch']::text[], 'kettlebell', 'shoulders', ARRAY['glutes', 'back_upper']::text[], 'olympic', false, false, true, false),
+('Double Kettlebell Swing', 'double kettlebell swing', ARRAY['double kb swing', 'kb double swing']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings', 'back_upper']::text[], 'hinge', false, false, true, false),
+('Kettlebell Bulgarian Split Squat', 'kettlebell bulgarian split squat', ARRAY['kb bulgarian split squat', 'kb bss', 'kb rear foot elevated split squat']::text[], 'kettlebell', 'quads', ARRAY['glutes', 'hamstrings']::text[], 'lunge', false, false, false, false),
+('Kettlebell Clean', 'kettlebell clean', ARRAY['kb clean', 'single arm kb clean', 'kb power clean']::text[], 'kettlebell', 'back_upper', ARRAY['glutes', 'hamstrings', 'forearms']::text[], 'olympic', false, false, false, true),
+('Kettlebell Deadlift', 'kettlebell deadlift', ARRAY['kb deadlift', 'two hand kb deadlift']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings', 'back_upper']::text[], 'hinge', false, false, true, false),
+('Kettlebell Farmer Walk', 'kettlebell farmer walk', ARRAY['kb farmers carry', 'kb farmers walk', 'kettlebell farmers carry', 'double kb farmers carry']::text[], 'kettlebell', 'core', ARRAY['forearms', 'shoulders', 'quads']::text[], 'carry', false, false, true, false),
+('Kettlebell Figure 8', 'kettlebell figure 8', ARRAY['kb figure 8', 'kb figure eight']::text[], 'kettlebell', 'core', ARRAY['glutes', 'back_upper']::text[], 'core', false, false, true, false),
+('Kettlebell Floor Press', 'kettlebell floor press', ARRAY['kb floor press', 'single arm kb floor press']::text[], 'kettlebell', 'chest', ARRAY['triceps', 'shoulders']::text[], 'horizontal_push', false, false, false, false),
+('Kettlebell Halo', 'kettlebell halo', ARRAY['kb halo']::text[], 'kettlebell', 'shoulders', ARRAY['core']::text[], 'core', false, false, true, false),
+('Kettlebell High Pull', 'kettlebell high pull', ARRAY['kb high pull', 'kb sumo deadlift high pull', 'kb sdlhp']::text[], 'kettlebell', 'back_upper', ARRAY['glutes', 'shoulders', 'hamstrings']::text[], 'olympic', false, false, true, false),
+('Kettlebell Jerk', 'kettlebell jerk', ARRAY['kb jerk', 'single arm kb jerk']::text[], 'kettlebell', 'shoulders', ARRAY['triceps', 'glutes', 'quads']::text[], 'vertical_push', false, false, false, false),
+('Kettlebell Lunge', 'kettlebell lunge', ARRAY['kb lunge', 'kb walking lunge', 'kettlebell walking lunge']::text[], 'kettlebell', 'quads', ARRAY['glutes', 'hamstrings']::text[], 'lunge', false, false, false, false),
+('Kettlebell Overhead Carry', 'kettlebell overhead carry', ARRAY['kb overhead carry', 'kb overhead walk', 'waiter carry']::text[], 'kettlebell', 'shoulders', ARRAY['core', 'triceps']::text[], 'carry', false, false, false, false),
+('Kettlebell Press', 'kettlebell press', ARRAY['kb press', 'kb overhead press', 'single arm kb press', 'kb military press', 'kettlebell overhead press']::text[], 'kettlebell', 'shoulders', ARRAY['triceps', 'core']::text[], 'vertical_push', false, false, false, true),
+('Kettlebell Push Press', 'kettlebell push press', ARRAY['kb push press', 'single arm kb push press']::text[], 'kettlebell', 'shoulders', ARRAY['triceps', 'glutes', 'quads']::text[], 'vertical_push', false, false, false, false),
+('Kettlebell Rack Carry', 'kettlebell rack carry', ARRAY['kb rack carry', 'kb rack walk', 'single arm kb rack carry']::text[], 'kettlebell', 'core', ARRAY['shoulders']::text[], 'carry', false, false, false, false),
+('Kettlebell Romanian Deadlift', 'kettlebell romanian deadlift', ARRAY['kb rdl', 'kb romanian deadlift', 'kb stiff leg deadlift']::text[], 'kettlebell', 'hamstrings', ARRAY['glutes', 'back_upper']::text[], 'hinge', false, false, true, false),
+('Kettlebell Row', 'kettlebell row', ARRAY['kb row', 'kb bent over row', 'single arm kb row']::text[], 'kettlebell', 'back_lats', ARRAY['biceps', 'back_upper']::text[], 'horizontal_pull', false, false, false, false),
+('Kettlebell Snatch', 'kettlebell snatch', ARRAY['kb snatch', 'single arm kb snatch', 'kb power snatch']::text[], 'kettlebell', 'shoulders', ARRAY['glutes', 'back_upper', 'hamstrings']::text[], 'olympic', false, false, false, true),
+('Kettlebell Suitcase Carry', 'kettlebell suitcase carry', ARRAY['kb suitcase carry', 'kb suitcase walk']::text[], 'kettlebell', 'core', ARRAY['forearms']::text[], 'carry', false, false, false, false),
+('Kettlebell Sumo Squat', 'kettlebell sumo squat', ARRAY['kb sumo squat', 'kb plie squat']::text[], 'kettlebell', 'glutes', ARRAY['quads', 'hamstrings']::text[], 'squat', false, false, true, false),
+('Kettlebell Swing Clean', 'kettlebell swing clean', ARRAY['kb swing clean', 'swing to clean']::text[], 'kettlebell', 'glutes', ARRAY['back_upper', 'hamstrings']::text[], 'olympic', false, false, false, false),
+('Kettlebell Thruster', 'kettlebell thruster', ARRAY['kb thruster', 'kb squat press']::text[], 'kettlebell', 'shoulders', ARRAY['quads', 'glutes', 'triceps']::text[], 'squat', false, false, true, false),
+('Kettlebell Windmill', 'kettlebell windmill', ARRAY['kb windmill']::text[], 'kettlebell', 'core', ARRAY['shoulders', 'hamstrings']::text[], 'core', false, false, false, false),
+('Single-Arm Kettlebell Swing', 'single-arm kettlebell swing', ARRAY['single arm kb swing', 'one arm kb swing', 'kb one arm swing']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings', 'back_upper']::text[], 'hinge', false, false, false, false),
+('Single-Leg Kettlebell Deadlift', 'single-leg kettlebell deadlift', ARRAY['single leg kb deadlift', 'kb single leg rdl', 'kb pistol deadlift']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings', 'core']::text[], 'hinge', false, false, false, false)
+ON CONFLICT (normalized_name) DO NOTHING;
+
 -- >>>>>>>>>> migrations/013_expand_cardio_types.sql
 
 -- ============================================================
@@ -1411,7 +1458,7 @@ $$;
 --
 -- GENERATED by scripts/exercise_library_e.py — edit the data there, not here.
 --
--- 1. 168 new definitions (total 283), grouped by muscle/pattern.
+-- 1. 160 new definitions (total 307), grouped by muscle/pattern.
 -- 2. Shorthand aliases for existing definitions (bench, ohp, skullcrusher …).
 -- 3. Two aliases moved to new, more accurate definitions.
 -- 4. link_unlinked_exercises(): links user exercises by exact name/alias
@@ -1448,7 +1495,6 @@ VALUES
 ('Deficit Deadlift', 'deficit deadlift', ARRAY[]::text[], 'barbell', 'back_upper', ARRAY['hamstrings', 'glutes']::text[], 'hinge', false, false, true, false),
 ('Stiff-Leg Deadlift', 'stiff-leg deadlift', ARRAY['sldl', 'stiff legged deadlift']::text[], 'barbell', 'hamstrings', ARRAY['glutes', 'back_upper']::text[], 'hinge', false, false, true, false),
 ('Single-Leg Romanian Deadlift', 'single-leg romanian deadlift', ARRAY['single leg rdl', 'sl rdl', 'single leg romanian deadlift']::text[], 'dumbbell', 'hamstrings', ARRAY['glutes', 'core']::text[], 'hinge', false, false, false, false),
-('Kettlebell Deadlift', 'kettlebell deadlift', ARRAY['kb deadlift']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings']::text[], 'hinge', false, false, true, false),
 ('Cable Pull-through', 'cable pull-through', ARRAY['pull through', 'cable pull through']::text[], 'cable', 'glutes', ARRAY['hamstrings']::text[], 'hinge', false, false, true, false),
 ('Back Extension', 'back extension', ARRAY['hyperextension', '45 degree back extension', 'roman chair back extension']::text[], 'bodyweight', 'glutes', ARRAY['hamstrings', 'back_upper']::text[], 'hinge', true, false, true, false),
 ('Reverse Hyperextension', 'reverse hyperextension', ARRAY['reverse hyper']::text[], 'machine_plate', 'glutes', ARRAY['hamstrings']::text[], 'hinge', false, false, true, false),
@@ -1459,7 +1505,6 @@ VALUES
 ('Yates Row', 'yates row', ARRAY['underhand barbell row']::text[], 'barbell', 'back_upper', ARRAY['back_lats', 'biceps']::text[], 'horizontal_pull', false, false, true, false),
 ('Single-Arm Cable Row', 'single-arm cable row', ARRAY['single arm cable row', 'one arm cable row']::text[], 'cable', 'back_lats', ARRAY['biceps']::text[], 'horizontal_pull', false, false, false, false),
 ('Machine High Row', 'machine high row', ARRAY['high row', 'plate loaded high row']::text[], 'machine_plate', 'back_upper', ARRAY['back_lats', 'biceps']::text[], 'horizontal_pull', false, false, true, false),
-('Kettlebell Row', 'kettlebell row', ARRAY['kb row']::text[], 'kettlebell', 'back_lats', ARRAY['back_upper', 'biceps']::text[], 'horizontal_pull', false, false, false, false),
 ('TRX Row', 'trx row', ARRAY['suspension row', 'ring row']::text[], 'suspension', 'back_upper', ARRAY['back_lats', 'biceps']::text[], 'horizontal_pull', true, false, true, false),
 ('Straight-Arm Pulldown', 'straight-arm pulldown', ARRAY['straight arm pulldown', 'lat prayer', 'straight arm cable pulldown']::text[], 'cable', 'back_lats', ARRAY[]::text[], 'isolation', false, false, true, false),
 ('Close Grip Lat Pulldown', 'close grip lat pulldown', ARRAY['v bar pulldown', 'close grip pulldown', 'neutral grip pulldown']::text[], 'cable', 'back_lats', ARRAY['biceps']::text[], 'vertical_pull', false, false, true, false),
@@ -1479,7 +1524,6 @@ VALUES
 ('Behind-the-Neck Press', 'behind-the-neck press', ARRAY['behind the neck press', 'btn press']::text[], 'barbell', 'shoulders', ARRAY['triceps']::text[], 'vertical_push', false, false, true, false),
 ('Smith Shoulder Press', 'smith shoulder press', ARRAY['smith machine shoulder press', 'smith overhead press']::text[], 'smith', 'shoulders', ARRAY['triceps']::text[], 'vertical_push', false, false, true, false),
 ('Landmine Press', 'landmine press', ARRAY['single arm landmine press']::text[], 'barbell', 'shoulders', ARRAY['chest', 'triceps']::text[], 'vertical_push', false, false, false, false),
-('Kettlebell Press', 'kettlebell press', ARRAY['kb press', 'kettlebell overhead press', 'kb overhead press']::text[], 'kettlebell', 'shoulders', ARRAY['triceps']::text[], 'vertical_push', false, false, false, false),
 ('Upright Row', 'upright row', ARRAY['barbell upright row']::text[], 'barbell', 'shoulders', ARRAY['back_upper', 'biceps']::text[], 'vertical_pull', false, false, true, false),
 ('DB Upright Row', 'db upright row', ARRAY['dumbbell upright row']::text[], 'dumbbell', 'shoulders', ARRAY['back_upper']::text[], 'vertical_pull', false, false, true, false),
 ('Cable Upright Row', 'cable upright row', ARRAY[]::text[], 'cable', 'shoulders', ARRAY['back_upper']::text[], 'vertical_pull', false, false, true, false),
@@ -1545,7 +1589,6 @@ VALUES
 ('Safety Bar Squat', 'safety bar squat', ARRAY['ssb squat', 'safety squat bar squat']::text[], 'barbell', 'quads', ARRAY['glutes', 'back_upper']::text[], 'squat', false, false, true, false),
 ('Overhead Squat', 'overhead squat', ARRAY['ohs']::text[], 'barbell', 'quads', ARRAY['shoulders', 'core']::text[], 'squat', false, false, true, false),
 ('DB Goblet Squat', 'db goblet squat', ARRAY['dumbbell goblet squat', 'db goblet']::text[], 'dumbbell', 'quads', ARRAY['glutes', 'core']::text[], 'squat', false, false, true, false),
-('Double Kettlebell Front Squat', 'double kettlebell front squat', ARRAY['kb front squat', 'kettlebell front squat']::text[], 'kettlebell', 'quads', ARRAY['glutes', 'core']::text[], 'squat', false, false, true, false),
 ('Sissy Squat', 'sissy squat', ARRAY[]::text[], 'bodyweight', 'quads', ARRAY[]::text[], 'squat', true, false, true, false),
 ('Pistol Squat', 'pistol squat', ARRAY['pistol', 'single leg squat']::text[], 'bodyweight', 'quads', ARRAY['glutes', 'core']::text[], 'squat', true, false, false, false),
 ('Jump Squat', 'jump squat', ARRAY['squat jump']::text[], 'bodyweight', 'quads', ARRAY['glutes', 'calves']::text[], 'squat', true, false, true, false),
@@ -1604,10 +1647,6 @@ VALUES
 ('Clean High Pull', 'clean high pull', ARRAY['high pull']::text[], 'barbell', 'back_upper', ARRAY['shoulders', 'hamstrings']::text[], 'olympic', false, false, true, false),
 
 -- ── KETTLEBELL & CONDITIONING ───────────────────────────────────
-('Single-Arm Kettlebell Swing', 'single-arm kettlebell swing', ARRAY['one arm kb swing', 'single arm kb swing']::text[], 'kettlebell', 'glutes', ARRAY['hamstrings', 'core']::text[], 'hinge', false, false, false, false),
-('Kettlebell Snatch', 'kettlebell snatch', ARRAY['kb snatch']::text[], 'kettlebell', 'shoulders', ARRAY['glutes', 'hamstrings']::text[], 'olympic', false, false, false, false),
-('Kettlebell Clean', 'kettlebell clean', ARRAY['kb clean']::text[], 'kettlebell', 'glutes', ARRAY['back_upper', 'forearms']::text[], 'olympic', false, false, false, false),
-('Kettlebell Windmill', 'kettlebell windmill', ARRAY['kb windmill']::text[], 'kettlebell', 'core', ARRAY['shoulders', 'hamstrings']::text[], 'core', false, false, false, false),
 ('Thruster', 'thruster', ARRAY['barbell thruster']::text[], 'barbell', 'quads', ARRAY['shoulders', 'glutes', 'triceps']::text[], 'squat', false, false, true, false),
 ('DB Thruster', 'db thruster', ARRAY['dumbbell thruster']::text[], 'dumbbell', 'quads', ARRAY['shoulders', 'glutes']::text[], 'squat', false, false, true, false),
 ('Devil Press', 'devil press', ARRAY['devils press']::text[], 'dumbbell', 'shoulders', ARRAY['glutes', 'hamstrings', 'chest']::text[], 'olympic', false, false, true, false),
@@ -1726,6 +1765,9 @@ WHERE normalized_name = 'kettlebell swing';
 UPDATE exercise_definitions
 SET aliases = ARRAY(SELECT DISTINCT unnest(aliases || ARRAY['run', 'treadmill run']::text[]) ORDER BY 1)
 WHERE normalized_name = 'treadmill';
+UPDATE exercise_definitions
+SET aliases = ARRAY(SELECT DISTINCT unnest(aliases || ARRAY['kettlebell front squat']::text[]) ORDER BY 1)
+WHERE normalized_name = 'double kettlebell front squat';
 
 -- ── Link user exercises (exact name / alias) ────────────────────────
 CREATE OR REPLACE FUNCTION link_unlinked_exercises()

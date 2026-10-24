@@ -172,7 +172,13 @@ No schema change on a fresh database.
 
 No schema change on a fresh database.
 
+#### `012b_seed_kettlebell_definitions.sql` (added after this audit)
+
+- added: 32 kettlebell rows that existed only in production (inserted there by hand), captured
+  2026-10-24 so a fresh database matches production. Production's other 115 rows match `012`
+  except `Sit-up` (no secondary muscle in production; `012` lists `hip flexors`).
+
 #### `020_expand_exercise_library.sql` (Phase E, added after this audit)
 
-- added: 168 rows in `exercise_definitions` (115 → 283), aliases for existing rows
+- added: 160 rows in `exercise_definitions` (147 → 307), aliases for existing rows
 - added: function link_unlinked_exercises()

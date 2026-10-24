@@ -56,7 +56,6 @@ GROUPS = {
         ex("Deficit Deadlift", [], "barbell", "back_upper", ["hamstrings", "glutes"], "hinge"),
         ex("Stiff-Leg Deadlift", ["sldl", "stiff legged deadlift"], "barbell", "hamstrings", ["glutes", "back_upper"], "hinge"),
         ex("Single-Leg Romanian Deadlift", ["single leg rdl", "sl rdl", "single leg romanian deadlift"], "dumbbell", "hamstrings", ["glutes", "core"], "hinge", bilateral=False),
-        ex("Kettlebell Deadlift", ["kb deadlift"], "kettlebell", "glutes", ["hamstrings"], "hinge"),
         ex("Cable Pull-through", ["pull through", "cable pull through"], "cable", "glutes", ["hamstrings"], "hinge"),
         ex("Back Extension", ["hyperextension", "45 degree back extension", "roman chair back extension"], "bodyweight", "glutes", ["hamstrings", "back_upper"], "hinge"),
         ex("Reverse Hyperextension", ["reverse hyper"], "machine_plate", "glutes", ["hamstrings"], "hinge"),
@@ -67,7 +66,6 @@ GROUPS = {
         ex("Yates Row", ["underhand barbell row"], "barbell", "back_upper", ["back_lats", "biceps"], "horizontal_pull"),
         ex("Single-Arm Cable Row", ["single arm cable row", "one arm cable row"], "cable", "back_lats", ["biceps"], "horizontal_pull", bilateral=False),
         ex("Machine High Row", ["high row", "plate loaded high row"], "machine_plate", "back_upper", ["back_lats", "biceps"], "horizontal_pull"),
-        ex("Kettlebell Row", ["kb row"], "kettlebell", "back_lats", ["back_upper", "biceps"], "horizontal_pull", bilateral=False),
         ex("TRX Row", ["suspension row", "ring row"], "suspension", "back_upper", ["back_lats", "biceps"], "horizontal_pull"),
         ex("Straight-Arm Pulldown", ["straight arm pulldown", "lat prayer", "straight arm cable pulldown"], "cable", "back_lats", [], "isolation"),
         ex("Close Grip Lat Pulldown", ["v bar pulldown", "close grip pulldown", "neutral grip pulldown"], "cable", "back_lats", ["biceps"], "vertical_pull"),
@@ -87,7 +85,6 @@ GROUPS = {
         ex("Behind-the-Neck Press", ["behind the neck press", "btn press"], "barbell", "shoulders", ["triceps"], "vertical_push"),
         ex("Smith Shoulder Press", ["smith machine shoulder press", "smith overhead press"], "smith", "shoulders", ["triceps"], "vertical_push"),
         ex("Landmine Press", ["single arm landmine press"], "barbell", "shoulders", ["chest", "triceps"], "vertical_push", bilateral=False),
-        ex("Kettlebell Press", ["kb press", "kettlebell overhead press", "kb overhead press"], "kettlebell", "shoulders", ["triceps"], "vertical_push", bilateral=False),
         ex("Upright Row", ["barbell upright row"], "barbell", "shoulders", ["back_upper", "biceps"], "vertical_pull"),
         ex("DB Upright Row", ["dumbbell upright row"], "dumbbell", "shoulders", ["back_upper"], "vertical_pull"),
         ex("Cable Upright Row", [], "cable", "shoulders", ["back_upper"], "vertical_pull"),
@@ -153,7 +150,6 @@ GROUPS = {
         ex("Safety Bar Squat", ["ssb squat", "safety squat bar squat"], "barbell", "quads", ["glutes", "back_upper"], "squat"),
         ex("Overhead Squat", ["ohs"], "barbell", "quads", ["shoulders", "core"], "squat"),
         ex("DB Goblet Squat", ["dumbbell goblet squat", "db goblet"], "dumbbell", "quads", ["glutes", "core"], "squat"),
-        ex("Double Kettlebell Front Squat", ["kb front squat", "kettlebell front squat"], "kettlebell", "quads", ["glutes", "core"], "squat"),
         ex("Sissy Squat", [], "bodyweight", "quads", [], "squat"),
         ex("Pistol Squat", ["pistol", "single leg squat"], "bodyweight", "quads", ["glutes", "core"], "squat", bilateral=False),
         ex("Jump Squat", ["squat jump"], "bodyweight", "quads", ["glutes", "calves"], "squat"),
@@ -212,10 +208,6 @@ GROUPS = {
         ex("Clean High Pull", ["high pull"], "barbell", "back_upper", ["shoulders", "hamstrings"], "olympic"),
     ],
     "Kettlebell & conditioning": [
-        ex("Single-Arm Kettlebell Swing", ["one arm kb swing", "single arm kb swing"], "kettlebell", "glutes", ["hamstrings", "core"], "hinge", bilateral=False),
-        ex("Kettlebell Snatch", ["kb snatch"], "kettlebell", "shoulders", ["glutes", "hamstrings"], "olympic", bilateral=False),
-        ex("Kettlebell Clean", ["kb clean"], "kettlebell", "glutes", ["back_upper", "forearms"], "olympic", bilateral=False),
-        ex("Kettlebell Windmill", ["kb windmill"], "kettlebell", "core", ["shoulders", "hamstrings"], "core", bilateral=False),
         ex("Thruster", ["barbell thruster"], "barbell", "quads", ["shoulders", "glutes", "triceps"], "squat"),
         ex("DB Thruster", ["dumbbell thruster"], "dumbbell", "quads", ["shoulders", "glutes"], "squat"),
         ex("Devil Press", ["devils press"], "dumbbell", "shoulders", ["glutes", "hamstrings", "chest"], "olympic"),
@@ -260,6 +252,8 @@ ALIASES_FOR_EXISTING = {
     "clean & jerk": ["c&j", "cj"],
     "kettlebell swing": ["russian swing", "russian kb swing"],
     "treadmill": ["run", "treadmill run"],
+    # 012b (production-only kettlebell rows)
+    "double kettlebell front squat": ["kettlebell front squat"],
 }
 
 # Aliases moved to a new, more accurate definition (removed from the old one first)
@@ -278,7 +272,9 @@ def loose_key(name: str) -> str:
 
 
 def parse_existing():
-    sql = (ROOT / "supabase/migrations/012_seed_exercise_definitions.sql").read_text()
+    """Definitions seeded before 020: 012 + 012b (kettlebell rows captured from production)."""
+    sql = "".join((ROOT / "supabase/migrations" / f).read_text()
+                  for f in ("012_seed_exercise_definitions.sql", "012b_seed_kettlebell_definitions.sql"))
     rows = {}
     for m in re.finditer(r"^\('([^']+)',\s*'([^']+)',\s*ARRAY\[([^\]]*)\]", sql, re.M):
         rows[m.group(2)] = dict(name=m.group(1), aliases=re.findall(r"'([^']+)'", m.group(3)))
@@ -412,7 +408,7 @@ def build_doc(new_rows_by_group, total, existing_count):
 
 Generated by `scripts/exercise_library_e.py` (also generates migration `020_expand_exercise_library.sql`).
 
-The seeded library (`012`) had **{existing_count}** definitions and matched names exactly, so common lifts
+The seeded library (`012` + the production-only kettlebell rows captured as `012b`) had **{existing_count}** definitions and matched names exactly, so common lifts
 (OHP, hack squat, farmer's walk, trap-bar deadlift …) never linked: those exercises had no equipment, muscle or
 movement pattern, which equipment-aware progression and volume-per-muscle need. This adds
 **{sum(len(v) for v in new_rows_by_group.values())}** definitions (total **{total}**) and shorthand aliases for existing ones.
