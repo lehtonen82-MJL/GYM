@@ -28,9 +28,10 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   without `015`'s 1RM fix, plus 32 hand-added kettlebell definitions now captured as `012b`).
   Rehearsed first on a local copy of the production data; PRs recomputed by `019` (75 → 82).
   A CSV backup of every public table taken just before the run lives outside the repo.
-- **Pending:** `021` (atomic workout writes). The app from commit "feat: atomic workout writes"
-  on needs it: apply `setup.sql` **before** deploying that code, or starting and finishing
-  workouts fail (a finish keeps the workout draft on the device, so no sets are lost).
+- **2026-10-24:** `021` (atomic workout writes) applied on its own in the SQL Editor; the app from
+  commit "feat: atomic workout writes" on needs it. The SQL Editor warns about "destructive
+  operations" for `021` (the DELETE inside `save_workout_sets`): confirm with **Run query**,
+  otherwise nothing is applied.
 
 ## Rules for new migrations
 
