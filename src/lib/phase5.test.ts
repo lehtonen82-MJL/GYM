@@ -32,21 +32,30 @@ describe("platesFor", () => {
 });
 
 describe("sessionVolume", () => {
-  it("sums weight × reps of work sets with data", () => {
+  it("sums weight × reps of completed work sets", () => {
     expect(
       sessionVolume([
-        { weight_kg: 60, reps: 10, is_warmup: true },
-        { weight_kg: 100, reps: 5, is_warmup: false },
-        { weight_kg: 100, reps: 5 },
-        { weight_kg: 100, reps: null },
-        { weight_kg: null, reps: 12 },
-        { weight_kg: 102.5, reps: 3 },
+        { weight_kg: 60, reps: 10, completed: true, is_warmup: true },
+        { weight_kg: 100, reps: 5, completed: true, is_warmup: false },
+        { weight_kg: 100, reps: 5, completed: true },
+        { weight_kg: 100, reps: null, completed: true },
+        { weight_kg: null, reps: 12, completed: true },
+        { weight_kg: 102.5, reps: 3, completed: true },
       ])
     ).toBe(1307.5);
   });
 
+  it("leaves out planned sets, even when weight and reps are filled in", () => {
+    expect(
+      sessionVolume([
+        { weight_kg: 100, reps: 5, completed: true },
+        { weight_kg: 100, reps: 5, completed: false },
+      ])
+    ).toBe(500);
+  });
+
   it("is 0 for bodyweight-only sessions", () => {
-    expect(sessionVolume([{ weight_kg: 0, reps: 10 }])).toBe(0);
+    expect(sessionVolume([{ weight_kg: 0, reps: 10, completed: true }])).toBe(0);
   });
 });
 

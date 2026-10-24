@@ -3,7 +3,7 @@
 import type { Workout } from "@/lib/types";
 import { DEMO_MODE, db, getUserId, mockStore, mockBonusCardio } from "./_shared";
 import { MOCK_DAYS, MOCK_EXERCISES } from "./_mocks";
-import { sessionVolume } from "@/lib/volume";
+import { sessionVolume, type VolumeSet } from "@/lib/volume";
 import { linkExerciseToLibraryInternal } from "./exercises";
 
 // MOCK_HISTORY is only used in history functions
@@ -74,16 +74,16 @@ export async function getWorkoutHistory(): Promise<WorkoutHistoryItem[]> {
   // One query for every listed workout's exercises + sets
   const { data: entryRows } = await supabase
     .from("workout_exercise_entries")
-    .select("workout_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(name), set_entries(weight_kg, reps, is_warmup)")
+    .select("workout_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(name), set_entries(weight_kg, reps, completed, is_warmup)")
     .eq("user_id", userId)
     .in("workout_id", workouts.map((w) => w.id))
     .order("created_at");
 
-  const byWorkout = new Map<string, { names: string[]; sets: { weight_kg: number | null; reps: number | null; is_warmup: boolean | null }[] }>();
+  const byWorkout = new Map<string, { names: string[]; sets: VolumeSet[] }>();
   for (const row of (entryRows ?? []) as unknown as {
     workout_id: string;
     exercise: { name: string } | null;
-    set_entries: { weight_kg: number | null; reps: number | null; is_warmup: boolean | null }[] | null;
+    set_entries: VolumeSet[] | null;
   }[]) {
     const acc = byWorkout.get(row.workout_id) ?? { names: [], sets: [] };
     if (row.exercise?.name && !acc.names.includes(row.exercise.name)) acc.names.push(row.exercise.name);
