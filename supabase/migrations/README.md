@@ -22,6 +22,13 @@ The same file works on a new project and on an existing one: every migration is
 re-runnable, and the whole run rolls back on any error. Take a backup first on production
 (Database → Backups), because `019_recompute_prs.sql` rebuilds `exercise_prs` from history.
 
+## Production status
+
+- **2026-10-24:** production brought up to `020` by running `setup.sql` (it had been at `017`,
+  without `015`'s 1RM fix, plus 32 hand-added kettlebell definitions now captured as `012b`).
+  Rehearsed first on a local copy of the production data; PRs recomputed by `019` (75 → 82).
+  A CSV backup of every public table taken just before the run lives outside the repo.
+
 ## Rules for new migrations
 
 - Next free number, `NNN_short_name.sql`. Never rename or edit an applied migration to change
