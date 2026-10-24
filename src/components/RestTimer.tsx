@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { formatPace } from "@/lib/format";
 
 type Props = {
-  /** Epoch ms when the rest is over. Remount (key={endsAt}) to restart. */
+  /** Epoch ms when the rest is over; a new value restarts the countdown. */
   endsAt: number;
   onAdd: (seconds: number) => void;
   onDismiss: () => void;

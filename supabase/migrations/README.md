@@ -33,6 +33,10 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
 
 - Next free number, `NNN_short_name.sql`. Never rename or edit an applied migration to change
   its effect — add a new one.
+- Exception: rows that must exist *before* a not-yet-applied migration may go in a letter-suffixed
+  file that sorts ahead of it (e.g. `012b_seed_kettlebell_definitions.sql`, which captured
+  production-only rows so `020` would not duplicate them). Only when every later migration is
+  still unapplied, or the file is a re-runnable no-op on databases that already have the rows.
 - Must be re-runnable: `create table if not exists`, `add column if not exists`,
   `drop policy if exists` before `create policy`, `drop trigger if exists` before
   `create trigger`, `drop constraint if exists` before `add constraint`,

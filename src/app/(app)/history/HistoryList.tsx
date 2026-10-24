@@ -93,7 +93,8 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -288,6 +289,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
       {workouts.map((w) => {
         const imported = isImported(w);
         const selected = selectedIds.has(w.id);
+        const duration = formatDuration(w.started_at, w.completed_at);
 
         return (
           <div
@@ -330,7 +332,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                   </div>
                   <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
                   <p className="text-white text-sm mt-2">{formatShortDate(w.started_at)}</p>
-                  <p className="text-muted text-xs">{formatDuration(w.started_at, w.completed_at)}</p>
+                  <p className="text-muted text-xs">{duration}</p>
                 </div>
               ) : (
                 <Link href={`/workout/${w.id}`} className="min-w-0 flex-1 active:opacity-80 transition-opacity">
@@ -351,10 +353,10 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                   )}
                   <p className="text-white text-sm mt-2">{formatShortDate(w.started_at)}</p>
                   <p className="text-muted text-xs">
-                    {formatDuration(w.started_at, w.completed_at)}
+                    {duration}
                     {w.volume_kg > 0 && (
                       <>
-                        {formatDuration(w.started_at, w.completed_at) ? " · " : ""}
+                        {duration ? " · " : ""}
                         {formatVolume(w.volume_kg, unit)}
                       </>
                     )}

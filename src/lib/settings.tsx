@@ -32,6 +32,9 @@ type SettingsContextType = Settings & {
 
 const STORAGE_KEY = "gym-app-settings";
 
+/** Rest timer lengths offered in Settings, in seconds (0 = off). */
+export const REST_OPTIONS_SECONDS = [0, 60, 90, 120, 180, 240] as const;
+
 const defaults: Settings = {
   navPosition: "bottom",
   unit: "kg",

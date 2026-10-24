@@ -681,7 +681,7 @@ export async function startDeloadWorkout(
     const prevWarmups = prevResults.filter((s) => s.is_warmup);
     const prevWorkSets = prevResults.filter((s) => !s.is_warmup);
 
-    let workSetCount = Math.max(1, Math.ceil(Math.max(baseCount, prevWorkSets.length) * deloadSetPct / 100));
+    const workSetCount = Math.max(1, Math.ceil(Math.max(baseCount, prevWorkSets.length) * deloadSetPct / 100));
     let warmupCount = prevWarmups.length;
     if (deloadReduceWarmups) {
       warmupCount = Math.max(0, Math.ceil(warmupCount * deloadSetPct / 100));

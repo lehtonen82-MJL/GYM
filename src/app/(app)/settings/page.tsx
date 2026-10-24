@@ -1,6 +1,6 @@
 "use client";
 
-import { useSettings } from "@/lib/settings";
+import { useSettings, REST_OPTIONS_SECONDS } from "@/lib/settings";
 import { formatPace, formatWeight, type WeightUnit } from "@/lib/format";
 import ExerciseLibrarySection from "./ExerciseLibrarySection";
 
@@ -91,7 +91,7 @@ export default function SettingsPage() {
         </div>
         <div className="p-4">
           <div className="grid grid-cols-3 gap-2">
-            {[0, 60, 90, 120, 180, 240].map((s) => (
+            {REST_OPTIONS_SECONDS.map((s) => (
               <button
                 key={s}
                 onClick={() => setRestSeconds(s)}
