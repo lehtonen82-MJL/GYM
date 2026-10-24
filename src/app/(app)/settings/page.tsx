@@ -1,10 +1,12 @@
 "use client";
 
 import { useSettings } from "@/lib/settings";
+import { formatWeight, type WeightUnit } from "@/lib/format";
 
 export default function SettingsPage() {
   const {
     navPosition, setNavPosition,
+    unit, setUnit,
     debugBorders, setDebugBorders,
     deloadWeightPct, setDeloadWeightPct,
     deloadSetPct, setDeloadSetPct,
@@ -48,6 +50,34 @@ export default function SettingsPage() {
               ⬆ Top
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* Units */}
+      <section className="bg-card rounded-2xl border border-border divide-y divide-border">
+        <div className="p-4">
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Units</h2>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <p className="text-white font-medium">Weight unit</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["kg", "lb"] as WeightUnit[]).map((u) => (
+              <button
+                key={u}
+                onClick={() => setUnit(u)}
+                aria-pressed={unit === u}
+                className={`py-3 rounded-xl border-2 text-sm font-medium transition ${
+                  unit === u
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted"
+                }`}
+              >
+                {u === "kg" ? "Kilograms (kg)" : "Pounds (lb)"}
+              </button>
+            ))}
+          </div>
+          <p className="text-muted text-xs">Weights are always saved in kg — this only changes how they are shown and entered.</p>
         </div>
       </section>
 
@@ -107,11 +137,11 @@ export default function SettingsPage() {
         {/* Preview */}
         <div className="px-4 py-3 bg-amber-500/5">
           <p className="text-amber-400 text-xs">
-            Example: 2 warmup + 4 work sets × 100 kg →{" "}
+            Example: 2 warmup + 4 work sets × {formatWeight(100, unit)} →{" "}
             <strong>
               {deloadReduceWarmups ? Math.max(0, Math.ceil(2 * deloadSetPct / 100)) : 2} warmup
               {" + "}
-              {Math.max(1, Math.ceil(4 * deloadSetPct / 100))} work sets × {Math.round(100 * deloadWeightPct / 100 / 2.5) * 2.5} kg
+              {Math.max(1, Math.ceil(4 * deloadSetPct / 100))} work sets × {formatWeight(Math.round(100 * deloadWeightPct / 100 / 2.5) * 2.5, unit)}
             </strong>
           </p>
         </div>

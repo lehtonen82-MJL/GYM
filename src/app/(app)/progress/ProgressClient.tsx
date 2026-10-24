@@ -9,6 +9,16 @@ import {
   type RowingDataPoint,
 } from "@/lib/actions";
 import type { EquipmentUsage } from "@/lib/equipment";
+import {
+  formatPace,
+  formatSet,
+  formatShortDate,
+  formatVolume,
+  formatWeight,
+  toDisplay,
+  toDisplayVolume,
+} from "@/lib/format";
+import { useSettings } from "@/lib/settings";
 import type { ExercisePR } from "@/lib/types";
 
 type Exercise = { id: string; name: string };
@@ -27,19 +37,7 @@ async function fetchLifting(
   return [(progressData ?? []).filter(Boolean) as DataPoint[], prData];
 }
 
-function formatPace(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
-function formatDuration(seconds: number | null) {
-  if (!seconds) return "-";
-  const total = Math.round(seconds);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function MiniChart({
   data,
@@ -126,6 +124,7 @@ export default function ProgressClient({
   exercises: Exercise[];
 }) {
   const [tab, setTab] = useState<Tab>("lifting");
+  const { unit } = useSettings();
 
   // Lifting state
   const [selectedId, setSelectedId] = useState(exercises[0]?.id ?? "");
@@ -277,14 +276,14 @@ export default function ProgressClient({
                     const labels = { max_weight: "Best Set", "1rm_estimate": "Est. 1RM", max_volume: "Best Vol" };
                     const formatted =
                       type === "max_volume"
-                        ? `${Math.round(pr.value)} kg`
-                        : `${pr.value.toFixed(1)} kg`;
+                        ? formatVolume(pr.value, unit)
+                        : formatWeight(pr.value, unit, { maxDecimals: 1 });
                     return (
                       <div key={type} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
                         <p className="text-[10px] text-zinc-500 uppercase tracking-wide">{labels[type]}</p>
                         <p className="text-white font-bold text-base mt-0.5">{formatted}</p>
                         <p className="text-[10px] text-zinc-600 mt-0.5">
-                          {new Date(pr.achieved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          {formatShortDate(pr.achieved_at)}
                         </p>
                       </div>
                     );
@@ -297,7 +296,7 @@ export default function ProgressClient({
                 </p>
                 <MiniChart
                   data={data}
-                  getValue={(d) => isBodyweight ? (d as DataPoint).reps : (d as DataPoint).weight_kg}
+                  getValue={(d) => isBodyweight ? (d as DataPoint).reps : toDisplay((d as DataPoint).weight_kg, unit)}
                   color="#3b82f6"
                   unit={isBodyweight ? "" : ""}
                   formatLabel={isBodyweight ? (v) => `${Math.round(v)} reps` : undefined}
@@ -309,7 +308,7 @@ export default function ProgressClient({
                   <p className="text-sm font-semibold text-muted mb-2">Total Volume</p>
                   <MiniChart
                     data={data}
-                    getValue={(d) => (d as DataPoint).volume}
+                    getValue={(d) => toDisplayVolume((d as DataPoint).volume, unit)}
                     color="#22c55e"
                     unit=""
                   />
@@ -324,18 +323,15 @@ export default function ProgressClient({
                       className="flex justify-between text-sm py-1 border-b border-border last:border-0"
                     >
                       <span className="text-muted">
-                        {new Date(d.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
+                        {formatShortDate(d.date)}
                       </span>
                       <span className="text-white font-mono">
                         {isBodyweight
                           ? `× ${d.reps} reps`
-                          : `${d.weight_kg}kg × ${d.reps}`}
+                          : formatSet(d.weight_kg, d.reps, unit)}
                         {d.sets > 0 && <span className="text-muted ml-2">· {d.sets} sets</span>}
                         {d.volume > 0 && (
-                          <span className="text-muted ml-2">· {Math.round(d.volume)}kg vol</span>
+                          <span className="text-muted ml-2">· {formatVolume(d.volume, unit)} vol</span>
                         )}
                       </span>
                     </div>
@@ -383,10 +379,7 @@ export default function ProgressClient({
                       className="flex justify-between text-sm py-1.5 border-b border-border last:border-0"
                     >
                       <span className="text-muted shrink-0">
-                        {new Date(d.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
+                        {formatShortDate(d.date)}
                       </span>
                       <div className="text-right font-mono">
                         <span className="text-amber-400 font-semibold">
@@ -400,7 +393,7 @@ export default function ProgressClient({
                           </span>
                         )}
                         {d.duration_seconds != null && (
-                          <span className="text-muted ml-2">{formatDuration(d.duration_seconds)}</span>
+                          <span className="text-muted ml-2">{d.duration_seconds ? formatPace(d.duration_seconds) : "-"}</span>
                         )}
                         {d.calories != null && (
                           <span className="text-muted ml-2">{d.calories}cal</span>
@@ -417,4 +410,3 @@ export default function ProgressClient({
     </div>
   );
 }
-

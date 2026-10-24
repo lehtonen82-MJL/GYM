@@ -6,6 +6,8 @@ import IntervalTimer from "./IntervalTimer";
 import SwapExerciseModal from "./SwapExerciseModal";
 import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
 import { getPreviousResults, getLastUsedAlternative } from "@/lib/actions";
+import { useSettings } from "@/lib/settings";
+import { formatSet, formatWeight } from "@/lib/format";
 
 type ExerciseCardProps = {
   entry: WorkoutExerciseEntry;
@@ -47,6 +49,7 @@ export default function ExerciseCard({
   equipmentToggle,
 }: ExerciseCardProps) {
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
+  const { unit } = useSettings();
   const [showTimer, setShowTimer] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showTooHeavyPicker, setShowTooHeavyPicker] = useState(false);
@@ -190,7 +193,7 @@ export default function ExerciseCard({
             <p className="text-muted text-sm">
               {targetSets}×{targetReps}
               {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">↑ {suggestedWeight} kg</span>
+                <span className="ml-2 text-accent">↑ {formatWeight(suggestedWeight, unit)}</span>
               )}
             </p>
           )}
@@ -255,7 +258,7 @@ export default function ExerciseCard({
         <div className="px-4 pb-2">
           <p className="text-xs text-muted">
             Last:{" "}
-            {prevResults.map((r) => `${r.weight_kg}kg×${r.reps}`).join(", ")}
+            {prevResults.map((r) => formatSet(r.weight_kg, r.reps, unit)).join(", ")}
           </p>
         </div>
       )}
@@ -359,7 +362,7 @@ export default function ExerciseCard({
                     Set {set.set_number}
                     {set.weight_kg != null && (
                       <span className="ml-2 text-sm font-normal text-zinc-400">
-                        {set.weight_kg} kg × {set.reps ?? targetReps}
+                        {formatWeight(set.weight_kg, unit)} × {set.reps ?? targetReps}
                       </span>
                     )}
                   </span>
@@ -402,7 +405,7 @@ export default function ExerciseCard({
                   <span className="text-white font-semibold">
                     Set {set.set_number}
                     <span className="ml-2 text-sm font-normal text-zinc-400">
-                      {set.weight_kg != null ? `${set.weight_kg} kg` : ""}
+                      {set.weight_kg != null ? formatWeight(set.weight_kg, unit) : ""}
                     </span>
                   </span>
                   <div className="flex items-center gap-2">

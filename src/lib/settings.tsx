@@ -1,11 +1,14 @@
 "use client";
 
 import { createContext, useContext, useSyncExternalStore } from "react";
+import type { WeightUnit } from "@/lib/format";
 
 export type NavPosition = "bottom" | "top";
 
 type Settings = {
   navPosition: NavPosition;
+  /** Display/input unit for weights. Storage is always kg (see src/lib/format.ts). */
+  unit: WeightUnit;
   debugBorders: boolean;
   /** Easy Week: percentage of weight to use (e.g. 80 = 80%) */
   deloadWeightPct: number;
@@ -17,6 +20,7 @@ type Settings = {
 
 type SettingsContextType = Settings & {
   setNavPosition: (pos: NavPosition) => void;
+  setUnit: (unit: WeightUnit) => void;
   setDebugBorders: (on: boolean) => void;
   setDeloadWeightPct: (pct: number) => void;
   setDeloadSetPct: (pct: number) => void;
@@ -27,6 +31,7 @@ const STORAGE_KEY = "gym-app-settings";
 
 const defaults: Settings = {
   navPosition: "bottom",
+  unit: "kg",
   debugBorders: false,
   deloadWeightPct: 80,
   deloadSetPct: 50,
@@ -77,6 +82,7 @@ function getServerSnapshot() {
 const SettingsContext = createContext<SettingsContextType>({
   ...defaults,
   setNavPosition: () => {},
+  setUnit: () => {},
   setDebugBorders: () => {},
   setDeloadWeightPct: () => {},
   setDeloadSetPct: () => {},
@@ -88,6 +94,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   function setNavPosition(navPosition: NavPosition) {
     currentSettings = { ...currentSettings, navPosition };
+    saveSettings(currentSettings);
+    emitChange();
+  }
+
+  function setUnit(unit: WeightUnit) {
+    currentSettings = { ...currentSettings, unit };
     saveSettings(currentSettings);
     emitChange();
   }
@@ -117,7 +129,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SettingsContext.Provider value={{ ...settings, setNavPosition, setDebugBorders, setDeloadWeightPct, setDeloadSetPct, setDeloadReduceWarmups }}>
+    <SettingsContext.Provider value={{ ...settings, setNavPosition, setUnit, setDebugBorders, setDeloadWeightPct, setDeloadSetPct, setDeloadReduceWarmups }}>
       {children}
     </SettingsContext.Provider>
   );

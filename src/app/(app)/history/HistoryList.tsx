@@ -10,6 +10,7 @@ import {
   exportWorkoutHistory,
 } from "@/lib/actions";
 import type { Workout } from "@/lib/types";
+import { formatDuration, formatShortDate } from "@/lib/format";
 import ImportWorkoutModal from "./ImportWorkoutModal";
 
 function isImported(w: Workout) {
@@ -294,7 +295,7 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                     )}
                   </div>
                   <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
-                  <p className="text-white text-sm mt-2">{formatDate(w.started_at)}</p>
+                  <p className="text-white text-sm mt-2">{formatShortDate(w.started_at)}</p>
                   <p className="text-muted text-xs">{formatDuration(w.started_at, w.completed_at)}</p>
                 </div>
               ) : (
@@ -313,7 +314,7 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
                     )}
                   </div>
                   <p className="text-muted text-sm">{w.workout_day?.day_label}</p>
-                  <p className="text-white text-sm mt-2">{formatDate(w.started_at)}</p>
+                  <p className="text-white text-sm mt-2">{formatShortDate(w.started_at)}</p>
                   <p className="text-muted text-xs">{formatDuration(w.started_at, w.completed_at)}</p>
                   {w.notes && !w.notes.startsWith("[Import]") && (
                     <p className="text-muted text-sm mt-2 line-clamp-1">{w.notes}</p>
@@ -360,19 +361,4 @@ export default function HistoryList({ workouts }: { workouts: Workout[] }) {
       })}
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatDuration(start: string, end: string | null): string {
-  if (!end) return "";
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  const mins = Math.round(ms / 60000);
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }

@@ -26,6 +26,8 @@ import {
 } from "@/lib/actions";
 import AddExerciseModal from "@/components/AddExerciseModal";
 import EquipmentToggle from "@/components/EquipmentToggle";
+import { formatSet, formatShortDate } from "@/lib/format";
+import { useSettings } from "@/lib/settings";
 import BonusCardioCapture, {
   createEmptyBonusCardio,
   hasBonusCardioData,
@@ -130,6 +132,7 @@ export default function WorkoutClient({
   bonusCardio = null,
 }: Props) {
   // Mutable copy of entries that updates on exercise swaps
+  const { unit } = useSettings();
   const [entries, setEntries] = useState<WorkoutExerciseEntry[]>(initialEntries);
 
   const [setsMap, setSetsMap] = useState<SetMap>(() => {
@@ -571,7 +574,7 @@ export default function WorkoutClient({
       if (isFreestyle) {
         const defaultName = workout.import_session_name && workout.import_session_name !== "Freestyle workout"
           ? workout.import_session_name
-          : `Workout ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+          : `Workout ${formatShortDate(new Date())}`;
         setTemplateName(defaultName);
         setShowSaveTemplate(true);
         return;
@@ -654,7 +657,7 @@ export default function WorkoutClient({
                         <span className={`font-mono ${s.too_heavy ? "text-red-400" : "text-white"}`}>
                           {entryIsBodyweight
                             ? `× ${reps} reps`
-                            : `${s.weight_kg ?? 0}kg × ${reps}`}
+                            : formatSet(s.weight_kg ?? 0, reps, unit)}
                           {s.too_heavy && (
                             <span className="ml-1" title="Too heavy">
                               ⚠{s.too_heavy_reps != null ? ` ${s.too_heavy_reps}/${reps}` : ""}
@@ -718,7 +721,7 @@ export default function WorkoutClient({
                 <span className="text-muted font-mono">
                   {summaryIsBodyweight
                     ? `× ${topReps} reps`
-                    : `${topSet.weight_kg}kg × ${topReps}`}
+                    : formatSet(topSet.weight_kg ?? 0, topReps, unit)}
                 </span>
               </div>
             );

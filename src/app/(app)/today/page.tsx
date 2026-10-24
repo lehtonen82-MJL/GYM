@@ -6,6 +6,7 @@ import {
   getWorkoutTemplates,
 } from "@/lib/actions";
 import Link from "next/link";
+import { formatStartedAt, formatWeekdayDate } from "@/lib/format";
 import { Suspense } from "react";
 import StartWorkoutButton from "./StartWorkoutButton";
 import StartBlankWorkoutButton from "./StartBlankWorkoutButton";
@@ -19,7 +20,7 @@ export default function TodayPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Today</h1>
-        <p className="text-muted text-sm mt-1">{formatDate(new Date())}</p>
+        <p className="text-muted text-sm mt-1">{formatWeekdayDate(new Date())}</p>
       </div>
       <Suspense fallback={<TodaySkeleton />}>
         <TodayContent />
@@ -137,21 +138,4 @@ function TodaySkeleton() {
       </div>
     </>
   );
-}
-
-function formatDate(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatStartedAt(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

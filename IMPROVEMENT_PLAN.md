@@ -121,6 +121,14 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 3 — kg/lb units + shared formatters · RISK: low
 
+> **Status 2026-10-24: done.** `src/lib/format.ts` (+ tests): weight conversion (`toDisplay`/`fromDisplay`, lb shown to
+> 0.1 and converted back to 0.01 kg — the `weight_kg` column precision), `formatWeight`/`formatSet`/`formatVolume`,
+> date/duration/pace formatters. Unit setting in Settings → Units. Converted: WeightStepper, IntervalTimer, ExerciseCard,
+> workout summary, progress page (chart, PRs, list), Easy Week example. Deviations: the old "duplicate" formatters were
+> different formats under the same name, so `format.ts` gives each its own name (`formatWeekdayDate`,
+> `formatShortDate`, …); the m:ss tenths formatters in BonusCardioCapture stayed local. **Still kg-only:** program
+> builder set weights and the text workout import (both store kg inside text like `100x5` / `@90kg`).
+
 **Task 3.1 — Central format module**
 - Files (new): `src/lib/format.ts`
 - Do: implement `formatDate`, `formatDuration`, `formatStartedAt`, `formatPace`, plus `toDisplay(weightKg, unit)` and `fromDisplay(value, unit)` (kg canonical; lb = kg×2.2046, round to 0.5 lb / 2.5 kg sensibly). Pure functions, unit-testable.

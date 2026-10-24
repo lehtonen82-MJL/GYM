@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startDeloadWorkout } from "@/lib/actions";
 import { useSettings } from "@/lib/settings";
 import type { WorkoutDay } from "@/lib/types";
+import { formatShortDate } from "@/lib/format";
 
 type DeloadTemplate = {
   mode: "normal" | "compact";
@@ -153,10 +154,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
                     : "Normal schedule"}
                 </p>
                 <p className="text-zinc-500 text-xs">
-                  Saved {new Date(savedTemplate.savedAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  Saved {formatShortDate(savedTemplate.savedAt)}
                 </p>
               </div>
 

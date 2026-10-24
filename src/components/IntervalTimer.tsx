@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SetEntry } from "@/lib/types";
+import { useSettings } from "@/lib/settings";
+import { fromDisplay, toDisplay } from "@/lib/format";
 
 type Phase = "config" | "countdown" | "running" | "paused" | "done";
 
@@ -57,6 +59,7 @@ function playBeep(audioCtxRef: React.MutableRefObject<AudioContext | null>) {
 }
 
 export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetReps, onSetsChange, onClose }: Props) {
+  const { unit } = useSettings();
   const saved = loadSaved(exerciseId);
 
   // Config state (editable before start)
@@ -360,20 +363,21 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
               <input
                 type="number"
                 inputMode="decimal"
-                value={set.weight_kg ?? ""}
-                placeholder="kg"
+                value={set.weight_kg != null ? toDisplay(set.weight_kg, unit) : ""}
+                placeholder={unit}
+                aria-label={`Weight (${unit})`}
                 onChange={(e) => {
                   const val = parseFloat(e.target.value);
                   onSetsChange(
                     sets.map((s) =>
-                      s.id === set.id ? { ...s, weight_kg: isNaN(val) ? null : val } : s
+                      s.id === set.id ? { ...s, weight_kg: isNaN(val) ? null : fromDisplay(val, unit) } : s
                     )
                   );
                 }}
                 className="w-16 h-9 text-center text-sm font-semibold bg-zinc-800 rounded-lg text-white border border-zinc-700 focus:border-blue-500 focus:outline-none"
               />
 
-              <span className="text-zinc-600 text-xs">kg ×</span>
+              <span className="text-zinc-600 text-xs">{unit} ×</span>
 
               {/* Reps */}
               <input
