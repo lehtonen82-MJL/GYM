@@ -393,6 +393,8 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 6 — Smarter progression · RISK: medium
 
+> **Status (2026-10-25):** done, in `src/lib/setRules.ts` (`suggestedWeight`, `progressionStep`) rather than a separate progression.ts. Decided rules: up one step only when every work set reached the target reps; one step down after a too-heavy set; otherwise hold; Easy Week never goes up. Steps (kg): barbell/smith/trap bar/plate machine 2.5, dumbbell 2, kettlebell 4, cable/stack machine 5, none for bodyweight/band/suspension/cardio, 2.5 otherwise. Never auto-applied: the card shows Add weight / Same weight / Lighter.
+
 **Task 6.1 — Pure progression module**
 - Files (new): `src/lib/progression.ts`
 - Do: `suggestNext({ prevSets, targetSets, targetReps, equipmentType, tooHeavyReps })`: if `too_heavy` last time → hold/back-off; if all target reps met across all sets → increment by equipment step (barbell +2.5 kg, dumbbell +2 kg, machine +1 increment); if reps missed → repeat weight.

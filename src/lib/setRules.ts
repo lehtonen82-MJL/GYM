@@ -40,18 +40,56 @@ export function previousResultSets<T extends RuleSet>(sets: T[]): T[] {
   return completed.length > 0 ? completed : withData;
 }
 
+/** Progression step per equipment type, in kg; null where weight isn't what progresses. */
+const PROGRESSION_STEP_KG: Record<string, number | null> = {
+  barbell: 2.5,
+  smith: 2.5,
+  trap_bar: 2.5,
+  machine_plate: 2.5,
+  dumbbell: 2,
+  kettlebell: 4,
+  cable: 5,
+  machine_stack: 5,
+  bodyweight: null,
+  band: null,
+  suspension: null,
+  cardio_machine: null,
+};
+
+/** The progression step for an equipment type (unknown or unlinked: 2.5 kg). */
+export function progressionStep(equipment: string | null): number | null {
+  return equipment != null && equipment in PROGRESSION_STEP_KG ? PROGRESSION_STEP_KG[equipment] : 2.5;
+}
+
+export type SuggestionTarget = {
+  targetSets: number;
+  /** Reps each work set should reach; null when unknown (then only the set count matters) */
+  targetReps: number | null;
+  /** The exercise's equipment type (entry's tool, else the library default) */
+  equipment: string | null;
+  /** Easy Week: the suggestion never goes up */
+  easyWeek?: boolean;
+};
+
 /**
- * Suggested weight from previous results: the heaviest work set's weight, +2.5 kg once at least
- * `targetSets` work sets were done. Warmup sets never count. Null without previous work sets.
+ * Suggested weight from previous results (see GLOSSARY.md): the heaviest work set's weight, one
+ * progression step down after a too-heavy set, one step up when at least `targetSets` work sets were
+ * done and each reached the target reps, otherwise the same. Warmups never count. Null without
+ * previous work sets, or for equipment without a progression step.
  */
 export function suggestedWeight(
-  previous: { weight_kg: number | null; is_warmup?: boolean | null }[],
-  targetSets: number
+  previous: { weight_kg: number | null; reps?: number | null; is_warmup?: boolean | null; too_heavy?: boolean | null }[],
+  target: SuggestionTarget
 ): number | null {
+  const step = progressionStep(target.equipment);
   const workSets = previous.filter((s) => !s.is_warmup);
-  if (workSets.length === 0) return null;
-  const maxWeight = Math.max(...workSets.map((s) => s.weight_kg ?? 0));
-  return workSets.length >= targetSets ? maxWeight + 2.5 : maxWeight;
+  if (step === null || workSets.length === 0) return null;
+  const top = Math.max(...workSets.map((s) => s.weight_kg ?? 0));
+  if (workSets.some((s) => s.too_heavy)) return Math.max(0, top - step);
+  const allTargetsMet =
+    workSets.length >= target.targetSets &&
+    (target.targetReps == null || workSets.every((s) => (s.reps ?? 0) >= target.targetReps!));
+  return allTargetsMet && !target.easyWeek ? top + step : top;
 }
 
 /** Top set, volume and number of completed work sets — one exercise's line in progress and export. */

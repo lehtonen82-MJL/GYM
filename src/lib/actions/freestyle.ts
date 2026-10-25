@@ -5,7 +5,7 @@ import type {
   WorkoutTemplateListItem,
   WorkoutTemplateWithExercises,
 } from "@/lib/types";
-import { db, getUserId } from "./_shared";
+import { db, getDefaultEquipment, getUserId } from "./_shared";
 import { type StartWorkoutResult } from "./workout";
 import { getPreviousResultsInternal, getLastTooHeavyFlags } from "./sets";
 import { planSets, type PlannedSet } from "@/lib/plannedSets";
@@ -367,7 +367,14 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
   const exerciseIds = templateExercises.map((ex) => ex.exercise_id);
   const tooHeavyFlags = await getLastTooHeavyFlags(supabase, userId, exerciseIds);
   const suggestions: Record<string, number | null> = {};
-  templateExercises.forEach((ex, i) => { suggestions[ex.exercise_id] = suggestedWeight(previousAll[i], ex.target_sets); });
+  const defaultEquipment = await getDefaultEquipment(supabase, userId, exerciseIds);
+  templateExercises.forEach((ex, i) => {
+    suggestions[ex.exercise_id] = suggestedWeight(previousAll[i], {
+      targetSets: ex.target_sets,
+      targetReps: ex.target_reps,
+      equipment: defaultEquipment[ex.exercise_id] ?? null,
+    });
+  });
 
   // Mark template last used
   await supabase.from("workout_templates").update({ last_used_at: new Date().toISOString() }).eq("id", templateId);

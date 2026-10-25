@@ -18,6 +18,10 @@ _Avoid_: Ramp-up set
 A set the lifter has checked off as done.
 _Avoid_: Logged set, finished set, set with data
 
+**Too-heavy set**:
+A work set the lifter flagged as too heavy, optionally with the reps actually achieved.
+_Avoid_: Failed set, missed set
+
 **Planned set**:
 A set row that exists in a workout but has not been checked off, even if a weight and reps are already filled in.
 _Avoid_: Pending set, empty set
@@ -51,5 +55,9 @@ The sets of an exercise from the lifter's most recent finished workout with it o
 _Avoid_: Last time, history
 
 **Suggested weight**:
-The weight proposed for an exercise's next work sets, derived from the previous results' work sets.
+The weight proposed for an exercise's next work sets, from the previous results' heaviest work set: one progression step up when every work set reached the target reps, one step down after a too-heavy set, otherwise the same. In an Easy Week it never goes up.
 _Avoid_: Recommended weight, target weight
+
+**Progression step**:
+How much the suggested weight moves at a time for an equipment type (e.g. 2.5 kg for a barbell, 2 kg for dumbbells). Equipment moved by bodyweight or bands has none, so it gets no suggested weight.
+_Avoid_: Increment, jump

@@ -62,21 +62,45 @@ describe("previousResultSets", () => {
 });
 
 describe("suggestedWeight", () => {
-  const warmup = { weight_kg: 120, reps: 2, is_warmup: true };
-  const work = { weight_kg: 100, reps: 5, is_warmup: false };
+  const warmup = { weight_kg: 120, reps: 2, is_warmup: true, too_heavy: false };
+  const set = (weight_kg: number, reps: number, too_heavy = false) => ({ weight_kg, reps, is_warmup: false, too_heavy });
+  const barbell3x5 = { targetSets: 3, targetReps: 5, equipment: "barbell" };
 
-  it("adds 2.5 kg once the target number of work sets was reached, ignoring warmups", () => {
-    expect(suggestedWeight([warmup, work, work, work], 3)).toBe(102.5);
+  it("goes up one step when every work set reached the target reps, ignoring warmups", () => {
+    expect(suggestedWeight([warmup, set(100, 5), set(100, 5), set(100, 6)], barbell3x5)).toBe(102.5);
   });
 
-  it("repeats the weight when fewer work sets than the target were done", () => {
-    expect(suggestedWeight([warmup, work, work], 3)).toBe(100);
+  it("stays when reps were missed, or fewer work sets than the target were done", () => {
+    expect(suggestedWeight([set(100, 5), set(100, 5), set(100, 3)], barbell3x5)).toBe(100);
+    expect(suggestedWeight([set(100, 5), set(100, 5)], barbell3x5)).toBe(100);
   });
 
-  it("is null without previous work sets", () => {
-    expect(suggestedWeight([warmup], 3)).toBeNull();
+  it("goes down one step after a too-heavy set", () => {
+    expect(suggestedWeight([set(100, 5), set(100, 5), set(100, 2, true)], barbell3x5)).toBe(97.5);
+  });
+
+  it("uses the equipment's progression step", () => {
+    const done = [set(20, 10), set(20, 10), set(20, 10)];
+    const at = (equipment: string | null) => suggestedWeight(done, { targetSets: 3, targetReps: 10, equipment });
+    expect([at("dumbbell"), at("kettlebell"), at("cable"), at("machine_stack"), at("smith"), at(null), at("other")])
+      .toEqual([22, 24, 25, 25, 22.5, 22.5, 22.5]);
+  });
+
+  it("has no suggestion for equipment moved by bodyweight or bands, or without previous work sets", () => {
+    expect(suggestedWeight([set(0, 10)], { targetSets: 1, targetReps: 10, equipment: "bodyweight" })).toBeNull();
+    expect(suggestedWeight([set(10, 10)], { targetSets: 1, targetReps: 10, equipment: "band" })).toBeNull();
+    expect(suggestedWeight([warmup], barbell3x5)).toBeNull();
+  });
+
+  it("never goes up in an Easy Week", () => {
+    expect(suggestedWeight([set(100, 5), set(100, 5), set(100, 5)], { ...barbell3x5, easyWeek: true })).toBe(100);
+  });
+
+  it("counts only the work sets when the target reps are unknown", () => {
+    expect(suggestedWeight([set(100, 3), set(100, 3), set(100, 3)], { targetSets: 3, targetReps: null, equipment: "barbell" })).toBe(102.5);
   });
 });
+
 
 describe("exerciseSummary", () => {
   it("summarises completed work sets only", () => {

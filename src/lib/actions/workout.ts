@@ -4,7 +4,7 @@ import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
 import { parseSchemePrescription } from "@/lib/programParser";
 import { planSets, type PlanInput } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
-import { db, getUserId } from "./_shared";
+import { db, getDefaultEquipment, getUserId } from "./_shared";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
 import { linkExerciseToLibraryInternal } from "./exercises";
 
@@ -48,7 +48,8 @@ async function buildStartWorkoutResultFromExisting(
       const targetSets =
         entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
       const weight = await getSuggestedWeightInternal(
-        supabase, userId, entry.exercise_id, targetSets, entry.equipment_type
+        supabase, userId, entry.exercise_id, targetSets, entry.equipment_type,
+        entry.workout_day_exercise?.target_reps ?? null
       );
       return [entry.exercise_id, weight] as [string, number | null];
     })
@@ -97,7 +98,10 @@ async function addPlannedExercises(
   wdes: WdeRow[],
   deload?: PlanInput["deload"]
 ): Promise<StartWorkoutResult | null> {
-  const prevResultsAll = await Promise.all(wdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id)));
+  const [prevResultsAll, defaultEquipment] = await Promise.all([
+    Promise.all(wdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id))),
+    getDefaultEquipment(supabase, userId, wdes.map((wde) => wde.exercise_id)),
+  ]);
 
   const { data, error } = await supabase.rpc("start_workout", {
     p_workout: { workout_day_id: newWorkout.workout_day_id, is_deload: newWorkout.is_deload, notes: newWorkout.notes },
@@ -117,7 +121,12 @@ async function addPlannedExercises(
   const suggestions: Record<string, number | null> = {};
   const entries: WorkoutExerciseEntry[] = created.entries.map((entry, i) => {
     const wde = wdes[i];
-    suggestions[wde.exercise_id] = suggestedWeight(prevResultsAll[i] ?? [], deload ? Number.POSITIVE_INFINITY : wde.target_sets);
+    suggestions[wde.exercise_id] = suggestedWeight(prevResultsAll[i] ?? [], {
+      targetSets: wde.target_sets,
+      targetReps: wde.target_reps ?? null,
+      equipment: defaultEquipment[wde.exercise_id] ?? null,
+      easyWeek: !!deload,
+    });
     return {
       ...entry,
       exercise: wde.exercise as WorkoutExerciseEntry["exercise"],

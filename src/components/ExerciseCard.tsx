@@ -56,7 +56,7 @@ export default function ExerciseCard({
   onSetCompleted,
   restTimer,
 }: ExerciseCardProps) {
-  const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number }[]>([]);
+  const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number; is_warmup: boolean }[]>([]);
   const { unit } = useSettings();
   const [showTimer, setShowTimer] = useState(false);
   const [showPlates, setShowPlates] = useState(false);
@@ -144,7 +144,14 @@ export default function ExerciseCard({
   const completedCount = sets.filter((s) => s.completed && !s.is_warmup).length;
   const allDone = completedCount === targetSets && targetSets > 0;
   const hasTooHeavySets = sets.some((s) => s.too_heavy);
-  const hadTooHeavyLastTime = tooHeavyLastSets.length > 0;
+  // Where the suggested weight goes from last time's heaviest work set
+  const prevWorkWeights = prevResults.filter((s) => !s.is_warmup).map((s) => s.weight_kg ?? 0);
+  const lastTop = prevWorkWeights.length > 0 ? Math.max(...prevWorkWeights) : null;
+  const suggestionTrend =
+    suggestedWeight === null || lastTop === null ? null
+    : suggestedWeight > lastTop ? "up"
+    : suggestedWeight < lastTop ? "down"
+    : "same";
   const tooHeavyLastBySetNumber = new Map(tooHeavyLastSets.map((s) => [s.setNumber, s]));
 
   return (
@@ -173,24 +180,30 @@ export default function ExerciseCard({
                 ↩ {originalExerciseName}
               </span>
             )}
-            {/* Weight recommendation pill based on last workout's too_heavy flag */}
-            {prevResults.length > 0 && (
-              hadTooHeavyLastTime ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 leading-tight">
-                  Same weight
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 leading-tight">
-                  Add weight
-                </span>
-              )
+            {/* Where the suggested weight goes compared with last time */}
+            {suggestionTrend === "up" && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 leading-tight">
+                Add weight
+              </span>
+            )}
+            {suggestionTrend === "same" && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 leading-tight">
+                Same weight
+              </span>
+            )}
+            {suggestionTrend === "down" && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/20 text-orange-400 leading-tight">
+                Lighter
+              </span>
             )}
           </div>
           {(!allDone || isActive) && (
             <p className="text-muted text-sm">
               {targetSets}×{targetReps}
               {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">↑ {formatWeight(suggestedWeight, unit)}</span>
+                <span className="ml-2 text-accent">
+                  {suggestionTrend === "down" ? "↓" : suggestionTrend === "same" ? "=" : "↑"} {formatWeight(suggestedWeight, unit)}
+                </span>
               )}
             </p>
           )}

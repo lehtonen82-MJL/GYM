@@ -97,11 +97,12 @@ export async function getPreviousResultsInternal(
 export async function getSuggestedWeight(
   exerciseId: string,
   targetSets: number,
-  equipment?: string | null
+  equipment?: string | null,
+  targetReps?: number | null
 ): Promise<number | null> {
   const supabase = await db();
   const userId = await getUserId();
-  return getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, equipment);
+  return getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, equipment, targetReps);
 }
 
 // Internal version that reuses an existing client — avoids repeated auth round-trips
@@ -110,10 +111,18 @@ export async function getSuggestedWeightInternal(
   userId: string,
   exerciseId: string,
   targetSets: number,
-  equipment?: string | null
+  equipment?: string | null,
+  targetReps?: number | null
 ): Promise<number | null> {
-  const prev = await getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
-  return suggestedWeight(prev, targetSets);
+  const [prev, defaults] = await Promise.all([
+    getPreviousResultsInternal(supabase, userId, exerciseId, equipment),
+    equipment ? Promise.resolve({}) : getDefaultEquipment(supabase, userId, [exerciseId]),
+  ]);
+  return suggestedWeight(prev, {
+    targetSets,
+    targetReps: targetReps ?? null,
+    equipment: equipment ?? (defaults as Record<string, string | null>)[exerciseId] ?? null,
+  });
 }
 
 export async function updateSet(

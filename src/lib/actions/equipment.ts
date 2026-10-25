@@ -104,7 +104,7 @@ export async function changeEntryEquipment(
   // Target sets drive the suggestion in both branches
   const { data: entry } = await supabase
     .from("workout_exercise_entries")
-    .select("exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(id, name), workout_day_exercise:workout_day_exercises(target_sets)")
+    .select("exercise_id, exercise:exercises!workout_exercise_entries_exercise_id_fkey(id, name), workout_day_exercise:workout_day_exercises(target_sets, target_reps)")
     .eq("id", entryId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -112,9 +112,10 @@ export async function changeEntryEquipment(
   const entryTyped = entry as {
     exercise_id: string;
     exercise: { id: string; name: string } | null;
-    workout_day_exercise: { target_sets: number } | null;
+    workout_day_exercise: { target_sets: number; target_reps: number | null } | null;
   } | null;
   const targetSets = entryTyped?.workout_day_exercise?.target_sets ?? 3;
+  const targetReps = entryTyped?.workout_day_exercise?.target_reps ?? null;
 
   // No definition → just tag equipment_type, keep current exercise.
   // History is filtered by equipment_type, so the suggestion comes from this tool only.
@@ -127,7 +128,7 @@ export async function changeEntryEquipment(
 
     const exerciseId = entryTyped?.exercise_id ?? "";
     const suggestion = exerciseId
-      ? await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, newEquipmentType)
+      ? await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, newEquipmentType, targetReps)
       : null;
     return {
       exerciseId,
@@ -183,7 +184,7 @@ export async function changeEntryEquipment(
     .eq("id", entryId)
     .eq("user_id", userId);
 
-  const suggestion = await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, newEquipmentType);
+  const suggestion = await getSuggestedWeightInternal(supabase, userId, exerciseId, targetSets, newEquipmentType, targetReps);
 
   return { exerciseId, exerciseName, suggestion };
 }
