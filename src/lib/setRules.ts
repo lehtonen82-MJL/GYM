@@ -56,6 +56,9 @@ const PROGRESSION_STEP_KG: Record<string, number | null> = {
   cardio_machine: null,
 };
 
+/** Work sets rated above this RPE hold the suggested weight (see GLOSSARY.md "RPE"). */
+const MAX_RPE_TO_PROGRESS = 9.5;
+
 /** The progression step for an equipment type (unknown or unlinked: 2.5 kg). */
 export function progressionStep(equipment: string | null): number | null {
   return equipment != null && equipment in PROGRESSION_STEP_KG ? PROGRESSION_STEP_KG[equipment] : 2.5;
@@ -75,10 +78,10 @@ export type SuggestionTarget = {
  * Suggested weight from previous results (see GLOSSARY.md): the heaviest work set's weight, one
  * progression step down after a too-heavy set, one step up when at least `targetSets` work sets were
  * done and each reached the target reps, otherwise the same. Warmups never count. Null without
- * previous work sets, or for equipment without a progression step.
+ * previous work sets, or for equipment without a progression step. A work set rated RPE 9.5+ holds.
  */
 export function suggestedWeight(
-  previous: { weight_kg: number | null; reps?: number | null; is_warmup?: boolean | null; too_heavy?: boolean | null }[],
+  previous: { weight_kg: number | null; reps?: number | null; is_warmup?: boolean | null; too_heavy?: boolean | null; rpe?: number | null }[],
   target: SuggestionTarget
 ): number | null {
   const step = progressionStep(target.equipment);
@@ -89,7 +92,9 @@ export function suggestedWeight(
   const allTargetsMet =
     workSets.length >= target.targetSets &&
     (target.targetReps == null || workSets.every((s) => (s.reps ?? 0) >= target.targetReps!));
-  return allTargetsMet && !target.easyWeek ? top + step : top;
+  // A set rated RPE 9.5–10 was at (or near) the limit: no room to add weight yet
+  const atLimit = workSets.some((s) => (s.rpe ?? 0) >= MAX_RPE_TO_PROGRESS);
+  return allTargetsMet && !atLimit && !target.easyWeek ? top + step : top;
 }
 
 /** Top set, volume and number of completed work sets — one exercise's line in progress and export. */

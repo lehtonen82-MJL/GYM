@@ -17,6 +17,7 @@ export type SetSyncEntry = {
     is_warmup: boolean;
     too_heavy: boolean;
     too_heavy_reps?: number | null;
+    rpe?: number | null;
   }>;
 };
 
@@ -27,7 +28,7 @@ export type SetSyncEntry = {
 export async function getPreviousResults(
   exerciseId: string,
   equipment?: string | null
-): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean }[]> {
+): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean; rpe: number | null }[]> {
   const supabase = await db();
   const userId = await getUserId();
   return getPreviousResultsInternal(supabase, userId, exerciseId, equipment);
@@ -39,7 +40,7 @@ export async function getPreviousResultsInternal(
   userId: string,
   exerciseId: string,
   equipment?: string | null
-): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean }[]> {
+): Promise<{ weight_kg: number; reps: number; is_warmup: boolean; too_heavy: boolean; rpe: number | null }[]> {
   // Step 1: get recent completed workout IDs ordered by actual workout date.
   // Exclude deload workouts — after an Easy Week the next normal session should
   // restore the pre-deload baseline, not inherit the reduced weights/sets.
@@ -60,7 +61,7 @@ export async function getPreviousResultsInternal(
   const [{ data: entries }, defaults] = await Promise.all([
     supabase
       .from("workout_exercise_entries")
-      .select("id, workout_id, equipment_type, set_entries(weight_kg, reps, completed, set_number, is_warmup, too_heavy)")
+      .select("id, workout_id, equipment_type, set_entries(weight_kg, reps, completed, set_number, is_warmup, too_heavy, rpe)")
       .eq("exercise_id", exerciseId)
       .eq("user_id", userId)
       .in("workout_id", workoutIds),
@@ -76,6 +77,7 @@ export async function getPreviousResultsInternal(
     completed: boolean;
     is_warmup: boolean;
     too_heavy: boolean;
+    rpe: number | null;
   };
   const previousSets = (e: { set_entries: unknown }) => previousResultSets((e.set_entries ?? []) as SetRow[]);
 
@@ -91,7 +93,7 @@ export async function getPreviousResultsInternal(
 
   return previousSets(entry)
     .sort((a, b) => a.set_number - b.set_number)
-    .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false, too_heavy: s.too_heavy ?? false }));
+    .map((s) => ({ weight_kg: s.weight_kg ?? 0, reps: s.reps ?? 0, is_warmup: s.is_warmup ?? false, too_heavy: s.too_heavy ?? false, rpe: s.rpe ?? null }));
 }
 
 export async function getSuggestedWeight(

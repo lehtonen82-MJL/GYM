@@ -92,6 +92,13 @@ describe("suggestedWeight", () => {
     expect(suggestedWeight([warmup], barbell3x5)).toBeNull();
   });
 
+  it("holds when a work set was rated RPE 9.5 or 10, even with every target met", () => {
+    const rated = (rpe: number | null) => ({ ...set(100, 5), rpe });
+    expect(suggestedWeight([rated(8), rated(9), rated(9.5)], barbell3x5)).toBe(100);
+    expect(suggestedWeight([rated(8), rated(9), rated(10)], barbell3x5)).toBe(100);
+    expect(suggestedWeight([rated(8), rated(9), rated(null)], barbell3x5)).toBe(102.5);
+  });
+
   it("never goes up in an Easy Week", () => {
     expect(suggestedWeight([set(100, 5), set(100, 5), set(100, 5)], { ...barbell3x5, easyWeek: true })).toBe(100);
   });

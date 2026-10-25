@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import WeightStepper from "./WeightStepper";
+
+const RPE_VALUES = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 type SetRowProps = {
   setNumber: number;
@@ -23,6 +26,9 @@ type SetRowProps = {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDelete?: () => void;
+  /** Rate of perceived exertion; offered on completed work sets when onRpeChange is given */
+  rpe?: number | null;
+  onRpeChange?: (rpe: number | null) => void;
 };
 
 export default function SetRow({
@@ -46,7 +52,11 @@ export default function SetRow({
   onMoveUp,
   onMoveDown,
   onDelete,
+  rpe = null,
+  onRpeChange,
 }: SetRowProps) {
+  const [rpeOpen, setRpeOpen] = useState(false);
+  const canRate = !!onRpeChange && completed && !isWarmup && !isEditMode;
   const bg = isTooHeavy
     ? "bg-red-950/40 border border-red-700/50"
     : wasTooHeavyLastTime
@@ -144,6 +154,39 @@ export default function SetRow({
         </div>
       )}
     </div>
+    {/* Optional RPE for a completed work set */}
+    {canRate && (
+      <div className="pl-7">
+        <button
+          type="button"
+          onClick={() => setRpeOpen((o) => !o)}
+          aria-expanded={rpeOpen}
+          className={`text-xs ${rpe != null ? "text-accent font-semibold" : "text-zinc-500"}`}
+        >
+          {rpe != null ? `RPE ${rpe}` : "+ RPE"}
+        </button>
+        {rpeOpen && (
+          <div className="flex flex-wrap gap-1 mt-1" role="group" aria-label="Rate of perceived exertion">
+            {RPE_VALUES.map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={rpe === v}
+                onClick={() => {
+                  onRpeChange?.(rpe === v ? null : v);
+                  setRpeOpen(false);
+                }}
+                className={`min-w-9 h-8 px-2 rounded-lg text-xs font-semibold border ${
+                  rpe === v ? "bg-accent text-white border-accent" : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
     {/* Last time too-heavy achieved reps hint */}
     {wasTooHeavyLastTime && tooHeavyTargetReps !== undefined && (
       <p className="text-xs text-red-400/80 pl-3">

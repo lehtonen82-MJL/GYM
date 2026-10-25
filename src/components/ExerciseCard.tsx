@@ -8,7 +8,7 @@ import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
 import { getPreviousResults, getLastUsedAlternative } from "@/lib/actions";
 import { useSettings } from "@/lib/settings";
 import { formatSet, formatWeight } from "@/lib/format";
-import { addSet, toggleSetCompleted } from "@/lib/workoutSession";
+import { addSet, setRpe, toggleSetCompleted } from "@/lib/workoutSession";
 
 type ExerciseCardProps = {
   entry: WorkoutExerciseEntry;
@@ -302,6 +302,8 @@ export default function ExerciseCard({
               onMoveUp={() => handleMoveSet(set.id, "up")}
               onMoveDown={() => handleMoveSet(set.id, "down")}
               onDelete={() => handleDeleteSet(set.id)}
+              rpe={set.rpe ?? null}
+              onRpeChange={(rpe) => onSetsChange(setRpe(sets, set.id, rpe))}
             />
           ))}
 

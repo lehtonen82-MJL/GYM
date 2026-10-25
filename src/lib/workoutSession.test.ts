@@ -1,4 +1,4 @@
-import { addSet, clearSession, finishPayload, hasIncompleteSets, swapSets, loadDraft, markTooHeavy, toggleSetCompleted, loadStartResult, memoryStorage, mergeDraftSets, saveDraft, saveStartResult, type WorkoutDraft } from "./workoutSession";
+import { addSet, setRpe, clearSession, finishPayload, hasIncompleteSets, swapSets, loadDraft, markTooHeavy, toggleSetCompleted, loadStartResult, memoryStorage, mergeDraftSets, saveDraft, saveStartResult, type WorkoutDraft } from "./workoutSession";
 import type { SetEntry } from "@/lib/types";
 import type { StartWorkoutResult } from "@/lib/actions";
 
@@ -129,8 +129,29 @@ describe("finishing", () => {
     expect(payload).toEqual([
       {
         entryId: "e1", workoutDayExerciseId: null, userId: "u1",
-        sets: [{ id: "a", set_number: 1, weight_kg: 100, reps: 5, completed: false, is_warmup: false, too_heavy: false, too_heavy_reps: null }],
+        sets: [{ id: "a", set_number: 1, weight_kg: 100, reps: 5, completed: false, is_warmup: false, too_heavy: false, too_heavy_reps: null, rpe: null }],
       },
     ]);
   });
 });
+
+describe("RPE", () => {
+  it("rates a completed work set, clears with null, and ignores warmups and planned sets", () => {
+    const sets = [set("w", { is_warmup: true, completed: true }), set("a", { completed: true }), set("p")];
+    const rated = setRpe(sets, "a", 8.5);
+    expect(rated[1].rpe).toBe(8.5);
+    expect(setRpe(rated, "a", null)[1].rpe).toBeNull();
+    expect(setRpe(sets, "w", 8)[0].rpe).toBeUndefined();
+    expect(setRpe(sets, "p", 8)[2].rpe).toBeUndefined();
+  });
+
+  it("goes into the finish payload and survives the workout draft", () => {
+    const sets = setRpe([set("a", { completed: true, weight_kg: 100, reps: 5 })], "a", 9);
+    expect(finishPayload([{ id: "e1", workout_day_exercise_id: null, user_id: "u1" }], { e1: sets })[0].sets[0].rpe).toBe(9);
+    const storage = memoryStorage();
+    saveDraft(storage, "w1", { setsByEntryId: { e1: sets }, notes: "", bonusCardioDraft: null, showSummary: false, activeEntryId: null });
+    const draft = loadDraft(storage, "w1")!;
+    expect(mergeDraftSets({ e1: [set("a")] }, draft.setsByEntryId).e1[0].rpe).toBe(9);
+  });
+});
+

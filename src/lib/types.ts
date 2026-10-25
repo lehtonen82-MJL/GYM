@@ -254,6 +254,8 @@ export type SetEntry = {
   is_warmup?: boolean;
   too_heavy?: boolean;
   too_heavy_reps?: number | null;
+  /** Rate of perceived exertion, 6–10 in half steps; only on completed work sets */
+  rpe?: number | null;
   created_at: string;
 };
 

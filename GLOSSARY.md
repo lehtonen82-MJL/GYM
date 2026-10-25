@@ -14,6 +14,10 @@ _Avoid_: Working set, main set
 A lighter set done to prepare for the work sets; never counts toward volume, records or progression.
 _Avoid_: Ramp-up set
 
+**RPE**:
+Rate of perceived exertion of a completed work set, 6–10 in half steps (10 = nothing left). Optional. A work set rated 9.5 or 10 keeps the suggested weight from going up.
+_Avoid_: Effort, intensity rating
+
 **Warmup ramp**:
 The warmup sets planned before an exercise whose previous results have none, rising towards the first work set with fewer reps as the weight goes up. How many depends on the exercise: three for Olympic and main barbell lifts, two for other compound lifts, one for isolation work, one easy set for pull-ups; fewer (or none for isolation) when an earlier exercise in the workout already trained the same primary muscle.
 _Avoid_: Auto warmups, ramp-up sets

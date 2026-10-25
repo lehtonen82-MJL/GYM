@@ -86,7 +86,7 @@ export function clearSession(storage: SessionStorage, workoutId: string): void {
 
 // ── Workout draft ──────────────────────────────────────────
 
-type DraftSet = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy" | "too_heavy_reps" | "set_number" | "workout_exercise_entry_id" | "user_id">;
+type DraftSet = Pick<SetEntry, "id" | "weight_kg" | "reps" | "completed" | "is_warmup" | "too_heavy" | "too_heavy_reps" | "rpe" | "set_number" | "workout_exercise_entry_id" | "user_id">;
 
 /** What the workout screen keeps on the device while a workout is in progress. */
 export type WorkoutDraft<Cardio = unknown> = {
@@ -113,6 +113,7 @@ export function saveDraft<Cardio>(storage: SessionStorage, workoutId: string, dr
           is_warmup: set.is_warmup ?? false,
           too_heavy: set.too_heavy ?? false,
           too_heavy_reps: set.too_heavy_reps ?? null,
+          rpe: set.rpe ?? null,
           set_number: set.set_number,
           workout_exercise_entry_id: set.workout_exercise_entry_id,
           user_id: set.user_id,
@@ -164,6 +165,7 @@ export function mergeDraftSets(current: SetMap, draft: Record<string, DraftSet[]
           is_warmup: d.is_warmup ?? server.is_warmup,
           too_heavy: d.too_heavy ?? server.too_heavy,
           too_heavy_reps: d.too_heavy_reps ?? server.too_heavy_reps,
+          rpe: d.rpe !== undefined ? d.rpe : server.rpe,
         });
       } else if (d.workout_exercise_entry_id && d.user_id) {
         merged.push({
@@ -177,6 +179,7 @@ export function mergeDraftSets(current: SetMap, draft: Record<string, DraftSet[]
           is_warmup: d.is_warmup ?? false,
           too_heavy: d.too_heavy ?? false,
           too_heavy_reps: d.too_heavy_reps ?? null,
+          rpe: d.rpe ?? null,
           created_at: new Date().toISOString(),
         });
       }
@@ -218,6 +221,11 @@ export function addSet(
       created_at: new Date().toISOString(),
     },
   ];
+}
+
+/** Rate a completed work set's RPE (null clears it); warmups and planned sets aren't rated. */
+export function setRpe(sets: SetEntry[], setId: string, rpe: number | null): SetEntry[] {
+  return sets.map((s) => (s.id === setId && s.completed && !s.is_warmup ? { ...s, rpe } : s));
 }
 
 /**
@@ -275,6 +283,7 @@ export function finishPayload(
       is_warmup: s.is_warmup ?? false,
       too_heavy: s.too_heavy ?? false,
       too_heavy_reps: s.too_heavy_reps ?? null,
+      rpe: s.rpe ?? null,
     })),
   }));
 }
