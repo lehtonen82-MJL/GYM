@@ -197,3 +197,8 @@ No schema change on a fresh database.
   user-owned row is the caller's (before, only the row's own user_id was checked, so a row could
   point at another user's workout, entry, program, …). Reads and deletes (USING) are unchanged.
 - Checked by `tests/rpc_test.sql` (a second user can't attach rows to the first user's rows).
+
+#### `023_start_workout_session_name.sql` (added after this audit)
+
+- changed: function start_workout(jsonb,jsonb) also takes `import_session_name` in p_workout, so
+  template starts go through it. Otherwise identical to 021's. Checked by `tests/rpc_test.sql`.

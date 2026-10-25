@@ -7,7 +7,7 @@
 Files run in lexical order of their names:
 
 ```
-000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 022
+000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 023
 ```
 
 Letter suffixes (`004a`/`004b`, `010a`/`010b`) replaced duplicate numbers without renumbering
@@ -34,6 +34,8 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   otherwise nothing is applied.
 - **2026-10-24:** `022` (row ownership on writes) applied on its own in the SQL Editor (policies
   only; checked afterwards: all 10 policies carry the ownership WITH CHECK).
+- **Pending:** `023` (start_workout takes a session name). Apply it **before** deploying commit
+  "feat: start template workouts in one transaction", or template starts fail.
 
 ## Rules for new migrations
 

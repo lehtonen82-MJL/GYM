@@ -1,4 +1,4 @@
--- Checks the workout RPCs (021) and write ownership (022) for verify-migrations.sh, run after fixture.sql.
+-- Checks the workout RPCs (021, 023) and write ownership (022) for verify-migrations.sh, run after fixture.sql.
 -- Runs as the `authenticated` role so row-level security applies, like on Supabase.
 -- Every check RAISEs on failure (psql runs with ON_ERROR_STOP).
 
@@ -62,6 +62,21 @@ BEGIN
   IF (SELECT count(*) FROM workouts) <> before THEN
     RAISE EXCEPTION 'interrupted start_workout left a workout behind';
   END IF;
+END $$;
+
+-- A template start: no program day, named by import_session_name (migration 023)
+DO $$
+DECLARE r jsonb;
+BEGIN
+  r := start_workout('{"workout_day_id": null, "import_session_name": "Pull day"}',
+    '[{"exercise_id": "00000000-0000-0000-0000-0000000000e2", "workout_day_exercise_id": null,
+       "sets": [{"set_number": 1, "weight_kg": 40, "reps": 8}]}]');
+  IF r->'workout'->>'import_session_name' IS DISTINCT FROM 'Pull day'
+     OR r->'workout'->>'workout_day_id' IS NOT NULL
+     OR jsonb_array_length(r->'entries'->0->'set_entries') <> 1 THEN
+    RAISE EXCEPTION 'template start_workout returned %', r;
+  END IF;
+  DELETE FROM workouts WHERE id = (r->'workout'->>'id')::uuid;
 END $$;
 
 -- Finish: change the warmup, drop the work set, add two new work sets

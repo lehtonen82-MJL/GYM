@@ -301,73 +301,35 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
   const templateExercises = ((template as { workout_template_exercises: TemplateExRow[] }).workout_template_exercises ?? [])
     .sort((a, b) => a.sort_order - b.sort_order);
 
-  // Create a blank workout
-  const { data: workout, error: wErr } = await supabase
-    .from("workouts")
-    .insert({
-      user_id: userId,
-      workout_day_id: null,
-      import_session_name: (template as { name: string }).name,
-      is_deload: false,
-    })
-    .select("*")
-    .single();
-
-  if (wErr || !workout) return null;
-
-  const workoutId = workout.id as string;
-
-  // Create one entry per template exercise, and fetch each one's previous results to plan its sets
-  const [entryResults, previousAll] = await Promise.all([
-    Promise.all(
-      templateExercises.map((ex) =>
-        supabase
-          .from("workout_exercise_entries")
-          .insert({
-            workout_id: workoutId,
-            exercise_id: ex.exercise_id,
-            workout_day_exercise_id: null,
-            user_id: userId,
-          })
-          .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
-          .single()
-      )
-    ),
+  const exerciseIds = templateExercises.map((ex) => ex.exercise_id);
+  const [previousAll, defaultEquipment, { data: exerciseRows }] = await Promise.all([
     Promise.all(templateExercises.map((ex) => getPreviousResultsInternal(supabase, userId, ex.exercise_id))),
+    getDefaultEquipment(supabase, userId, exerciseIds),
+    supabase.from("exercises").select("*").in("id", exerciseIds).eq("user_id", userId),
   ]);
 
-  // Batch-insert all sets
-  const allSetRows: object[] = [];
-  const entryObjs: WorkoutExerciseEntry[] = [];
-
-  for (let i = 0; i < templateExercises.length; i++) {
-    const { data: entry } = entryResults[i];
-    if (!entry) continue;
-    const ex = templateExercises[i];
-    const entryId = entry.id as string;
-
-    allSetRows.push(...setRowsFor(planSets({ prescription: [], targetSets: ex.target_sets, previous: previousAll[i] }), entryId, userId));
-    entryObjs.push(entry as WorkoutExerciseEntry);
+  // Workout, entries and planned sets in one transaction (start_workout RPC, migrations 021 + 023)
+  const { data, error } = await supabase.rpc("start_workout", {
+    p_workout: { workout_day_id: null, is_deload: false, notes: null, import_session_name: (template as { name: string }).name },
+    p_entries: templateExercises.map((ex, i) => ({
+      exercise_id: ex.exercise_id,
+      workout_day_exercise_id: null,
+      sets: planSets({ prescription: [], targetSets: ex.target_sets, previous: previousAll[i] }),
+    })),
+  });
+  if (error || !data) {
+    console.error("[startWorkoutFromTemplate] start_workout RPC failed:", error?.message);
+    return null;
   }
-
-  const { data: insertedSets } = await supabase.from("set_entries").insert(allSetRows).select("*");
-  const setsByEntry: Record<string, WorkoutExerciseEntry["set_entries"]> = {};
-  for (const s of insertedSets ?? []) {
-    const sid = (s as { workout_exercise_entry_id: string }).workout_exercise_entry_id;
-    if (!setsByEntry[sid]) setsByEntry[sid] = [];
-    setsByEntry[sid]!.push(s as NonNullable<WorkoutExerciseEntry["set_entries"]>[number]);
-  }
-
-  const entriesWithSets = entryObjs.map((e) => ({
-    ...e,
-    set_entries: setsByEntry[e.id] ?? [],
+  const created = data as { workout: StartWorkoutResult["workout"]; entries: WorkoutExerciseEntry[] };
+  const exerciseById = new Map((exerciseRows ?? []).map((e) => [e.id as string, e]));
+  const entriesWithSets = created.entries.map((entry) => ({
+    ...entry,
+    exercise: exerciseById.get(entry.exercise_id) as WorkoutExerciseEntry["exercise"],
   }));
 
-  // Build suggestions and tooHeavyFlags
-  const exerciseIds = templateExercises.map((ex) => ex.exercise_id);
   const tooHeavyFlags = await getLastTooHeavyFlags(supabase, userId, exerciseIds);
   const suggestions: Record<string, number | null> = {};
-  const defaultEquipment = await getDefaultEquipment(supabase, userId, exerciseIds);
   templateExercises.forEach((ex, i) => {
     suggestions[ex.exercise_id] = suggestedWeight(previousAll[i], {
       targetSets: ex.target_sets,
@@ -380,8 +342,8 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
   await supabase.from("workout_templates").update({ last_used_at: new Date().toISOString() }).eq("id", templateId);
 
   return {
-    id: workoutId,
-    workout: workout as StartWorkoutResult["workout"],
+    id: created.workout.id,
+    workout: created.workout,
     entries: entriesWithSets,
     suggestions,
     tooHeavyFlags,

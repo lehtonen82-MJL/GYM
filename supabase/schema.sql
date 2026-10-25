@@ -267,12 +267,13 @@ BEGIN
     RAISE EXCEPTION 'start_workout: not authenticated';
   END IF;
 
-  INSERT INTO workouts (user_id, workout_day_id, is_deload, notes)
+  INSERT INTO workouts (user_id, workout_day_id, is_deload, notes, import_session_name)
   VALUES (
     v_user,
     (p_workout->>'workout_day_id')::uuid,
     coalesce((p_workout->>'is_deload')::boolean, false),
-    p_workout->>'notes'
+    p_workout->>'notes',
+    p_workout->>'import_session_name'
   )
   RETURNING * INTO v_workout;
 
