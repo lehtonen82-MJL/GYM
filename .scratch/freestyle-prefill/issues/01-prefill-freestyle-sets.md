@@ -1,6 +1,6 @@
 # Pre-fill freestyle workouts from previous results
 
-Status: ready-for-agent
+Status: closed
 Category: enhancement
 
 Starting a workout from a program plans its sets with `planSets` (src/lib/plannedSets.ts): previous
@@ -54,3 +54,11 @@ warmups, no weights or reps.
 - [ ] `npm test`, `npx tsc --noEmit`, `npm run build` pass.
 
 **Out of scope:** making template start atomic (separate ticket), Easy Week for templates, UI changes.
+
+### Resolution (2026-10-25)
+
+`startWorkoutFromTemplate` and `addExerciseToWorkout` plan their sets with `planSets` from each exercise's
+previous results (template: its target_sets; added exercise: the call's target). Template suggestions now
+come from the same previous results via `setRules.suggestedWeight` instead of a second fetch. The rules
+themselves are covered by the planSets tests (including "no history → target-many empty work sets");
+the two actions need a database and were not run in tests.

@@ -7,7 +7,14 @@ import type {
 } from "@/lib/types";
 import { db, getUserId } from "./_shared";
 import { type StartWorkoutResult } from "./workout";
-import { getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
+import { getPreviousResultsInternal, getLastTooHeavyFlags } from "./sets";
+import { planSets, type PlannedSet } from "@/lib/plannedSets";
+import { suggestedWeight } from "@/lib/setRules";
+
+/** Rows to insert for an entry's planned sets. */
+function setRowsFor(planned: PlannedSet[], entryId: string, userId: string) {
+  return planned.map((set) => ({ ...set, workout_exercise_entry_id: entryId, user_id: userId, completed: false }));
+}
 
 // ════════════════════════════════════════════════════════
 // START BLANK WORKOUT
@@ -65,17 +72,20 @@ export async function addExerciseToWorkout(
   const supabase = await db();
   const userId = await getUserId();
 
-  // Insert the exercise entry
-  const { data: entry, error: entryErr } = await supabase
-    .from("workout_exercise_entries")
-    .insert({
-      workout_id: workoutId,
-      exercise_id: exerciseId,
-      workout_day_exercise_id: null,
-      user_id: userId,
-    })
-    .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
-    .single();
+  // Insert the exercise entry (and fetch its previous results to plan the sets)
+  const [{ data: entry, error: entryErr }, previous] = await Promise.all([
+    supabase
+      .from("workout_exercise_entries")
+      .insert({
+        workout_id: workoutId,
+        exercise_id: exerciseId,
+        workout_day_exercise_id: null,
+        user_id: userId,
+      })
+      .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
+      .single(),
+    getPreviousResultsInternal(supabase, userId, exerciseId),
+  ]);
 
   if (entryErr || !entry) {
     const msg = `entry insert failed: ${entryErr?.message ?? "no data"} | ${entryErr?.details ?? ""} | hint: ${entryErr?.hint ?? ""}`;
@@ -83,17 +93,9 @@ export async function addExerciseToWorkout(
     return { __error: msg };
   }
 
-  // Insert blank sets — omit too_heavy/too_heavy_reps so DB defaults apply,
-  // matching the same approach used by startWorkout.
-  const setRows = Array.from({ length: targetSets }, (_, i) => ({
-    workout_exercise_entry_id: entry.id as string,
-    user_id: userId,
-    set_number: i + 1,
-    weight_kg: null as number | null,
-    reps: null as number | null,
-    completed: false,
-    is_warmup: false,
-  }));
+  // Planned sets from previous results (empty work sets when the exercise has none);
+  // too_heavy/too_heavy_reps are left to their DB defaults.
+  const setRows = setRowsFor(planSets({ prescription: [], targetSets, previous }), entry.id as string, userId);
 
   const { data: sets, error: setsErr } = await supabase
     .from("set_entries")
@@ -315,21 +317,24 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
 
   const workoutId = workout.id as string;
 
-  // Create one entry per template exercise
-  const entryResults = await Promise.all(
-    templateExercises.map((ex) =>
-      supabase
-        .from("workout_exercise_entries")
-        .insert({
-          workout_id: workoutId,
-          exercise_id: ex.exercise_id,
-          workout_day_exercise_id: null,
-          user_id: userId,
-        })
-        .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
-        .single()
-    )
-  );
+  // Create one entry per template exercise, and fetch each one's previous results to plan its sets
+  const [entryResults, previousAll] = await Promise.all([
+    Promise.all(
+      templateExercises.map((ex) =>
+        supabase
+          .from("workout_exercise_entries")
+          .insert({
+            workout_id: workoutId,
+            exercise_id: ex.exercise_id,
+            workout_day_exercise_id: null,
+            user_id: userId,
+          })
+          .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
+          .single()
+      )
+    ),
+    Promise.all(templateExercises.map((ex) => getPreviousResultsInternal(supabase, userId, ex.exercise_id))),
+  ]);
 
   // Batch-insert all sets
   const allSetRows: object[] = [];
@@ -341,16 +346,7 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
     const ex = templateExercises[i];
     const entryId = entry.id as string;
 
-    const setRows = Array.from({ length: ex.target_sets }, (_, j) => ({
-      workout_exercise_entry_id: entryId,
-      user_id: userId,
-      set_number: j + 1,
-      weight_kg: null as number | null,
-      reps: null as number | null,
-      completed: false,
-      is_warmup: false,
-    }));
-    allSetRows.push(...setRows);
+    allSetRows.push(...setRowsFor(planSets({ prescription: [], targetSets: ex.target_sets, previous: previousAll[i] }), entryId, userId));
     entryObjs.push(entry as WorkoutExerciseEntry);
   }
 
@@ -369,12 +365,9 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
 
   // Build suggestions and tooHeavyFlags
   const exerciseIds = templateExercises.map((ex) => ex.exercise_id);
-  const [suggestionResults, tooHeavyFlags] = await Promise.all([
-    Promise.all(templateExercises.map((ex) => getSuggestedWeightInternal(supabase, userId, ex.exercise_id, ex.target_sets))),
-    getLastTooHeavyFlags(supabase, userId, exerciseIds),
-  ]);
+  const tooHeavyFlags = await getLastTooHeavyFlags(supabase, userId, exerciseIds);
   const suggestions: Record<string, number | null> = {};
-  templateExercises.forEach((ex, i) => { suggestions[ex.exercise_id] = suggestionResults[i]; });
+  templateExercises.forEach((ex, i) => { suggestions[ex.exercise_id] = suggestedWeight(previousAll[i], ex.target_sets); });
 
   // Mark template last used
   await supabase.from("workout_templates").update({ last_used_at: new Date().toISOString() }).eq("id", templateId);
