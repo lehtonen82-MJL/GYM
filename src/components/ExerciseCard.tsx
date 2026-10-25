@@ -205,7 +205,8 @@ export default function ExerciseCard({
               {targetSets}×{targetRepsLabel}
               {suggestedWeight !== null && (
                 <span className="ml-2 text-accent">
-                  {suggestionTrend === "down" ? "↓" : suggestionTrend === "same" ? "=" : "↑"} {formatWeight(suggestedWeight, unit)}
+                  {suggestionTrend === "down" ? "↓ " : suggestionTrend === "same" ? "= " : suggestionTrend === "up" ? "↑ " : ""}
+                  {formatWeight(suggestedWeight, unit)}
                 </span>
               )}
             </p>
