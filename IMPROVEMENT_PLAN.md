@@ -338,7 +338,7 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 4 — Atomic, batched writes via RPC · RISK: medium-high (core save path)
 
-> **Status (2026-10-24):** 4.1–4.3 done in migration `021` (`start_workout`, `save_workout_sets`, SECURITY INVOKER) and `tests/rpc_test.sql`; applied to production 2026-10-24. 4.4 (manual check on the app) pending.
+> **Status (2026-10-24):** 4.1–4.3 done in migration `021` (`start_workout`, `save_workout_sets`, SECURITY INVOKER) and `tests/rpc_test.sql`; applied to production 2026-10-24. 4.4 done 2026-10-24: start → sets, add/delete, reload → finish checked on production (found and fixed the reload bug a0bbc08). Template starts moved onto start_workout too (migration 023).
 
 **Task 4.1 — RPC: `save_workout_sets`**
 - Files (new): migration `0NN_save_workout_sets_rpc.sql`
