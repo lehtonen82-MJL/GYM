@@ -5,10 +5,10 @@ import type {
   WorkoutTemplateListItem,
   WorkoutTemplateWithExercises,
 } from "@/lib/types";
-import { db, getDefaultEquipment, getUserId } from "./_shared";
+import { db, getLibraryInfo, getUserId } from "./_shared";
 import { type StartWorkoutResult } from "./workout";
 import { getPreviousResultsInternal, getLastTooHeavyFlags } from "./sets";
-import { planSets, type PlannedSet } from "@/lib/plannedSets";
+import { planSets, wantsAutoWarmup, type PlannedSet } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
 
 /** Rows to insert for an entry's planned sets. */
@@ -73,7 +73,7 @@ export async function addExerciseToWorkout(
   const userId = await getUserId();
 
   // Insert the exercise entry (and fetch its previous results to plan the sets)
-  const [{ data: entry, error: entryErr }, previous] = await Promise.all([
+  const [{ data: entry, error: entryErr }, previous, library] = await Promise.all([
     supabase
       .from("workout_exercise_entries")
       .insert({
@@ -85,6 +85,7 @@ export async function addExerciseToWorkout(
       .select("*, exercise:exercises!workout_exercise_entries_exercise_id_fkey(*)")
       .single(),
     getPreviousResultsInternal(supabase, userId, exerciseId),
+    getLibraryInfo(supabase, userId, [exerciseId]),
   ]);
 
   if (entryErr || !entry) {
@@ -95,7 +96,8 @@ export async function addExerciseToWorkout(
 
   // Planned sets from previous results (empty work sets when the exercise has none);
   // too_heavy/too_heavy_reps are left to their DB defaults.
-  const setRows = setRowsFor(planSets({ prescription: [], targetSets, previous }), entry.id as string, userId);
+  const planned = planSets({ prescription: [], targetSets, previous, autoWarmup: wantsAutoWarmup(library[exerciseId]) });
+  const setRows = setRowsFor(planned, entry.id as string, userId);
 
   const { data: sets, error: setsErr } = await supabase
     .from("set_entries")
@@ -302,9 +304,9 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
     .sort((a, b) => a.sort_order - b.sort_order);
 
   const exerciseIds = templateExercises.map((ex) => ex.exercise_id);
-  const [previousAll, defaultEquipment, { data: exerciseRows }] = await Promise.all([
+  const [previousAll, library, { data: exerciseRows }] = await Promise.all([
     Promise.all(templateExercises.map((ex) => getPreviousResultsInternal(supabase, userId, ex.exercise_id))),
-    getDefaultEquipment(supabase, userId, exerciseIds),
+    getLibraryInfo(supabase, userId, exerciseIds),
     supabase.from("exercises").select("*").in("id", exerciseIds).eq("user_id", userId),
   ]);
 
@@ -314,7 +316,12 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
     p_entries: templateExercises.map((ex, i) => ({
       exercise_id: ex.exercise_id,
       workout_day_exercise_id: null,
-      sets: planSets({ prescription: [], targetSets: ex.target_sets, previous: previousAll[i] }),
+      sets: planSets({
+        prescription: [],
+        targetSets: ex.target_sets,
+        previous: previousAll[i],
+        autoWarmup: wantsAutoWarmup(library[ex.exercise_id]),
+      }),
     })),
   });
   if (error || !data) {
@@ -334,7 +341,7 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
     suggestions[ex.exercise_id] = suggestedWeight(previousAll[i], {
       targetSets: ex.target_sets,
       targetReps: ex.target_reps,
-      equipment: defaultEquipment[ex.exercise_id] ?? null,
+      equipment: library[ex.exercise_id]?.equipment ?? null,
     });
   });
 

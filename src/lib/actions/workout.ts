@@ -2,9 +2,9 @@
 
 import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
 import { parseSchemePrescription } from "@/lib/programParser";
-import { planSets, type PlanInput } from "@/lib/plannedSets";
+import { planSets, wantsAutoWarmup, type PlanInput } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
-import { db, getDefaultEquipment, getUserId } from "./_shared";
+import { db, getLibraryInfo, getUserId } from "./_shared";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
 import { linkExerciseToLibraryInternal } from "./exercises";
 
@@ -98,9 +98,9 @@ async function addPlannedExercises(
   wdes: WdeRow[],
   deload?: PlanInput["deload"]
 ): Promise<StartWorkoutResult | null> {
-  const [prevResultsAll, defaultEquipment] = await Promise.all([
+  const [prevResultsAll, library] = await Promise.all([
     Promise.all(wdes.map((wde) => getPreviousResultsInternal(supabase, userId, wde.exercise_id))),
-    getDefaultEquipment(supabase, userId, wdes.map((wde) => wde.exercise_id)),
+    getLibraryInfo(supabase, userId, wdes.map((wde) => wde.exercise_id)),
   ]);
 
   const { data, error } = await supabase.rpc("start_workout", {
@@ -108,7 +108,13 @@ async function addPlannedExercises(
     p_entries: wdes.map((wde, i) => ({
       exercise_id: wde.exercise_id,
       workout_day_exercise_id: wde.id,
-      sets: planSets({ prescription: parseSchemePrescription(wde.scheme_text), targetSets: wde.target_sets, previous: prevResultsAll[i] ?? [], deload }),
+      sets: planSets({
+        prescription: parseSchemePrescription(wde.scheme_text),
+        targetSets: wde.target_sets,
+        previous: prevResultsAll[i] ?? [],
+        deload,
+        autoWarmup: wantsAutoWarmup(library[wde.exercise_id]),
+      }),
     })),
   });
   if (error || !data) {
@@ -124,7 +130,7 @@ async function addPlannedExercises(
     suggestions[wde.exercise_id] = suggestedWeight(prevResultsAll[i] ?? [], {
       targetSets: wde.target_sets,
       targetReps: wde.target_reps ?? null,
-      equipment: defaultEquipment[wde.exercise_id] ?? null,
+      equipment: library[wde.exercise_id]?.equipment ?? null,
       easyWeek: !!deload,
     });
     return {

@@ -14,6 +14,10 @@ _Avoid_: Working set, main set
 A lighter set done to prepare for the work sets; never counts toward volume, records or progression.
 _Avoid_: Ramp-up set
 
+**Warmup ramp**:
+Warmup sets planned automatically before a main barbell-type lift that has no warmups in its previous results: 50, 70 and 85 % of the first work set for 8, 5 and 3 reps, from 40 kg up.
+_Avoid_: Auto warmups, ramp-up sets
+
 **Completed set**:
 A set the lifter has checked off as done.
 _Avoid_: Logged set, finished set, set with data

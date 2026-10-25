@@ -424,7 +424,7 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 8 — Backlog (each its own design+migration+UI cycle)
 
-> **Status (2026-10-25):** weekly volume-per-muscle done — Progress → Muscles: completed work sets per primary muscle per Monday–Sunday week (viewer's local time), this week as bars + 8-week trend, kg as a side note, unlinked exercises last (`src/lib/muscleVolume.ts`). Secondary muscles not counted (their names don't match the 12 primary ones yet). Rest of the backlog open.
+> **Status (2026-10-25):** weekly volume-per-muscle done — Progress → Muscles: completed work sets per primary muscle per Monday–Sunday week (viewer's local time), this week as bars + 8-week trend, kg as a side note, unlinked exercises last (`src/lib/muscleVolume.ts`). Secondary muscles not counted (their names don't match the 12 primary ones yet). Warmup auto-ramp done the same day (`planSets` autoWarmup: main lifts with barbell/trap bar/Smith and no previous warmups → 50/70/85 % × 8/5/3 from 40 kg, Easy Week weights respected; swaps don't ramp). Rest of the backlog open.
 Bodyweight tracking · weekly volume-per-muscle dashboard · RPE column · supersets · warmup auto-ramp · calendar streak view.
 
 ---
