@@ -54,10 +54,10 @@ export default function StartWorkoutButton({
     <button
       onClick={handleStart}
       disabled={loading}
-      className={`w-full py-4 rounded-xl text-white font-bold text-lg disabled:opacity-50 ${
+      className={`w-full py-4 rounded-xl font-bold text-lg disabled:opacity-50 ${
         easyWeekActive
-          ? "bg-amber-500 active:bg-amber-600"
-          : "bg-accent active:bg-accent-hover"
+          ? "bg-amber-500 active:bg-amber-600 text-white"
+          : "bg-accent active:bg-accent-hover text-on-accent"
       }`}
     >
       {loading ? "Starting..." : easyWeekActive ? "🔄 Start Easy Week" : "Start Workout"}

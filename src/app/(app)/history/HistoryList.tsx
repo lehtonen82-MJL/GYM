@@ -325,7 +325,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                     }`}
                   >
                     {selected && (
-                      <svg viewBox="0 0 12 10" className="w-3 h-3 fill-none stroke-white stroke-[2]">
+                      <svg viewBox="0 0 12 10" className="w-3 h-3 fill-none stroke-on-accent stroke-[2]">
                         <polyline points="1,5 4,8 11,1" />
                       </svg>
                     )}
