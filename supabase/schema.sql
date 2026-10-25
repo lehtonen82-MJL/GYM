@@ -204,12 +204,12 @@ BEGIN
   DELETE FROM set_entries
   WHERE id = ANY (p_original_ids)
     AND user_id = v_user
-    AND id NOT IN (SELECT p.id FROM workout_sets_payload(p_entries) AS p);
+    AND id NOT IN (SELECT p.id FROM workout_set_rows(p_entries) AS p);
 
   INSERT INTO set_entries (id, workout_exercise_entry_id, user_id, set_number, weight_kg, reps,
-                           completed, is_warmup, too_heavy, too_heavy_reps)
-  SELECT p.id, p.entry_id, v_user, p.set_number, p.weight_kg, p.reps, p.completed, p.is_warmup, p.too_heavy, p.too_heavy_reps
-  FROM workout_sets_payload(p_entries) AS p
+                           completed, is_warmup, too_heavy, too_heavy_reps, rpe)
+  SELECT p.id, p.entry_id, v_user, p.set_number, p.weight_kg, p.reps, p.completed, p.is_warmup, p.too_heavy, p.too_heavy_reps, p.rpe
+  FROM workout_set_rows(p_entries) AS p
   ON CONFLICT (id) DO UPDATE SET
     set_number     = EXCLUDED.set_number,
     weight_kg      = EXCLUDED.weight_kg,
@@ -217,14 +217,15 @@ BEGIN
     completed      = EXCLUDED.completed,
     is_warmup      = EXCLUDED.is_warmup,
     too_heavy      = EXCLUDED.too_heavy,
-    too_heavy_reps = EXCLUDED.too_heavy_reps
+    too_heavy_reps = EXCLUDED.too_heavy_reps,
+    rpe            = EXCLUDED.rpe
   WHERE set_entries.user_id = v_user;
 
   UPDATE workout_day_exercises AS wde
   SET target_sets = c.work_sets
   FROM (
     SELECT p.wde_id, count(*) FILTER (WHERE NOT p.is_warmup) AS work_sets
-    FROM workout_sets_payload(p_entries) AS p
+    FROM workout_set_rows(p_entries) AS p
     WHERE p.wde_id IS NOT NULL
     GROUP BY p.wde_id
   ) AS c
@@ -279,8 +280,8 @@ BEGIN
 
   FOR e IN SELECT value FROM jsonb_array_elements(p_entries) WITH ORDINALITY AS t(value, ord) ORDER BY ord LOOP
     -- clock_timestamp(): entries are listed by created_at, and now() is the same for the whole transaction
-    INSERT INTO workout_exercise_entries (workout_id, exercise_id, workout_day_exercise_id, user_id, created_at)
-    VALUES (v_workout.id, (e->>'exercise_id')::uuid, (e->>'workout_day_exercise_id')::uuid, v_user, clock_timestamp())
+    INSERT INTO workout_exercise_entries (workout_id, exercise_id, workout_day_exercise_id, user_id, superset_group, created_at)
+    VALUES (v_workout.id, (e->>'exercise_id')::uuid, (e->>'workout_day_exercise_id')::uuid, v_user, e->>'superset_group', clock_timestamp())
     RETURNING * INTO v_entry;
 
     WITH inserted AS (
@@ -415,6 +416,28 @@ END;
 $$;
 
 --
+-- Name: workout_set_rows(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workout_set_rows(p_entries jsonb) RETURNS TABLE(entry_id uuid, wde_id uuid, id uuid, set_number integer, weight_kg numeric, reps integer, completed boolean, is_warmup boolean, too_heavy boolean, too_heavy_reps integer, rpe numeric)
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT (e->>'entryId')::uuid,
+         (e->>'workoutDayExerciseId')::uuid,
+         (s->>'id')::uuid,
+         (s->>'set_number')::int,
+         (s->>'weight_kg')::numeric,
+         (s->>'reps')::int,
+         coalesce((s->>'completed')::boolean, false),
+         coalesce((s->>'is_warmup')::boolean, false),
+         coalesce((s->>'too_heavy')::boolean, false),
+         (s->>'too_heavy_reps')::int,
+         (s->>'rpe')::numeric
+  FROM jsonb_array_elements(p_entries) AS e,
+       jsonb_array_elements(coalesce(e->'sets', '[]'::jsonb)) AS s
+$$;
+
+--
 -- Name: workout_sets_payload(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -438,6 +461,19 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: body_weights; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.body_weights (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    measured_on date NOT NULL,
+    weight_kg numeric(5,2) NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT body_weights_weight_kg_check CHECK (((weight_kg > (0)::numeric) AND (weight_kg < (500)::numeric)))
+);
 
 --
 -- Name: exercise_definitions; Type: TABLE; Schema: public; Owner: -
@@ -536,7 +572,9 @@ CREATE TABLE public.program_exercises (
     notes text,
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    superset_group text,
+    CONSTRAINT program_exercises_superset_group_check CHECK (((superset_group IS NULL) OR (superset_group ~ '^[A-Z]$'::text)))
 );
 
 --
@@ -570,7 +608,9 @@ CREATE TABLE public.set_entries (
     is_warmup boolean DEFAULT false,
     too_heavy boolean DEFAULT false,
     too_heavy_reps integer,
-    created_at timestamp with time zone DEFAULT now()
+    created_at timestamp with time zone DEFAULT now(),
+    rpe numeric(3,1),
+    CONSTRAINT set_entries_rpe_check CHECK (((rpe IS NULL) OR ((rpe >= (6)::numeric) AND (rpe <= (10)::numeric) AND ((rpe * (2)::numeric) = round((rpe * (2)::numeric))))))
 );
 
 --
@@ -642,7 +682,9 @@ CREATE TABLE public.workout_exercise_entries (
     too_heavy boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
     original_exercise_id uuid,
-    equipment_type text
+    equipment_type text,
+    superset_group text,
+    CONSTRAINT workout_exercise_entries_superset_group_check CHECK (((superset_group IS NULL) OR (superset_group ~ '^[A-Z]$'::text)))
 );
 
 --
@@ -687,6 +729,20 @@ CREATE TABLE public.workouts (
     is_deload boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now()
 );
+
+--
+-- Name: body_weights body_weights_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.body_weights
+    ADD CONSTRAINT body_weights_pkey PRIMARY KEY (id);
+
+--
+-- Name: body_weights body_weights_user_id_measured_on_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.body_weights
+    ADD CONSTRAINT body_weights_user_id_measured_on_key UNIQUE (user_id, measured_on);
 
 --
 -- Name: exercise_definitions exercise_definitions_name_key; Type: CONSTRAINT; Schema: public; Owner: -
@@ -979,6 +1035,13 @@ CREATE TRIGGER update_workout_bonus_cardio_updated_at BEFORE UPDATE ON public.wo
 CREATE TRIGGER update_workout_days_updated_at BEFORE UPDATE ON public.workout_days FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_timestamp();
 
 --
+-- Name: body_weights body_weights_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.body_weights
+    ADD CONSTRAINT body_weights_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+--
 -- Name: exercise_prs exercise_prs_exercise_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1216,6 +1279,12 @@ ALTER TABLE ONLY public.workouts
 CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK ((auth.uid() = id));
 
 --
+-- Name: body_weights Users can manage own body_weights; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can manage own body_weights" ON public.body_weights USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+--
 -- Name: exercise_prs Users can manage own exercise_prs; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -1346,6 +1415,12 @@ CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (
 --
 
 CREATE POLICY "Users can view own program_exercises" ON public.program_exercises FOR SELECT USING ((auth.uid() = user_id));
+
+--
+-- Name: body_weights; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.body_weights ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: exercise_definitions; Type: ROW SECURITY; Schema: public; Owner: -

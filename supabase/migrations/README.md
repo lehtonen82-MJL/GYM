@@ -7,7 +7,7 @@
 Files run in lexical order of their names:
 
 ```
-000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 023
+000_base_schema  001 002 003 004a 004b 005 006 007 008 009 010a 010b 011 … 024
 ```
 
 Letter suffixes (`004a`/`004b`, `010a`/`010b`) replaced duplicate numbers without renumbering

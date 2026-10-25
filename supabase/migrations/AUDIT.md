@@ -202,3 +202,11 @@ No schema change on a fresh database.
 
 - changed: function start_workout(jsonb,jsonb) also takes `import_session_name` in p_workout, so
   template starts go through it. Otherwise identical to 021's. Checked by `tests/rpc_test.sql`.
+
+#### `024_bodyweight_rpe_supersets.sql` (Phase 8, added after this audit)
+
+- added: table body_weights (one per user per day, RLS), column set_entries.rpe (6–10, half steps),
+  column superset_group (one letter) on program_exercises and workout_exercise_entries
+- added: function workout_set_rows(jsonb) (021's workout_sets_payload + rpe, new name so re-running 021 works)
+- changed: start_workout passes superset_group; save_workout_sets saves rpe
+- Backward compatible (new columns nullable, RPC parameters unchanged). Checked by `tests/rpc_test.sql`.

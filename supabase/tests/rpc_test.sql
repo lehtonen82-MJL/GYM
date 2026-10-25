@@ -1,4 +1,4 @@
--- Checks the workout RPCs (021, 023) and write ownership (022) for verify-migrations.sh, run after fixture.sql.
+-- Checks the workout RPCs (021, 023, 024), write ownership (022) and body weights (024) for verify-migrations.sh, run after fixture.sql.
 -- Runs as the `authenticated` role so row-level security applies, like on Supabase.
 -- Every check RAISEs on failure (psql runs with ON_ERROR_STOP).
 
@@ -69,10 +69,11 @@ DO $$
 DECLARE r jsonb;
 BEGIN
   r := start_workout('{"workout_day_id": null, "import_session_name": "Pull day"}',
-    '[{"exercise_id": "00000000-0000-0000-0000-0000000000e2", "workout_day_exercise_id": null,
+    '[{"exercise_id": "00000000-0000-0000-0000-0000000000e2", "workout_day_exercise_id": null, "superset_group": "A",
        "sets": [{"set_number": 1, "weight_kg": 40, "reps": 8}]}]');
   IF r->'workout'->>'import_session_name' IS DISTINCT FROM 'Pull day'
      OR r->'workout'->>'workout_day_id' IS NOT NULL
+     OR r->'entries'->0->>'superset_group' IS DISTINCT FROM 'A'
      OR jsonb_array_length(r->'entries'->0->'set_entries') <> 1 THEN
     RAISE EXCEPTION 'template start_workout returned %', r;
   END IF;
@@ -93,7 +94,7 @@ BEGIN
       'workoutDayExerciseId', '00000000-0000-0000-0000-0000000000f3',
       'sets', jsonb_build_array(
         jsonb_build_object('id', warmup, 'set_number', 1, 'weight_kg', 62.5, 'reps', 8, 'completed', true, 'is_warmup', true),
-        jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'set_number', 2, 'weight_kg', 105, 'reps', 5, 'completed', true),
+        jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'set_number', 2, 'weight_kg', 105, 'reps', 5, 'completed', true, 'rpe', 8.5),
         jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c2', 'set_number', 3, 'weight_kg', 105, 'reps', 4, 'completed', true,
                            'too_heavy', true, 'too_heavy_reps', 4)))),
     ARRAY[warmup, dropped]);
@@ -102,9 +103,25 @@ BEGIN
   IF (SELECT weight_kg FROM set_entries WHERE id = warmup) <> 62.5 THEN RAISE EXCEPTION 'set was not updated'; END IF;
   IF (SELECT count(*) FROM set_entries WHERE workout_exercise_entry_id = entry) <> 3 THEN RAISE EXCEPTION 'new sets missing'; END IF;
   IF (SELECT too_heavy_reps FROM set_entries WHERE id = '00000000-0000-0000-0000-0000000000c2') <> 4 THEN RAISE EXCEPTION 'too_heavy_reps lost'; END IF;
+  IF (SELECT rpe FROM set_entries WHERE id = '00000000-0000-0000-0000-0000000000c1') IS DISTINCT FROM 8.5 THEN RAISE EXCEPTION 'rpe not saved (024)'; END IF;
+  BEGIN
+    UPDATE set_entries SET rpe = 10.5 WHERE id = '00000000-0000-0000-0000-0000000000c1';
+    RAISE EXCEPTION 'an RPE above 10 was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
   IF (SELECT target_sets FROM workout_day_exercises WHERE id = '00000000-0000-0000-0000-0000000000f3') <> 2 THEN
     RAISE EXCEPTION 'target_sets not set to the work-set count';
   END IF;
+END $$;
+
+-- Body weight (024): the first user logs one, a second log the same day replaces it
+INSERT INTO body_weights (user_id, measured_on, weight_kg) VALUES ('00000000-0000-0000-0000-000000000001', '2026-10-25', 82.4)
+ON CONFLICT (user_id, measured_on) DO UPDATE SET weight_kg = EXCLUDED.weight_kg;
+INSERT INTO body_weights (user_id, measured_on, weight_kg) VALUES ('00000000-0000-0000-0000-000000000001', '2026-10-25', 82.1)
+ON CONFLICT (user_id, measured_on) DO UPDATE SET weight_kg = EXCLUDED.weight_kg;
+DO $$
+BEGIN
+  IF (SELECT array_agg(weight_kg) FROM body_weights) <> ARRAY[82.1]::numeric[] THEN RAISE EXCEPTION 'body weight not replaced'; END IF;
 END $$;
 
 -- Another user can neither change nor delete these sets (row-level security). Whether the
@@ -126,6 +143,12 @@ BEGIN
     INSERT INTO set_entries (workout_exercise_entry_id, user_id, set_number)
     VALUES ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000002', 1);
     RAISE EXCEPTION 'a set went into another user''s exercise entry';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM body_weights) THEN RAISE EXCEPTION 'another user can see body weights'; END IF;
+  BEGIN
+    INSERT INTO body_weights (user_id, measured_on, weight_kg) VALUES ('00000000-0000-0000-0000-000000000001', '2026-10-26', 70);
+    RAISE EXCEPTION 'a body weight was logged for another user';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
