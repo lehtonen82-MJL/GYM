@@ -15,8 +15,12 @@ A lighter set done to prepare for the work sets; never counts toward volume, rec
 _Avoid_: Ramp-up set
 
 **Warmup ramp**:
-Warmup sets planned automatically before a main barbell-type lift that has no warmups in its previous results: 50, 70 and 85 % of the first work set for 8, 5 and 3 reps, from 40 kg up.
+The warmup sets planned before an exercise whose previous results have none, rising towards the first work set with fewer reps as the weight goes up. How many depends on the exercise: three for Olympic and main barbell lifts, two for other compound lifts, one for isolation work, one easy set for pull-ups; fewer (or none for isolation) when an earlier exercise in the workout already trained the same primary muscle.
 _Avoid_: Auto warmups, ramp-up sets
+
+**Straight sets**:
+Work sets all done at the same weight: a new workout plans them at last time's heaviest work set.
+_Avoid_: Flat sets, fixed sets
 
 **Completed set**:
 A set the lifter has checked off as done.

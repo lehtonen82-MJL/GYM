@@ -2,7 +2,7 @@
 
 import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
 import { parseRepRange, parseSchemePrescription } from "@/lib/programParser";
-import { planSets, wantsAutoWarmup, type PlanInput } from "@/lib/plannedSets";
+import { planSets, warmupPlans, type PlanInput } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
 import { db, getLibraryInfo, getUserId } from "./_shared";
 import { getPreviousResultsInternal, getSuggestedWeightInternal, getLastTooHeavyFlags } from "./sets";
@@ -118,6 +118,7 @@ async function addPlannedExercises(
     getLibraryInfo(supabase, userId, wdes.map((wde) => wde.exercise_id)),
   ]);
 
+  const warmups = warmupPlans(wdes.map((wde) => library[wde.exercise_id]));
   const { data, error } = await supabase.rpc("start_workout", {
     p_workout: { workout_day_id: newWorkout.workout_day_id, is_deload: newWorkout.is_deload, notes: newWorkout.notes },
     p_entries: wdes.map((wde, i) => ({
@@ -128,7 +129,7 @@ async function addPlannedExercises(
         targetSets: wde.target_sets,
         previous: prevResultsAll[i] ?? [],
         deload,
-        autoWarmup: wantsAutoWarmup(library[wde.exercise_id]),
+        warmup: warmups[i],
       }),
     })),
   });

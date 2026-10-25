@@ -8,7 +8,7 @@ import type {
 import { db, getLibraryInfo, getUserId } from "./_shared";
 import { type StartWorkoutResult } from "./workout";
 import { getPreviousResultsInternal, getLastTooHeavyFlags } from "./sets";
-import { planSets, wantsAutoWarmup, type PlannedSet } from "@/lib/plannedSets";
+import { planSets, warmupPlans, type PlannedSet } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
 
 /** Rows to insert for an entry's planned sets. */
@@ -102,7 +102,7 @@ export async function addExerciseToWorkout(
     prescription: [],
     targetSets: previousWorkSets || targetSets,
     previous,
-    autoWarmup: wantsAutoWarmup(library[exerciseId]),
+    warmup: warmupPlans([library[exerciseId]])[0],
   });
   const setRows = setRowsFor(planned, entry.id as string, userId);
 
@@ -317,6 +317,7 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
     supabase.from("exercises").select("*").in("id", exerciseIds).eq("user_id", userId),
   ]);
 
+  const warmups = warmupPlans(templateExercises.map((ex) => library[ex.exercise_id]));
   // Workout, entries and planned sets in one transaction (start_workout RPC, migrations 021 + 023)
   const { data, error } = await supabase.rpc("start_workout", {
     p_workout: { workout_day_id: null, is_deload: false, notes: null, import_session_name: (template as { name: string }).name },
@@ -327,7 +328,7 @@ export async function startWorkoutFromTemplate(templateId: string): Promise<Star
         prescription: [],
         targetSets: ex.target_sets,
         previous: previousAll[i],
-        autoWarmup: wantsAutoWarmup(library[ex.exercise_id]),
+        warmup: warmups[i],
       }),
     })),
   });
