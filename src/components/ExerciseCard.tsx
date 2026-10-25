@@ -164,42 +164,43 @@ export default function ExerciseCard({
           : "bg-card border-border"
       }`}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
-        {/* Toggle area */}
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex-1 min-w-0 text-left active:opacity-70"
-        >
-          <div className="flex items-center gap-2">
-            <h3 className={`font-extrabold text-base uppercase tracking-wide ${allDone && !isActive ? "text-muted" : "text-white"}`}>
-              {entry.exercise?.name}
-            </h3>
-            {originalExerciseName && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight">
-                ↩ {originalExerciseName}
-              </span>
-            )}
-            {/* Where the suggested weight goes compared with last time */}
-            {suggestionTrend === "up" && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight">
-                Add weight
-              </span>
-            )}
-            {suggestionTrend === "same" && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 leading-tight">
-                Same weight
-              </span>
-            )}
-            {suggestionTrend === "down" && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/20 text-orange-400 leading-tight">
-                Lighter
-              </span>
-            )}
-          </div>
+      {/* Header: name, tags and target on the left (full width), progress on the right */}
+      <div className="flex items-start justify-between gap-3 px-4 pt-3 pb-2">
+        <button type="button" onClick={onToggle} className="flex-1 min-w-0 text-left active:opacity-70">
+          <h3
+            className={`font-extrabold text-base uppercase tracking-wide leading-tight break-words ${
+              allDone && !isActive ? "text-muted" : "text-white"
+            }`}
+          >
+            {entry.exercise?.name}
+          </h3>
+          {(originalExerciseName || suggestionTrend) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {originalExerciseName && (
+                <span className="max-w-full truncate px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight">
+                  ↩ {originalExerciseName}
+                </span>
+              )}
+              {/* Where the suggested weight goes compared with last time */}
+              {suggestionTrend === "up" && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight whitespace-nowrap">
+                  Add weight
+                </span>
+              )}
+              {suggestionTrend === "same" && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 leading-tight whitespace-nowrap">
+                  Same weight
+                </span>
+              )}
+              {suggestionTrend === "down" && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/20 text-orange-400 leading-tight whitespace-nowrap">
+                  Lighter
+                </span>
+              )}
+            </div>
+          )}
           {(!allDone || isActive) && (
-            <p className="text-muted text-sm">
+            <p className="mt-1 text-muted text-sm whitespace-nowrap">
               {targetSets}×{targetRepsLabel}
               {suggestedWeight !== null && (
                 <span className="ml-2 text-accent font-num font-bold">
@@ -211,30 +212,42 @@ export default function ExerciseCard({
           )}
         </button>
 
-        {/* Equipment toggle slot — rendered to the right of the name area */}
-        {isActive && equipmentToggle && (
-          <div className="shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-            {equipmentToggle}
-          </div>
-        )}
-
-        {/* Right controls */}
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          {isActive && onSwapExercise && (
-            <button
-              type="button"
-              onClick={() => setShowSwapModal(true)}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold border text-muted border-border-strong bg-surface active:bg-surface-hover"
-              title="Swap exercise"
-            >
-              🔄
-            </button>
+        <button type="button" onClick={onToggle} className="flex items-center gap-1 pt-0.5 shrink-0 active:opacity-70">
+          {allDone ? (
+            <span className="text-success text-lg">✔</span>
+          ) : (
+            <span className="text-muted text-sm font-medium font-num">
+              {completedCount}/{targetSets}
+            </span>
           )}
-          {isActive && (
+          <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
+        </button>
+      </div>
+
+      {/* Toolbar of the open card: equipment, swap, edit — its own row so nothing overlaps the name */}
+      {isActive && (
+        <div className="flex items-center gap-2 px-4 pb-2">
+          {equipmentToggle && (
+            <div className="min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+              {equipmentToggle}
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            {onSwapExercise && (
+              <button
+                type="button"
+                onClick={() => setShowSwapModal(true)}
+                aria-label="Swap exercise"
+                className="h-9 px-3 rounded-lg text-sm border text-muted border-border-strong bg-surface active:bg-surface-hover"
+                title="Swap exercise"
+              >
+                🔄
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsEditMode((v) => !v)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+              className={`h-9 px-3 rounded-lg text-xs font-semibold border ${
                 isEditMode
                   ? "text-accent border-accent/40 bg-accent/10"
                   : "text-muted border-border-strong bg-surface active:bg-surface-hover"
@@ -242,19 +255,9 @@ export default function ExerciseCard({
             >
               {isEditMode ? "Done" : "Edit"}
             </button>
-          )}
-          <button type="button" onClick={onToggle} className="flex items-center gap-1 active:opacity-70">
-            {allDone ? (
-              <span className="text-success text-lg">✔</span>
-            ) : (
-              <span className="text-muted text-sm font-medium">
-                {completedCount}/{targetSets}
-              </span>
-            )}
-            <span className="text-muted text-xs">{isActive ? "▲" : "▼"}</span>
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Swap / alt hints */}
       {isActive && lastAltHint && !originalExerciseName && (
