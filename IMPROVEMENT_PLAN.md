@@ -362,6 +362,7 @@ Create each file with `"use server"` at top, import from `_shared`/`_mocks`, and
 
 ### PHASE 5 — Quick-win usability (independent sub-tasks; any subset ships) · RISK: low
 
+> **2026-10-25: 5.1 plate calculator removed** at the user's request (`plates.ts`, `PlateCalculatorModal`, the card's Plates button).
 > **Status 2026-10-24: done (all four).** 5.1 `src/lib/plates.ts` (exact min-plate search, kg and lb plate sets) +
 > `PlateCalculatorModal` from a "Plates" button in the active exercise card (the set rows had no room for another
 > control). 5.2 there was no rest timer, only the EMOM interval timer — added `RestTimer`: starts when a set is

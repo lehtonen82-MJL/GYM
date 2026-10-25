@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import SetRow from "./SetRow";
 import IntervalTimer from "./IntervalTimer";
-import PlateCalculatorModal from "./PlateCalculatorModal";
 import SwapExerciseModal from "./SwapExerciseModal";
 import type { WorkoutExerciseEntry, SetEntry } from "@/lib/types";
 import { getPreviousResults, getLastUsedAlternative } from "@/lib/actions";
@@ -59,7 +58,6 @@ export default function ExerciseCard({
   const [prevResults, setPrevResults] = useState<{ weight_kg: number; reps: number; is_warmup: boolean }[]>([]);
   const { unit } = useSettings();
   const [showTimer, setShowTimer] = useState(false);
-  const [showPlates, setShowPlates] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showTooHeavyPicker, setShowTooHeavyPicker] = useState(false);
   const [showRepsStep, setShowRepsStep] = useState(false);
@@ -331,13 +329,6 @@ export default function ExerciseCard({
               </button>
               <button
                 type="button"
-                onClick={() => setShowPlates(true)}
-                className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm font-semibold border border-zinc-700 active:bg-zinc-700"
-              >
-                Plates
-              </button>
-              <button
-                type="button"
                 onClick={() => setShowTooHeavyPicker(true)}
                 className={`px-3 py-2 rounded-xl text-sm font-semibold active:opacity-80 flex items-center gap-1.5 ${
                   hasTooHeavySets
@@ -483,19 +474,6 @@ export default function ExerciseCard({
           targetReps={targetReps}
           onSetsChange={onSetsChange}
           onClose={() => setShowTimer(false)}
-        />
-      )}
-
-      {showPlates && (
-        <PlateCalculatorModal
-          // Next set to load: first unfinished work set with a weight, else the suggestion
-          initialWeightKg={
-            sets.find((s) => !s.completed && !s.is_warmup && s.weight_kg)?.weight_kg ??
-            suggestedWeight ??
-            sets.find((s) => s.weight_kg)?.weight_kg ??
-            null
-          }
-          onClose={() => setShowPlates(false)}
         />
       )}
 
