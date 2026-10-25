@@ -44,6 +44,10 @@ _Avoid_: Local copy, cache, autosave
 A deliberately lighter workout: fewer sets and reduced weights, with no weight progression suggested.
 _Avoid_: Deload (in user-facing text), recovery week
 
+**Week streak**:
+The number of consecutive Monday–Sunday weeks, counting back from this one, with at least one finished workout. A current week without a workout yet doesn't break it.
+_Avoid_: Streak (alone), daily streak
+
 ### Measures
 
 **Volume**:

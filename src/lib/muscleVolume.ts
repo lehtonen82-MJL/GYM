@@ -1,5 +1,6 @@
 // Weekly sets per muscle (see GLOSSARY.md), grouped in the viewer's local time.
 
+import { mondayOf } from "@/lib/calendar";
 import { exerciseSummary, type RuleSet } from "@/lib/setRules";
 
 /** Display names of the library's primary muscles. */
@@ -32,12 +33,6 @@ export type MuscleWeeks = {
   /** Muscles with any sets in the weeks shown: most sets this week first, unlinked (null) last */
   muscles: { muscle: string | null; weeklySets: number[]; kgThisWeek: number }[];
 };
-
-/** Local Monday 00:00 of the week containing `date` (built from calendar parts, so DST-safe). */
-function mondayOf(date: Date): Date {
-  const daysSinceMonday = (date.getDay() + 6) % 7;
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() - daysSinceMonday);
-}
 
 /** Completed work sets per primary muscle for the `weeks` weeks up to and including the current one. */
 export function weeklyMuscleSets(entries: MuscleEntry[], now: Date, weeks = 8): MuscleWeeks {

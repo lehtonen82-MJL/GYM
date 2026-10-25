@@ -13,6 +13,8 @@ import {
 import type { Workout } from "@/lib/types";
 import { formatDuration, formatShortDate, formatVolume } from "@/lib/format";
 import { filterWorkouts, visibleSelection } from "@/lib/historyFilter";
+import { localDay } from "@/lib/calendar";
+import HistoryCalendar from "./HistoryCalendar";
 import { useSettings } from "@/lib/settings";
 import ImportWorkoutModal from "./ImportWorkoutModal";
 
@@ -33,16 +35,17 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
   const router = useRouter();
   const { unit } = useSettings();
 
-  // Search (exercise, title, notes, date) — select/delete act on the visible rows
+  // Search (exercise, title, notes, date) and the calendar's day — select/delete act on the visible rows
   const [query, setQuery] = useState("");
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const workouts = useMemo(
     () =>
       filterWorkouts(
         allWorkouts.map((w) => ({ ...w, title: workoutTitle(w) })),
         query,
         formatShortDate
-      ),
-    [allWorkouts, query]
+      ).filter((w) => selectedDay === null || localDay(w.started_at) === selectedDay),
+    [allWorkouts, query, selectedDay]
   );
 
   // Normal-mode state
@@ -162,6 +165,11 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
 
   return (
     <div className="space-y-3">
+      <HistoryCalendar
+        startedAts={allWorkouts.map((w) => w.started_at)}
+        selectedDay={selectedDay}
+        onSelectDay={setSelectedDay}
+      />
       <input
         type="search"
         value={query}
@@ -170,9 +178,17 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
         aria-label="Search history"
         className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base placeholder:text-zinc-600"
       />
-      {query && (
+      {(query || selectedDay) && (
         <p className="text-muted text-xs" role="status">
           {workouts.length} of {allWorkouts.length} workouts
+          {selectedDay && (
+            <>
+              {" "}on {formatShortDate(`${selectedDay}T00:00`)} ·{" "}
+              <button type="button" onClick={() => setSelectedDay(null)} className="text-accent">
+                show all
+              </button>
+            </>
+          )}
         </p>
       )}
       {/* Toolbar */}
