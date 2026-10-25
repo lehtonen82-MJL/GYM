@@ -89,10 +89,12 @@ export default function ExerciseCard({
     }
   }, [isActive]);
 
-  // Exit edit mode when card collapses
-  useEffect(() => {
+  // Collapsing the card leaves edit mode (state adjusted during render, not in an effect)
+  const [wasActive, setWasActive] = useState(isActive);
+  if (isActive !== wasActive) {
+    setWasActive(isActive);
     if (!isActive) setIsEditMode(false);
-  }, [isActive]);
+  }
 
   const targetSets = entry.workout_day_exercise?.target_sets ?? sets.length;
   const targetReps = entry.workout_day_exercise?.target_reps ?? 5;

@@ -139,14 +139,12 @@ export default function ProgressClient({
 
   // Rowing state
   const [rowingData, setRowingData] = useState<RowingDataPoint[]>([]);
-  const [rowingLoading, setRowingLoading] = useState(false);
   const [rowingFetched, setRowingFetched] = useState(false);
 
   useEffect(() => {
     if (!selectedId) return;
     let cancelled = false;
-    setLiftingLoading(true);
-    setPRs([]);
+    // Loading state and cleared PRs are set where selectedId changes (the select's onChange)
     const request = ++liftingRequest.current;
     getExerciseEquipmentUsage(selectedId)
       .then((usage) => {
@@ -180,23 +178,21 @@ export default function ProgressClient({
   useEffect(() => {
     if (tab !== "rowing" || rowingFetched) return;
     let cancelled = false;
-    setRowingLoading(true);
     getRowingHistory()
       .then((d) => {
         if (cancelled) return;
         setRowingData(d ?? []);
-        setRowingLoading(false);
         setRowingFetched(true);
       })
       .catch((err) => {
         if (cancelled) return;
         console.error("[ProgressClient] getRowingHistory error:", err);
-        setRowingLoading(false);
         setRowingFetched(true);
       });
     return () => { cancelled = true; };
   }, [tab, rowingFetched]);
 
+  const rowingLoading = tab === "rowing" && !rowingFetched;
   const hasVolume = data.some((d) => d.volume > 0);
   // Bodyweight exercise: all data points have weight_kg = 0 (no weight entered)
   const isBodyweight = data.length > 0 && data.every((d) => d.weight_kg === 0);
@@ -226,6 +222,7 @@ export default function ProgressClient({
             value={selectedId}
             onChange={(e) => {
               setLiftingLoading(true);
+              setPRs([]);
               setSelectedId(e.target.value);
             }}
             className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base"

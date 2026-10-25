@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const EVENT_NAME = "easy-week-changed";
 
@@ -9,35 +9,33 @@ function storageKey(programId: string) {
 }
 
 function readActive(programId: string): boolean {
-  if (typeof window === "undefined") return false;
   return localStorage.getItem(storageKey(programId)) === "1";
 }
 
+function subscribe(onChange: () => void) {
+  window.addEventListener(EVENT_NAME, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(EVENT_NAME, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+/** Whether Easy Week is switched on for a program, kept in localStorage (false while server rendering). */
 export function useEasyWeekMode(programId: string | undefined) {
-  const [active, setActive] = useState(false);
-
-  // Sync from localStorage on mount (client only)
-  useEffect(() => {
-    if (!programId) return;
-    setActive(readActive(programId));
-
-    function onChanged(e: Event) {
-      const detail = (e as CustomEvent<string>).detail;
-      if (detail === programId) setActive(readActive(programId));
-    }
-    window.addEventListener(EVENT_NAME, onChanged);
-    return () => window.removeEventListener(EVENT_NAME, onChanged);
-  }, [programId]);
+  const active = useSyncExternalStore(
+    subscribe,
+    () => (programId ? readActive(programId) : false),
+    () => false
+  );
 
   const toggle = useCallback(() => {
     if (!programId) return;
-    const next = !readActive(programId);
-    if (next) {
-      localStorage.setItem(storageKey(programId), "1");
-    } else {
+    if (readActive(programId)) {
       localStorage.removeItem(storageKey(programId));
+    } else {
+      localStorage.setItem(storageKey(programId), "1");
     }
-    setActive(next);
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: programId }));
   }, [programId]);
 
