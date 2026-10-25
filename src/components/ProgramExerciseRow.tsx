@@ -270,7 +270,9 @@ export function ProgramExerciseRow({
           {/* Alternatives toggle */}
           <button
             type="button"
-            onClick={async () => {
+            onClick={async (e) => {
+              // The row's wrapper opens the edit form on click; this toggle shouldn't
+              e.stopPropagation();
               if (!showAlts) {
                 setLoadingAlts(true);
                 const [alts, exList] = await Promise.all([
@@ -292,7 +294,7 @@ export function ProgramExerciseRow({
           </button>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-1">
+        <div className="flex flex-shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
           {canMoveUp && (
             <button
               onClick={onMoveUp}
@@ -328,7 +330,7 @@ export function ProgramExerciseRow({
 
       {/* Alternatives panel */}
       {showAlts && (
-        <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
+        <div className="border-t border-border px-3 pb-3 pt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
           {loadingAlts ? (
             <p className="text-xs text-muted">Loading…</p>
           ) : (
