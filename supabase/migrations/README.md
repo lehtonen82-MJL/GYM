@@ -36,6 +36,8 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   only; checked afterwards: all 10 policies carry the ownership WITH CHECK).
 - **2026-10-25:** `023` (start_workout takes a session name) applied on its own in the SQL Editor;
   checked afterwards (start_workout's source includes import_session_name).
+- **2026-10-25:** `024` (body weight, RPE, supersets) applied on its own in the SQL Editor; checked
+  afterwards (body_weights, the rpe/superset_group columns, workout_set_rows and both RPCs updated).
 
 ## Rules for new migrations
 
