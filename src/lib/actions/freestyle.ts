@@ -96,7 +96,14 @@ export async function addExerciseToWorkout(
 
   // Planned sets from previous results (empty work sets when the exercise has none);
   // too_heavy/too_heavy_reps are left to their DB defaults.
-  const planned = planSets({ prescription: [], targetSets, previous, autoWarmup: wantsAutoWarmup(library[exerciseId]) });
+  // No program here: last time's work-set count, else the default target
+  const previousWorkSets = previous.filter((s) => !s.is_warmup).length;
+  const planned = planSets({
+    prescription: [],
+    targetSets: previousWorkSets || targetSets,
+    previous,
+    autoWarmup: wantsAutoWarmup(library[exerciseId]),
+  });
   const setRows = setRowsFor(planned, entry.id as string, userId);
 
   const { data: sets, error: setsErr } = await supabase

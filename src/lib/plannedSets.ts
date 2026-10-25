@@ -52,16 +52,17 @@ const deloadWeight = (kg: number | null, pct: number) => (kg == null ? null : Ma
 
 /**
  * The planned sets for one exercise in a new workout: the previous results' warmup sets first, then
- * work sets — as many as prescribed (or the target), but never fewer than were done last time.
- * Work sets take the prescription's weight/reps, else the previous set's; reps stay empty after a
- * too-heavy work set (a too-heavy warmup keeps its reps). An Easy Week (`deload`) cuts the counts
+ * as many work sets as prescribed (or the target) — the program decides the count, not last time.
+ * Work sets take the prescription's weight/reps, else the matching previous work set's (sets beyond
+ * last time's repeat its last one); reps stay empty after a too-heavy work set (a too-heavy warmup
+ * keeps its reps). An Easy Week (`deload`) cuts the counts
  * (rounded up, at least one work set) and every weight. With `autoWarmup` and no previous warmups, an
  * automatic ramp (50/70/85 % × 8/5/3 of the first work set, from 40 kg up) goes first.
  */
 export function planSets({ prescription, targetSets, previous, deload, autoWarmup }: PlanInput): PlannedSet[] {
   const prevWarmups = previous.filter((s) => s.is_warmup);
   const prevWorkSets = previous.filter((s) => !s.is_warmup);
-  let workSetCount = Math.max(prescription.length > 0 ? prescription.length : targetSets, prevWorkSets.length);
+  let workSetCount = prescription.length > 0 ? prescription.length : targetSets;
   let warmupCount = prevWarmups.length;
   if (deload) {
     workSetCount = Math.max(1, Math.ceil((workSetCount * deload.setPct) / 100));
@@ -80,7 +81,8 @@ export function planSets({ prescription, targetSets, previous, deload, autoWarmu
     }
   }
   for (let j = 0; j < workSetCount; j++) {
-    const prev = prevWorkSets[j];
+    // Sets beyond last time's repeat the last previous work set
+    const prev = prevWorkSets[j] ?? prevWorkSets[prevWorkSets.length - 1];
     planned.push({
       set_number: planned.length + 1,
       weight_kg: weight(prescription[j]?.weightKg ?? prev?.weight_kg ?? null),

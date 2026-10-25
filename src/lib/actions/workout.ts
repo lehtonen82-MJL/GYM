@@ -1,7 +1,7 @@
 "use server";
 
 import type { Workout, WorkoutExerciseEntry } from "@/lib/types";
-import { parseSchemePrescription } from "@/lib/programParser";
+import { parseRepRange, parseSchemePrescription } from "@/lib/programParser";
 import { planSets, wantsAutoWarmup, type PlanInput } from "@/lib/plannedSets";
 import { suggestedWeight } from "@/lib/setRules";
 import { db, getLibraryInfo, getUserId } from "./_shared";
@@ -81,9 +81,24 @@ type WdeRow = {
   exercise_id: string;
   target_sets: number;
   target_reps?: number;
+  /** Top of a rep range ("10-12" → 12): the reps every work set must reach before the weight goes up */
+  target_reps_max?: number;
   scheme_text?: string;
   exercise: unknown;
 };
+
+/** A program exercise's set count and rep target (a range's min; its max for progression). */
+function programTargets(pe: Record<string, unknown>) {
+  const schemeText = (pe.scheme_text as string | null) ?? undefined;
+  const range = parseRepRange((pe.target_reps_text as string | null) ?? schemeText);
+  const firstReps = parseSchemePrescription(schemeText)[0]?.reps;
+  return {
+    scheme_text: schemeText,
+    target_sets: (pe.target_sets as number | null) ?? 3,
+    target_reps: range?.min ?? firstReps ?? 5,
+    target_reps_max: range?.max ?? firstReps ?? 5,
+  };
+}
 
 /**
  * Starts a workout from program exercises: plans each one's sets (planSets) and creates the workout,
@@ -129,7 +144,7 @@ async function addPlannedExercises(
     const wde = wdes[i];
     suggestions[wde.exercise_id] = suggestedWeight(prevResultsAll[i] ?? [], {
       targetSets: wde.target_sets,
-      targetReps: wde.target_reps ?? null,
+      targetReps: wde.target_reps_max ?? wde.target_reps ?? null,
       equipment: library[wde.exercise_id]?.equipment ?? null,
       easyWeek: !!deload,
     });
@@ -183,31 +198,28 @@ export async function startWorkout(
     if (resumed) return resumed;
   }
 
-  // 3. Get exercises — try legacy workout_day_exercises first, fall back to program_exercises.
-  // This handles both old data (wde table) and programs built/imported via the program builder
-  // (which stores exercises in program_exercises, not workout_day_exercises).
+  // 3. Get exercises. A day built with the program builder/import has program_exercises: they decide
+  // which exercises and how many sets (workout_day_exercises rows are only the entries' link, and their
+  // target_sets drift with what was done). Older days without program_exercises use their
+  // workout_day_exercises as before.
   let resolvedWdes: WdeRow[] = [];
 
-  const { data: legacyWdes } = await supabase
-    .from("workout_day_exercises")
-    .select("*, exercise:exercises(*)")
-    .eq("workout_day_id", workoutDayId)
+  const { data: pes } = await supabase
+    .from("program_exercises")
+    .select("*")
+    .eq("program_day_id", workoutDayId)
     .eq("user_id", userId)
-    .order("order_index");
+    .order("sort_order");
 
-  if (legacyWdes && legacyWdes.length > 0) {
-    resolvedWdes = legacyWdes as WdeRow[];
-  } else {
-    // Fall back: materialise program_exercises → workout_day_exercises on-demand
-    const { data: pes } = await supabase
-      .from("program_exercises")
-      .select("*")
-      .eq("program_day_id", workoutDayId)
+  if (!pes || pes.length === 0) {
+    const { data: legacyWdes } = await supabase
+      .from("workout_day_exercises")
+      .select("*, exercise:exercises(*)")
+      .eq("workout_day_id", workoutDayId)
       .eq("user_id", userId)
-      .order("sort_order");
-
-    if (!pes || pes.length === 0) return null;
-
+      .order("order_index");
+    resolvedWdes = (legacyWdes ?? []) as WdeRow[];
+  } else {
     for (const pe of pes) {
       let exerciseId: string | null = (pe.exercise_id as string | null) ?? null;
 
@@ -249,15 +261,10 @@ export async function startWorkout(
         .limit(1)
         .maybeSingle();
 
-      const schemeText = (pe.scheme_text as string | null) ?? undefined;
-      const prescription = parseSchemePrescription(schemeText);
-      const firstReps = prescription[0]?.reps;
+      const targets = programTargets(pe);
 
       if (existingWde) {
-        resolvedWdes.push({
-          ...(existingWde as WdeRow),
-          scheme_text: schemeText,
-        });
+        resolvedWdes.push({ ...(existingWde as WdeRow), ...targets });
       } else {
         const { data: newWde } = await supabase
           .from("workout_day_exercises")
@@ -266,17 +273,12 @@ export async function startWorkout(
             exercise_id: exerciseId,
             user_id: userId,
             order_index: pe.sort_order ?? 0,
-            target_sets: (pe.target_sets as number | null) ?? 3,
-            target_reps: firstReps ?? 5,
+            target_sets: targets.target_sets,
+            target_reps: targets.target_reps,
           })
           .select("*, exercise:exercises(*)")
           .single();
-        if (newWde) {
-          resolvedWdes.push({
-            ...(newWde as WdeRow),
-            scheme_text: schemeText,
-          });
-        }
+        if (newWde) resolvedWdes.push({ ...(newWde as WdeRow), ...targets });
       }
     }
   }
@@ -387,9 +389,7 @@ export async function startDeloadWorkout(
         if (!exerciseId || seenExerciseIds.has(exerciseId)) continue;
         seenExerciseIds.add(exerciseId);
 
-        const schemeText = (pe.scheme_text as string | null) ?? undefined;
-        const prescription = parseSchemePrescription(schemeText);
-        const firstReps = prescription[0]?.reps;
+        const targets = programTargets(pe);
 
         const wde = await supabase
           .from("workout_day_exercises")
@@ -408,14 +408,14 @@ export async function startDeloadWorkout(
               exercise_id: exerciseId,
               user_id: userId,
               order_index: pe.sort_order ?? 0,
-              target_sets: (pe.target_sets as number | null) ?? 3,
-              target_reps: firstReps ?? 5,
+              target_sets: targets.target_sets,
+              target_reps: targets.target_reps,
             })
             .select("*, exercise:exercises(*)")
             .single();
-          if (newWde) allWdes.push({ ...(newWde as WdeRow), scheme_text: schemeText });
+          if (newWde) allWdes.push({ ...(newWde as WdeRow), ...targets });
         } else {
-          allWdes.push({ ...(wde.data as WdeRow), scheme_text: schemeText });
+          allWdes.push({ ...(wde.data as WdeRow), ...targets });
         }
       }
     }

@@ -15,18 +15,28 @@ describe("planSets", () => {
     ]);
   });
 
-  it("carries previous results: warmups first, at least as many work sets, prescription wins", () => {
+  it("carries previous results: warmups first, the program's set count, prescription wins", () => {
     const previous = [
       { weight_kg: 40, reps: 8, is_warmup: true, too_heavy: false },
       { weight_kg: 100, reps: 5, is_warmup: false, too_heavy: false },
       { weight_kg: 100, reps: 5, is_warmup: false, too_heavy: false },
       { weight_kg: 100, reps: 4, is_warmup: false, too_heavy: false },
     ];
-    expect(planSets({ prescription: [{ reps: 6 }], targetSets: 2, previous })).toEqual([
+    expect(planSets({ prescription: [], targetSets: 2, previous })).toEqual([
       { set_number: 1, weight_kg: 40, reps: 8, is_warmup: true },
-      { set_number: 2, weight_kg: 100, reps: 6, is_warmup: false },
+      { set_number: 2, weight_kg: 100, reps: 5, is_warmup: false },
       { set_number: 3, weight_kg: 100, reps: 5, is_warmup: false },
-      { set_number: 4, weight_kg: 100, reps: 4, is_warmup: false },
+    ]);
+    expect(planSets({ prescription: [{ reps: 6 }, { reps: 6 }], targetSets: 2, previous }).slice(1).map((s) => s.reps)).toEqual([6, 6]);
+  });
+
+  it("gives sets beyond last time's the last previous work set's weight and reps", () => {
+    const previous = [
+      { weight_kg: 40, reps: 2, is_warmup: false, too_heavy: false },
+      { weight_kg: 42.5, reps: 2, is_warmup: false, too_heavy: false },
+    ];
+    expect(planSets({ prescription: [], targetSets: 4, previous }).map((s) => [s.weight_kg, s.reps])).toEqual([
+      [40, 2], [42.5, 2], [42.5, 2], [42.5, 2],
     ]);
   });
 

@@ -457,6 +457,20 @@ export function parseSchemeText(schemeText?: string): {
   };
 }
 
+/**
+ * The rep target in a reps text or scheme ("12", "10-12", "3x10-12"): min and max (equal for a single
+ * count); null when it has none.
+ */
+export function parseRepRange(text?: string | null): { min: number; max: number } | null {
+  if (!text) return null;
+  const reps = text.includes("x") || text.includes("×") ? text.split(/[x×]/).slice(1).join("x") : text;
+  const m = reps.match(/(\d+)\s*(?:[-–]\s*(\d+))?/);
+  if (!m) return null;
+  const min = Number(m[1]);
+  const max = m[2] ? Number(m[2]) : min;
+  return { min: Math.min(min, max), max: Math.max(min, max) };
+}
+
 export function parseSchemePrescription(schemeText?: string): PrescribedSet[] {
   if (!schemeText) return [];
   const raw = schemeText.trim();

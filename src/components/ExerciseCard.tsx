@@ -98,6 +98,9 @@ export default function ExerciseCard({
 
   const targetSets = entry.workout_day_exercise?.target_sets ?? sets.length;
   const targetReps = entry.workout_day_exercise?.target_reps ?? 5;
+  // Top of a rep range ("10-12"), set on program starts
+  const targetRepsMax = (entry.workout_day_exercise as { target_reps_max?: number } | undefined)?.target_reps_max;
+  const targetRepsLabel = targetRepsMax && targetRepsMax > targetReps ? `${targetReps}-${targetRepsMax}` : `${targetReps}`;
 
   function updateSet(setId: string, changes: Partial<SetEntry>) {
     onSetsChange(sets.map((s) => (s.id === setId ? { ...s, ...changes } : s)));
@@ -199,7 +202,7 @@ export default function ExerciseCard({
           </div>
           {(!allDone || isActive) && (
             <p className="text-muted text-sm">
-              {targetSets}×{targetReps}
+              {targetSets}×{targetRepsLabel}
               {suggestedWeight !== null && (
                 <span className="ml-2 text-accent">
                   {suggestionTrend === "down" ? "↓" : suggestionTrend === "same" ? "=" : "↑"} {formatWeight(suggestedWeight, unit)}

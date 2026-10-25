@@ -97,7 +97,7 @@ describe("set transitions", () => {
 });
 
 describe("swapping an exercise", () => {
-  it("plans the new exercise's sets from its previous results, warmups first", () => {
+  it("plans the new exercise's sets from its previous results, warmups first, extra sets repeating the last", () => {
     let n = 0;
     const sets = swapSets(
       { entryId: "e1", userId: "u1", targetSets: 2 },
@@ -110,7 +110,7 @@ describe("swapping an exercise", () => {
     expect(sets.map((s) => [s.id, s.is_warmup, s.weight_kg, s.reps, s.completed])).toEqual([
       ["n1", true, 40, 8, false],
       ["n2", false, 80, 6, false],
-      ["n3", false, null, null, false],
+      ["n3", false, 80, 6, false],
     ]);
   });
 });

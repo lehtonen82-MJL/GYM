@@ -63,12 +63,16 @@ The sets of an exercise from the lifter's most recent finished workout with it o
 _Avoid_: Last time, history
 
 **Suggested weight**:
-The weight proposed for an exercise's next work sets, from the previous results' heaviest work set: one progression step up when every work set reached the target reps, one step down after a too-heavy set, otherwise the same. In an Easy Week it never goes up.
+The weight proposed for an exercise's next work sets, from the previous results' heaviest work set: one progression step up when every work set reached the target reps (a rep range's max), one step down after a too-heavy set, otherwise the same. In an Easy Week it never goes up.
 _Avoid_: Recommended weight, target weight
 
 **Weekly sets**:
 For a muscle, the number of completed work sets in a week (Monday–Sunday, local time) of exercises whose primary muscle it is. The measure of training volume per muscle; secondary muscles don't count.
 _Avoid_: Weekly volume (that is kg), muscle volume
+
+**Rep range**:
+A program's rep target given as min–max ("3x10-12"). A set left without reps counts as the min; the weight goes up only when every work set reaches the max (double progression).
+_Avoid_: Rep span, rep window
 
 **Progression step**:
 How much the suggested weight moves at a time for an equipment type (e.g. 2.5 kg for a barbell, 2 kg for dumbbells). Equipment moved by bodyweight or bands has none, so it gets no suggested weight.
