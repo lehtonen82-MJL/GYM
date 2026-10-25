@@ -34,8 +34,8 @@ re-runnable, and the whole run rolls back on any error. Take a backup first on p
   otherwise nothing is applied.
 - **2026-10-24:** `022` (row ownership on writes) applied on its own in the SQL Editor (policies
   only; checked afterwards: all 10 policies carry the ownership WITH CHECK).
-- **Pending:** `023` (start_workout takes a session name). Apply it **before** deploying commit
-  "feat: start template workouts in one transaction", or template starts fail.
+- **2026-10-25:** `023` (start_workout takes a session name) applied on its own in the SQL Editor;
+  checked afterwards (start_workout's source includes import_session_name).
 
 ## Rules for new migrations
 
