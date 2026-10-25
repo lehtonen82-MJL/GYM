@@ -33,6 +33,9 @@ import {
   clearSession,
   finishPayload,
   hasIncompleteSets,
+  nextActiveEntry,
+  restAfterSet,
+  supersetBlocks,
   loadDraft,
   loadStartResult,
   markTooHeavy,
@@ -210,16 +213,16 @@ export default function WorkoutClient({
     (entryId: string, sets: SetEntry[]) => {
       setSetsMap((prev) => ({ ...prev, [entryId]: sets }));
 
-      const allDone = sets.length > 0 && sets.every((s) => s.completed);
-      if (allDone) {
-        const currentIdx = entries.findIndex((e) => e.id === entryId);
-        const nextEntry = entries[currentIdx + 1];
-        setTimeout(() => {
-          setActiveEntryId(nextEntry ? nextEntry.id : null);
-        }, 600);
-      }
+      // A set was just checked off: start the rest (after a round, in a superset) and open the
+      // next exercise (the superset's next one, or the next exercise once this one is done)
+      const doneBefore = (setsMap[entryId] ?? []).filter((s) => s.completed).length;
+      if (sets.filter((s) => s.completed).length <= doneBefore) return;
+      const next = { ...setsMap, [entryId]: sets };
+      if (restSeconds > 0 && restAfterSet(entries, next, entryId)) setRestEndsAt(Date.now() + restSeconds * 1000);
+      const nextEntryId = nextActiveEntry(entries, next, entryId);
+      if (nextEntryId !== entryId) setTimeout(() => setActiveEntryId(nextEntryId), 600);
     },
-    [entries]
+    [entries, setsMap, restSeconds]
   );
 
   function handleTooHeavySetsChange(entryId: string, setIds: string[], value: boolean, achievedReps?: number | null) {
@@ -664,23 +667,8 @@ export default function WorkoutClient({
     );
   }
 
-  return (
-    <div className="space-y-4 pb-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted text-sm">{workout.workout_day?.day_label}</p>
-          <h1 className="text-2xl font-bold text-white">{workout.workout_day?.name}</h1>
-        </div>
-      </div>
-
-      {workout.is_deload && (
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-400 text-sm font-medium">
-          🔄 Recovery Week — lighter loads, fewer sets
-        </div>
-      )}
-
-      {entries.map((entry) => {
-        const opts = equipmentOptions[entry.exercise_id] ?? [];
+  function renderExerciseCard(entry: WorkoutExerciseEntry) {
+    const opts = equipmentOptions[entry.exercise_id] ?? [];
         const currentEquip = entry.equipment_type ?? null;
         const suggestion =
           suggestionOverrides[entry.exercise_id] !== undefined
@@ -701,9 +689,6 @@ export default function WorkoutClient({
             programExerciseId={entry.workout_day_exercise_id ?? null}
             originalExerciseName={entry.original_exercise?.name ?? null}
             onSwapExercise={(newId, newName) => void handleSwapExercise(entry.id, newId, newName)}
-            onSetCompleted={() => {
-              if (restSeconds > 0) setRestEndsAt(Date.now() + restSeconds * 1000);
-            }}
             restTimer={
               activeEntryId === entry.id && restEndsAt !== null ? (
                 <RestTimer
@@ -724,8 +709,34 @@ export default function WorkoutClient({
               ) : undefined
             }
           />
-        );
-      })}
+    );
+  }
+
+  return (
+    <div className="space-y-4 pb-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-muted text-sm">{workout.workout_day?.day_label}</p>
+          <h1 className="text-2xl font-bold text-white">{workout.workout_day?.name}</h1>
+        </div>
+      </div>
+
+      {workout.is_deload && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-400 text-sm font-medium">
+          🔄 Recovery Week — lighter loads, fewer sets
+        </div>
+      )}
+
+      {supersetBlocks(entries).map((block) =>
+        block.group ? (
+          <div key={block.entries[0].id} className="rounded-2xl border border-accent/40 p-2 space-y-2">
+            <p className="px-1 text-xs font-semibold text-accent uppercase tracking-wide">Superset {block.group}</p>
+            {block.entries.map(renderExerciseCard)}
+          </div>
+        ) : (
+          renderExerciseCard(block.entries[0])
+        )
+      )}
 
       <button
         type="button"

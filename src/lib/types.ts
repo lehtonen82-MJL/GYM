@@ -216,6 +216,8 @@ export type WorkoutBonusCardio = {
 };
 
 export type WorkoutExerciseEntry = {
+  /** Superset letter (exercises sharing it are done alternately); null when not in one */
+  superset_group?: string | null;
   id: string;
   workout_id: string;
   exercise_id: string;

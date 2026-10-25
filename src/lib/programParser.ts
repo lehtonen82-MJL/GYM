@@ -12,6 +12,8 @@ export interface ParsedExercise {
   targetSets?: number;
   targetRepsText?: string;
   notes?: string;
+  /** Superset letter from an "A1"/"A2)"-style prefix; exercises sharing it are done alternately */
+  supersetGroup?: string;
 }
 
 export interface ParserWarning {
@@ -362,8 +364,16 @@ function parseExerciseToken(token: string): ParsedExercise | null {
 
   if (parts.length === 0) return null;
 
-  const exerciseName = cleanLeadingJunk(parts[0]);
+  let exerciseName = cleanLeadingJunk(parts[0]);
   if (!exerciseName) return null;
+
+  // "A1 Biceps Curl", "A2) …", "b1. …": superset A/B, … (letters A–H, positions 1–6, a name after)
+  let supersetGroup: string | undefined;
+  const superset = exerciseName.match(/^([A-Ha-h])[1-6][).:]?\s+(?=\S)/);
+  if (superset) {
+    supersetGroup = superset[1].toUpperCase();
+    exerciseName = exerciseName.slice(superset[0].length).trim();
+  }
 
   const schemeText = parts[1];
   const notes = parts.length > 2 ? parts.slice(2).join(" | ") : undefined;
@@ -375,6 +385,7 @@ function parseExerciseToken(token: string): ParsedExercise | null {
     targetSets: scheme.targetSets,
     targetRepsText: scheme.targetRepsText,
     notes: notes || undefined,
+    ...(supersetGroup ? { supersetGroup } : {}),
   };
 }
 

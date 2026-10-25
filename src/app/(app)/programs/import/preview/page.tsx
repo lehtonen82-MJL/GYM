@@ -249,7 +249,14 @@ export default function ImportPreviewPage() {
               <div className="space-y-2">
                 {day.exercises.map((ex, exIdx) => (
                   <div key={exIdx} className="rounded border border-border bg-zinc-900 p-3 text-sm">
-                    <div className="font-medium text-white">{ex.name}</div>
+                    <div className="font-medium text-white">
+                      {ex.name}
+                      {ex.supersetGroup && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-accent/20 text-accent align-middle">
+                          Superset {ex.supersetGroup}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1 flex gap-3 text-xs text-muted">
                       {ex.targetSets && <span>{ex.targetSets} sets</span>}
                       {ex.schemeText && <span>{ex.schemeText}</span>}

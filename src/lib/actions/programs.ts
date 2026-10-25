@@ -482,6 +482,7 @@ export async function saveImportedProgram(
       targetSets?: number;
       targetRepsText?: string;
       notes?: string;
+      supersetGroup?: string;
     }>;
   }>
 ): Promise<Program> {
@@ -538,6 +539,7 @@ export async function saveImportedProgram(
       target_reps_text: ex.targetRepsText,
       notes: ex.notes,
       sort_order: exIdx,
+      ...(ex.supersetGroup ? { superset_group: ex.supersetGroup } : {}),
     }))
   );
   if (exerciseRows.length > 0) {

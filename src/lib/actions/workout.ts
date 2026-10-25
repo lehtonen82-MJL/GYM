@@ -107,6 +107,8 @@ type WdeRow = {
   target_reps?: number;
   /** Top of a rep range ("10-12" → 12): the reps every work set must reach before the weight goes up */
   target_reps_max?: number;
+  /** Superset letter from the program (program_exercises.superset_group) */
+  superset_group?: string | null;
   scheme_text?: string;
   exercise: unknown;
 };
@@ -121,6 +123,7 @@ function programTargets(pe: Record<string, unknown>) {
     target_sets: (pe.target_sets as number | null) ?? 3,
     target_reps: range?.min ?? firstReps ?? 5,
     target_reps_max: range?.max ?? firstReps ?? 5,
+    superset_group: (pe.superset_group as string | null) ?? null,
   };
 }
 
@@ -148,6 +151,7 @@ async function addPlannedExercises(
     p_entries: wdes.map((wde, i) => ({
       exercise_id: wde.exercise_id,
       workout_day_exercise_id: wde.id,
+      superset_group: wde.superset_group ?? null,
       sets: planSets({
         prescription: parseSchemePrescription(wde.scheme_text),
         targetSets: wde.target_sets,

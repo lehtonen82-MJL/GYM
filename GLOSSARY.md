@@ -56,6 +56,10 @@ _Avoid_: Deload (in user-facing text), recovery week
 The number of consecutive Monday–Sunday weeks, counting back from this one, with at least one finished workout. A current week without a workout yet doesn't break it.
 _Avoid_: Streak (alone), daily streak
 
+**Superset**:
+Exercises done alternately, one set of each in turn, resting only after a round. Marked in program text with a letter and position ("A1 Biceps Curl", "A2 Triceps Pushdown").
+_Avoid_: Circuit, paired sets
+
 ### Measures
 
 **Volume**:

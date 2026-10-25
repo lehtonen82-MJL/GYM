@@ -1,4 +1,4 @@
-import { addSet, setRpe, clearSession, finishPayload, hasIncompleteSets, swapSets, loadDraft, markTooHeavy, toggleSetCompleted, loadStartResult, memoryStorage, mergeDraftSets, saveDraft, saveStartResult, type WorkoutDraft } from "./workoutSession";
+import { addSet, supersetBlocks, nextActiveEntry, restAfterSet, setRpe, clearSession, finishPayload, hasIncompleteSets, swapSets, loadDraft, markTooHeavy, toggleSetCompleted, loadStartResult, memoryStorage, mergeDraftSets, saveDraft, saveStartResult, type WorkoutDraft } from "./workoutSession";
 import type { SetEntry } from "@/lib/types";
 import type { StartWorkoutResult } from "@/lib/actions";
 
@@ -153,5 +153,48 @@ describe("RPE", () => {
     const draft = loadDraft(storage, "w1")!;
     expect(mergeDraftSets({ e1: [set("a")] }, draft.setsByEntryId).e1[0].rpe).toBe(9);
   });
+});
+
+describe("supersets", () => {
+  const entries = [
+    { id: "pull", superset_group: null },
+    { id: "a1", superset_group: "A" },
+    { id: "a2", superset_group: "A" },
+    { id: "face", superset_group: null },
+  ];
+  const sets = (done: number, total = 2) =>
+    Array.from({ length: total }, (_, i) => set(`s${i}`, { completed: i < done }));
+
+  it("alternates within the superset and moves on when the whole superset is done", () => {
+    expect(nextActiveEntry(entries, { a1: sets(1), a2: sets(0) }, "a1")).toBe("a2");
+    expect(nextActiveEntry(entries, { a1: sets(1), a2: sets(1) }, "a2")).toBe("a1");
+    expect(nextActiveEntry(entries, { a1: sets(2), a2: sets(1) }, "a2")).toBe("a2");
+    expect(nextActiveEntry(entries, { a1: sets(2), a2: sets(2) }, "a2")).toBe("face");
+  });
+
+  it("keeps an exercise outside a superset until all its sets are done", () => {
+    expect(nextActiveEntry(entries, { pull: sets(1) }, "pull")).toBe("pull");
+    expect(nextActiveEntry(entries, { pull: sets(2) }, "pull")).toBe("a1");
+    expect(nextActiveEntry(entries, { face: sets(2) }, "face")).toBeNull();
+  });
+
+  it("rests after a round of the superset, not between its exercises", () => {
+    expect(restAfterSet(entries, { a1: sets(1), a2: sets(0) }, "a1")).toBe(false);
+    expect(restAfterSet(entries, { a1: sets(1), a2: sets(1) }, "a2")).toBe(true);
+    expect(restAfterSet(entries, { a1: sets(1), a2: sets(2) }, "a1")).toBe(true);
+    expect(restAfterSet(entries, { pull: sets(1) }, "pull")).toBe(true);
+  });
+});
+
+it("supersetBlocks groups consecutive members of a superset for display", () => {
+  const blocks = supersetBlocks([
+    { id: "pull", superset_group: null },
+    { id: "a1", superset_group: "A" },
+    { id: "a2", superset_group: "A" },
+    { id: "face", superset_group: null },
+  ]);
+  expect(blocks.map((b) => [b.group, b.entries.map((e) => e.id)])).toEqual([
+    [null, ["pull"]], ["A", ["a1", "a2"]], [null, ["face"]],
+  ]);
 });
 

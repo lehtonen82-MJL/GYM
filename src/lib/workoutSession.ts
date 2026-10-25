@@ -287,3 +287,51 @@ export function finishPayload(
     })),
   }));
 }
+
+// ── Supersets ──────────────────────────────────────────────
+
+type SessionEntry = { id: string; superset_group?: string | null };
+
+const hasSetsLeft = (setsMap: SetMap, entryId: string) => (setsMap[entryId] ?? []).some((s) => !s.completed);
+
+/**
+ * The exercise to open after a set of `entryId` is checked off. In a superset: the next exercise of
+ * the group (in order, wrapping) that still has sets, else the exercise after the group. Otherwise: the
+ * same exercise until all its sets are done, then the next one. Null when nothing follows.
+ */
+export function nextActiveEntry(entries: SessionEntry[], setsMap: SetMap, entryId: string): string | null {
+  const index = entries.findIndex((e) => e.id === entryId);
+  if (index === -1) return entryId;
+  const group = entries[index].superset_group;
+  if (!group) return hasSetsLeft(setsMap, entryId) ? entryId : (entries[index + 1]?.id ?? null);
+
+  const members = entries.filter((e) => e.superset_group === group);
+  const at = members.findIndex((e) => e.id === entryId);
+  for (let k = 1; k <= members.length; k++) {
+    const candidate = members[(at + k) % members.length];
+    if (hasSetsLeft(setsMap, candidate.id)) return candidate.id;
+  }
+  const lastMember = entries.findIndex((e) => e.id === members[members.length - 1].id);
+  return entries[lastMember + 1]?.id ?? null;
+}
+
+/** Whether checking off a set of `entryId` should start the rest timer: in a superset only after a round. */
+export function restAfterSet(entries: SessionEntry[], setsMap: SetMap, entryId: string): boolean {
+  const entry = entries.find((e) => e.id === entryId);
+  if (!entry?.superset_group) return true;
+  const members = entries.filter((e) => e.superset_group === entry.superset_group);
+  const at = members.findIndex((e) => e.id === entryId);
+  return !members.slice(at + 1).some((e) => hasSetsLeft(setsMap, e.id));
+}
+
+/** Entries split into display blocks: consecutive members of one superset together, others alone. */
+export function supersetBlocks<E extends SessionEntry>(entries: E[]): { group: string | null; entries: E[] }[] {
+  const blocks: { group: string | null; entries: E[] }[] = [];
+  for (const entry of entries) {
+    const group = entry.superset_group ?? null;
+    const last = blocks[blocks.length - 1];
+    if (group && last?.group === group) last.entries.push(entry);
+    else blocks.push({ group, entries: [entry] });
+  }
+  return blocks;
+}
