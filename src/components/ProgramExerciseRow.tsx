@@ -1,11 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ProgramExercise, ProgramExerciseAlternative } from "@/lib/types";
+import type { ExerciseDefinition, ProgramExercise, ProgramExerciseAlternative } from "@/lib/types";
+import { equipmentLabel } from "@/lib/equipment";
 import { parseSchemePrescription } from "@/lib/programParser";
 import {
   getExerciseAlternatives,
   getExerciseList,
+  getExerciseDefinitions,
+  getOrCreateExerciseFromLibrary,
   addProgramExerciseAlternative,
   removeProgramExerciseAlternative,
 } from "@/lib/actions";
@@ -85,6 +88,8 @@ export function ProgramExerciseRow({
   const [showAddAlt, setShowAddAlt] = useState(false);
   const [altSearch, setAltSearch] = useState("");
   const [allExercises, setAllExercises] = useState<{ id: string; name: string }[]>([]);
+  // The exercise library, so an alternative can be one never done before
+  const [library, setLibrary] = useState<ExerciseDefinition[]>([]);
 
   const previewScheme = useMemo(() => {
     return setRows
@@ -275,12 +280,14 @@ export function ProgramExerciseRow({
               e.stopPropagation();
               if (!showAlts) {
                 setLoadingAlts(true);
-                const [alts, exList] = await Promise.all([
+                const [alts, exList, defs] = await Promise.all([
                   getExerciseAlternatives(exercise.id),
                   allExercises.length === 0 ? getExerciseList() : Promise.resolve(allExercises),
+                  library.length === 0 ? getExerciseDefinitions() : Promise.resolve(library),
                 ]);
                 setAlternatives(alts);
                 setAllExercises(exList);
+                setLibrary(defs);
                 setLoadingAlts(false);
               }
               setShowAlts((v) => !v);
@@ -389,6 +396,38 @@ export function ProgramExerciseRow({
                         </button>
                       ))}
                   </div>
+                  {altSearch.trim().length >= 2 && (() => {
+                    const q = altSearch.toLowerCase().trim();
+                    const own = new Set(allExercises.map((ex) => ex.name.toLowerCase().trim()));
+                    const matches = library
+                      .filter((d) => !own.has(d.normalized_name) && (d.name.toLowerCase().includes(q) || d.aliases.some((a) => a.includes(q))))
+                      .slice(0, 10);
+                    if (matches.length === 0) return null;
+                    return (
+                      <div className="space-y-1">
+                        <p className="pt-1 text-[10px] uppercase tracking-wide text-muted">From library</p>
+                        {matches.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={async () => {
+                              const exerciseId = await getOrCreateExerciseFromLibrary(d.id, d.name);
+                              if (!exerciseId) return;
+                              await addProgramExerciseAlternative(exercise.id, exerciseId);
+                              const [updated, exList] = await Promise.all([getExerciseAlternatives(exercise.id), getExerciseList()]);
+                              setAlternatives(updated);
+                              setAllExercises(exList);
+                              setAltSearch("");
+                              setShowAddAlt(false);
+                            }}
+                            className="w-full text-left px-2 py-1.5 rounded-lg bg-surface text-xs text-white active:bg-surface-hover"
+                          >
+                            {d.name} <span className="text-muted">· {equipmentLabel(d.equipment_type)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <button
                     type="button"
                     onClick={() => { setShowAddAlt(false); setAltSearch(""); }}
