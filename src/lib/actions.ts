@@ -8,3 +8,4 @@ export * from "./actions/programs";
 export * from "./actions/prs";
 export * from "./actions/freestyle";
 export * from "./actions/equipment";
+export * from "./actions/bodyweight";
