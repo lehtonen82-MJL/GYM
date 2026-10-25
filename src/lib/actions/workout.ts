@@ -41,6 +41,29 @@ async function buildStartWorkoutResultFromExisting(
     );
   }
 
+  // The program decides set counts and rep ranges (as on a fresh start): workout_day_exercises rows
+  // don't keep a range's max, and their target_sets drift with what was done.
+  if (workout.workout_day_id) {
+    const { data: pes } = await supabase
+      .from("program_exercises")
+      .select("*")
+      .eq("program_day_id", workout.workout_day_id)
+      .eq("user_id", userId);
+    const byExercise = new Map<string, ReturnType<typeof programTargets>>();
+    const byName = new Map<string, ReturnType<typeof programTargets>>();
+    for (const pe of pes ?? []) {
+      const targets = programTargets(pe);
+      if (pe.exercise_id) byExercise.set(pe.exercise_id as string, targets);
+      byName.set(String(pe.exercise_name_snapshot ?? "").toLowerCase().trim(), targets);
+    }
+    for (const entry of entries) {
+      const targets =
+        byExercise.get(entry.workout_day_exercise?.exercise_id ?? entry.exercise_id) ??
+        byName.get((entry.workout_day_exercise?.exercise?.name ?? entry.exercise?.name ?? "").toLowerCase().trim());
+      if (targets && entry.workout_day_exercise) Object.assign(entry.workout_day_exercise, targets);
+    }
+  }
+
   const suggestions: Record<string, number | null> = {};
   // Fetch all suggestions in parallel — one Supabase client, no re-auth per exercise
   const suggestionPairs = await Promise.all(
@@ -49,7 +72,8 @@ async function buildStartWorkoutResultFromExisting(
         entry.workout_day_exercise?.target_sets ?? entry.set_entries?.length ?? 1;
       const weight = await getSuggestedWeightInternal(
         supabase, userId, entry.exercise_id, targetSets, entry.equipment_type,
-        entry.workout_day_exercise?.target_reps ?? null
+        (entry.workout_day_exercise as { target_reps_max?: number } | undefined)?.target_reps_max ??
+          entry.workout_day_exercise?.target_reps ?? null
       );
       return [entry.exercise_id, weight] as [string, number | null];
     })

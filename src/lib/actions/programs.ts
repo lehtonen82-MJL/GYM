@@ -503,46 +503,46 @@ export async function saveImportedProgram(
 
   if (progError || !newProg) throw new Error("Failed to create program");
 
-  // Create days and exercises
-  for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
-    const sourceDay = days[dayIdx];
-    const normalizedDayOfWeek = ((dayIdx % 7) + 7) % 7;
-    const normalizedDayLabel = dayLabelFromIndex(normalizedDayOfWeek);
-
-    const { data: newDay, error: dayError } = await supabase
-      .from("workout_days")
-      .insert({
-        program_id: newProg.id,
-        user_id: userId,
-        name: sourceDay.name,
-        day_order: dayIdx,
-        kind: mode,
-        day_of_week: normalizedDayOfWeek,
-        day_label: normalizedDayLabel,
-        weekday_label: sourceDay.label,
-        session_label: sourceDay.label,
+  // All days in one insert, then all exercises in one insert (was one round trip per row: ~8 s for
+  // a 3-day, 17-exercise program). Days are matched back by day_order, not by returned row order.
+  const { data: newDays, error: dayError } = await supabase
+    .from("workout_days")
+    .insert(
+      days.map((sourceDay, dayIdx) => {
+        const normalizedDayOfWeek = ((dayIdx % 7) + 7) % 7;
+        return {
+          program_id: newProg.id,
+          user_id: userId,
+          name: sourceDay.name,
+          day_order: dayIdx,
+          kind: mode,
+          day_of_week: normalizedDayOfWeek,
+          day_label: dayLabelFromIndex(normalizedDayOfWeek),
+          weekday_label: sourceDay.label,
+          session_label: sourceDay.label,
+        };
       })
-      .select()
-      .single();
+    )
+    .select("id, day_order");
+  if (dayError || !newDays) throw new Error(`Failed to create program days: ${dayError?.message ?? "no data"}`);
 
-    if (dayError || !newDay) continue;
-
-    // Create exercises for this day
-    for (let exIdx = 0; exIdx < sourceDay.exercises.length; exIdx++) {
-      const ex = sourceDay.exercises[exIdx];
-
-      await supabase.from("program_exercises").insert({
-        program_id: newProg.id,
-        program_day_id: newDay.id,
-        user_id: userId,
-        exercise_name_snapshot: ex.name,
-        scheme_text: ex.schemeText,
-        target_sets: ex.targetSets,
-        target_reps_text: ex.targetRepsText,
-        notes: ex.notes,
-        sort_order: exIdx,
-      });
-    }
+  const dayIdByOrder = new Map(newDays.map((d) => [d.day_order as number, d.id as string]));
+  const exerciseRows = days.flatMap((sourceDay, dayIdx) =>
+    sourceDay.exercises.map((ex, exIdx) => ({
+      program_id: newProg.id,
+      program_day_id: dayIdByOrder.get(dayIdx),
+      user_id: userId,
+      exercise_name_snapshot: ex.name,
+      scheme_text: ex.schemeText,
+      target_sets: ex.targetSets,
+      target_reps_text: ex.targetRepsText,
+      notes: ex.notes,
+      sort_order: exIdx,
+    }))
+  );
+  if (exerciseRows.length > 0) {
+    const { error: exError } = await supabase.from("program_exercises").insert(exerciseRows);
+    if (exError) throw new Error(`Failed to create program exercises: ${exError.message}`);
   }
 
   return newProg as Program;
