@@ -7,6 +7,7 @@ import {
   getOrCreateExerciseFromLibrary,
 } from "@/lib/actions";
 import type { ProgramExerciseAlternative } from "@/lib/types";
+import { MUSCLE_LABELS } from "@/lib/muscleVolume";
 
 // Human-readable labels for equipment types
 const EQUIPMENT_LABELS: Record<string, string> = {
@@ -25,20 +26,6 @@ const EQUIPMENT_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const MUSCLE_LABELS: Record<string, string> = {
-  chest: "Chest",
-  back_lats: "Lats",
-  back_upper: "Back",
-  shoulders: "Shoulders",
-  biceps: "Biceps",
-  triceps: "Triceps",
-  forearms: "Forearms",
-  core: "Core",
-  glutes: "Glutes",
-  quads: "Quads",
-  hamstrings: "Hamstrings",
-  calves: "Calves",
-};
 
 type SwapExercise = {
   id: string;

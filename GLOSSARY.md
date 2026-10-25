@@ -58,6 +58,10 @@ _Avoid_: Last time, history
 The weight proposed for an exercise's next work sets, from the previous results' heaviest work set: one progression step up when every work set reached the target reps, one step down after a too-heavy set, otherwise the same. In an Easy Week it never goes up.
 _Avoid_: Recommended weight, target weight
 
+**Weekly sets**:
+For a muscle, the number of completed work sets in a week (Monday–Sunday, local time) of exercises whose primary muscle it is. The measure of training volume per muscle; secondary muscles don't count.
+_Avoid_: Weekly volume (that is kg), muscle volume
+
 **Progression step**:
 How much the suggested weight moves at a time for an equipment type (e.g. 2.5 kg for a barbell, 2 kg for dumbbells). Equipment moved by bodyweight or bands has none, so it gets no suggested weight.
 _Avoid_: Increment, jump

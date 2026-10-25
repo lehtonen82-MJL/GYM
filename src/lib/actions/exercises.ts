@@ -5,6 +5,7 @@ import { db, getDefaultEquipment, getUserId } from "./_shared";
 import { matchesEquipment, summarizeEquipmentUsage, type EquipmentUsage } from "@/lib/equipment";
 import { buildLibraryIndex, findDefinitionMatch, type LibraryIndex } from "@/lib/exerciseMatching";
 import { exerciseSummary, type RuleSet } from "@/lib/setRules";
+import type { MuscleEntry } from "@/lib/muscleVolume";
 
 export async function getExerciseList() {
   const supabase = await db();
@@ -221,6 +222,35 @@ export async function getExerciseProgress(exerciseId: string, equipment?: string
       const { top, volume, workSets } = exerciseSummary(sets);
       return top ? [{ date, weight_kg: top.weight_kg, reps: top.reps, sets: workSets, volume }] : [];
     });
+}
+
+/**
+ * Exercise entries of the workouts finished since `sinceIso`, with each exercise's primary muscle
+ * (null when unlinked) and its sets — the raw rows for weekly sets per muscle (src/lib/muscleVolume.ts),
+ * which the browser groups into its own local weeks.
+ */
+export async function getMuscleEntries(sinceIso: string): Promise<MuscleEntry[]> {
+  const supabase = await db();
+  const userId = await getUserId();
+  const { data } = await supabase
+    .from("workout_exercise_entries")
+    .select(
+      "workout:workouts!inner(started_at, completed_at), exercise:exercises!workout_exercise_entries_exercise_id_fkey(definition:exercise_definitions(primary_muscle)), set_entries(weight_kg, reps, completed, is_warmup)"
+    )
+    .eq("user_id", userId)
+    .gte("workout.started_at", sinceIso)
+    .not("workout.completed_at", "is", null);
+
+  type Row = {
+    workout: { started_at: string };
+    exercise: { definition: { primary_muscle: string } | { primary_muscle: string }[] | null } | null;
+    set_entries: RuleSet[] | null;
+  };
+  return ((data ?? []) as unknown as Row[]).map((row) => {
+    const def = row.exercise?.definition;
+    const muscle = Array.isArray(def) ? def[0]?.primary_muscle : def?.primary_muscle;
+    return { started_at: row.workout.started_at, primary_muscle: muscle ?? null, sets: row.set_entries ?? [] };
+  });
 }
 
 export async function getExerciseDefinitions(filters?: {

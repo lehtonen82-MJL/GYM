@@ -20,10 +20,11 @@ import {
 } from "@/lib/format";
 import { useSettings } from "@/lib/settings";
 import type { ExercisePR } from "@/lib/types";
+import MusclesTab from "./MusclesTab";
 
 type Exercise = { id: string; name: string };
 type DataPoint = { date: string; weight_kg: number; reps: number; sets: number; volume: number };
-type Tab = "lifting" | "rowing";
+type Tab = "lifting" | "rowing" | "muscles";
 
 /** Progress + PRs for one exercise, scoped to one tool (undefined = the exercise's default tool). */
 async function fetchLifting(
@@ -201,7 +202,7 @@ export default function ProgressClient({
     <div className="space-y-4">
       {/* Tab toggle */}
       <div className="flex rounded-xl bg-zinc-900 border border-zinc-800 p-1 gap-1">
-        {(["lifting", "rowing"] as Tab[]).map((t) => (
+        {(["lifting", "muscles", "rowing"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -210,7 +211,7 @@ export default function ProgressClient({
               tab === t ? "bg-zinc-700 text-white" : "text-zinc-500 active:text-zinc-300"
             }`}
           >
-            {t === "lifting" ? "Lifting" : "Rowing"}
+            {t === "lifting" ? "Lifting" : t === "muscles" ? "Muscles" : "Rowing"}
           </button>
         ))}
       </div>
@@ -339,6 +340,9 @@ export default function ProgressClient({
           )}
         </>
       )}
+
+      {/* ── MUSCLES TAB ── */}
+      {tab === "muscles" && <MusclesTab />}
 
       {/* ── ROWING TAB ── */}
       {tab === "rowing" && (

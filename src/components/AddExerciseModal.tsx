@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getExerciseListForSwap, getOrCreateExerciseFromLibrary, createCustomExercise } from "@/lib/actions";
+import { MUSCLE_LABELS } from "@/lib/muscleVolume";
 
 const EQUIPMENT_LABELS: Record<string, string> = {
   barbell: "Barbell",
@@ -19,20 +20,6 @@ const EQUIPMENT_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const MUSCLE_LABELS: Record<string, string> = {
-  chest: "Chest",
-  back_lats: "Lats",
-  back_upper: "Back",
-  shoulders: "Shoulders",
-  biceps: "Biceps",
-  triceps: "Triceps",
-  forearms: "Forearms",
-  core: "Core",
-  glutes: "Glutes",
-  quads: "Quads",
-  hamstrings: "Hamstrings",
-  calves: "Calves",
-};
 
 type ExerciseItem = {
   id: string;
