@@ -63,13 +63,13 @@ export default function BodyTab() {
             onChange={(e) => setInput(e.target.value)}
             placeholder={unit === "kg" ? "e.g. 82.4" : "e.g. 181.6"}
             aria-label={`Body weight in ${unit}`}
-            className="flex-1 px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base placeholder:text-zinc-600"
+            className="flex-1 px-4 py-3 rounded-xl bg-card text-white border border-border focus:border-accent focus:outline-none text-base placeholder:text-subtle"
           />
           <button
             type="button"
             onClick={() => void handleSave()}
             disabled={saving || input.trim() === ""}
-            className="px-5 rounded-xl bg-accent text-white font-semibold disabled:opacity-40"
+            className="px-5 rounded-xl bg-accent text-on-accent font-semibold disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -106,7 +106,7 @@ export default function BodyTab() {
               <MiniChart
                 data={sorted.map((e) => ({ date: e.measured_on, weight_kg: e.weight_kg }))}
                 getValue={(d) => toDisplay(d.weight_kg, unit)}
-                color="#3b82f6"
+                color="#c6f432"
                 unit={unit}
                 formatLabel={(v) => `${Math.round(v * 10) / 10}`}
               />
@@ -115,7 +115,7 @@ export default function BodyTab() {
 
           <div className="bg-card rounded-2xl border border-border p-4">
             <h3 className="text-white font-semibold mb-2">Entries</h3>
-            <ul className="divide-y divide-zinc-800">
+            <ul className="divide-y divide-border">
               {[...sorted].reverse().slice(0, 10).map((e) => (
                 <li key={e.measured_on} className="flex justify-between py-2 text-sm">
                   <span className="text-muted">{dayLabel(e.measured_on)}</span>

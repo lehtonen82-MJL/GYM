@@ -93,13 +93,13 @@ export default function ProgramsPage() {
         <div className="mb-6 grid grid-cols-2 gap-3">
           <button
             onClick={() => router.push("/programs/new")}
-            className="rounded-lg bg-accent py-3 text-center font-medium text-white transition-colors hover:bg-accent-hover active:bg-accent-hover"
+            className="rounded-lg bg-accent py-3 text-center font-medium text-on-accent transition-colors hover:bg-accent-hover active:bg-accent-hover"
           >
             + New
           </button>
           <button
             onClick={() => router.push("/programs/import")}
-            className="rounded-lg border border-border bg-card py-3 text-center font-medium text-white transition-colors hover:bg-card-hover active:bg-zinc-700"
+            className="rounded-lg border border-border bg-card py-3 text-center font-medium text-white transition-colors hover:bg-card-hover active:bg-surface-hover"
           >
             Import
           </button>
@@ -142,7 +142,7 @@ export default function ProgramsPage() {
             <p className="mb-6 text-muted">Create your first program to get started</p>
             <button
               onClick={() => router.push("/programs/new")}
-              className="inline-block rounded-lg bg-accent px-6 py-3 font-medium text-white hover:bg-accent-hover"
+              className="inline-block rounded-lg bg-accent px-6 py-3 font-medium text-on-accent hover:bg-accent-hover"
             >
               Create Program
             </button>

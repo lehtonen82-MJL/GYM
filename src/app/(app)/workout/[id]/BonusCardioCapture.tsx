@@ -203,8 +203,8 @@ export default function BonusCardioCapture({
 
       {!readOnly && (
         <>
-          <div className="rounded border border-border bg-zinc-900 p-2">
-            <p className="text-xs text-zinc-200">Manual input only</p>
+          <div className="rounded border border-border bg-card p-2">
+            <p className="text-xs text-soft">Manual input only</p>
             <p className="text-[11px] text-muted mt-1">
               Required for row entry: Distance, Time, Avg pace/500m.
             </p>
@@ -224,7 +224,7 @@ export default function BonusCardioCapture({
                 inputMode="numeric"
                 value={value.distance_m ?? ""}
                 onChange={(e) => updateNumber("distance_m", e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-border bg-zinc-900 px-4 py-3 text-white text-base"
+                className="mt-1.5 w-full rounded-xl border border-border bg-card px-4 py-3 text-white text-base"
               />
             </label>
             <label className="text-sm font-medium text-muted">
@@ -235,7 +235,7 @@ export default function BonusCardioCapture({
                 value={timeInput}
                 onChange={(e) => handleTimeInputChange(e.target.value)}
                 onBlur={normalizeTimeInput}
-                className="mt-1.5 w-full rounded-xl border border-border bg-zinc-900 px-4 py-3 text-white text-base"
+                className="mt-1.5 w-full rounded-xl border border-border bg-card px-4 py-3 text-white text-base"
               />
             </label>
             <label className="text-sm font-medium text-muted">
@@ -246,7 +246,7 @@ export default function BonusCardioCapture({
                 value={avgPaceInput}
                 onChange={(e) => handleAvgPaceInputChange(e.target.value)}
                 onBlur={normalizeAvgPaceInput}
-                className="mt-1.5 w-full rounded-xl border border-border bg-zinc-900 px-4 py-3 text-white text-base"
+                className="mt-1.5 w-full rounded-xl border border-border bg-card px-4 py-3 text-white text-base"
               />
             </label>
           </div>
@@ -254,9 +254,9 @@ export default function BonusCardioCapture({
       )}
 
       {detectedExtras.length > 0 && (
-        <div className="rounded border border-border bg-zinc-900 p-2">
+        <div className="rounded border border-border bg-card p-2">
           <p className="text-[11px] uppercase tracking-wide text-muted">Extra metrics</p>
-          <div className="mt-1 grid grid-cols-2 gap-1 text-xs text-zinc-200">
+          <div className="mt-1 grid grid-cols-2 gap-1 text-xs text-soft">
             {detectedExtras.map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2">
                 <span className="text-muted">{k}</span>

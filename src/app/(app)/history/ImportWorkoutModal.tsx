@@ -72,7 +72,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 sm:p-8">
       <div className="flex flex-col w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-2xl bg-black overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top)] pb-3 pt-safe border-b border-zinc-800">
+      <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top)] pb-3 pt-safe border-b border-border">
         <h2 className="text-lg font-bold text-white">Import Past Workouts</h2>
         <button
           type="button"
@@ -87,7 +87,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
       {step === "input" && (
         <div className="flex flex-col flex-1 min-h-0 px-4 pt-4 pb-4 gap-4">
           {/* Format guide */}
-          <div className="shrink-0 bg-zinc-900 rounded-xl border border-zinc-800 px-3 py-3 text-xs text-muted">
+          <div className="shrink-0 bg-card rounded-xl border border-border px-3 py-3 text-xs text-muted">
             <p className="text-white font-semibold text-sm mb-2">Format</p>
             <p className="leading-6"><span className="text-accent">17.2.2024 Chest Day</span> — date + session name</p>
             <p className="leading-6"><span className="text-white font-mono">Bench Press 4x5@90kg</span> — sets×reps@weight</p>
@@ -100,7 +100,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
             value={text}
             onChange={(e) => { setText(e.target.value); setError(""); }}
             placeholder={"17.2.2024 Chest Day\nBench Press 4x5@90kg\nSquat 5x100kg"}
-            className="scrollbar-hidden flex-1 w-full px-3 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-accent focus:outline-none text-sm resize-none font-mono"
+            className="scrollbar-hidden flex-1 w-full px-3 py-3 rounded-xl bg-card text-white border border-border focus:border-accent focus:outline-none text-sm resize-none font-mono"
             style={{ minHeight: "120px" }}
           />
 
@@ -110,7 +110,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
             type="button"
             onClick={handlePreview}
             disabled={!text.trim()}
-            className="shrink-0 w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-40"
+            className="shrink-0 w-full py-3 rounded-xl bg-accent text-on-accent font-bold text-base active:opacity-80 disabled:opacity-40"
           >
             Preview →
           </button>
@@ -120,7 +120,7 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
       {step === "preview" && (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Summary bar */}
-          <div className="shrink-0 px-4 py-2 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
+          <div className="shrink-0 px-4 py-2 bg-card border-b border-border flex items-center justify-between">
             <span className="text-sm text-muted">
               {totalSessions} workout{totalSessions !== 1 ? "s" : ""} · {totalExercises} exercise{totalExercises !== 1 ? "s" : ""}
             </span>
@@ -166,13 +166,13 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
 
                 <div className="space-y-1">
                   {session.exercises.map((ex, ei) => (
-                    <div key={ei} className="border-t border-zinc-800 pt-1 first:border-0 first:pt-0">
+                    <div key={ei} className="border-t border-border pt-1 first:border-0 first:pt-0">
                       <p className="text-white text-xs font-medium">{ex.name}</p>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {ex.sets.map((s, si2) => (
                           <span
                             key={si2}
-                            className="text-xs font-mono bg-zinc-800 text-muted rounded px-1.5 py-0.5"
+                            className="text-xs font-mono bg-surface text-muted rounded px-1.5 py-0.5"
                           >
                             {s.weightKg != null && s.reps != null
                               ? `${s.weightKg}kg × ${s.reps}`
@@ -195,13 +195,13 @@ export default function ImportWorkoutModal({ onClose }: { onClose: () => void })
           </div>
 
           {/* Bottom action bar */}
-          <div className="shrink-0 px-4 pt-3 pb-4 border-t border-zinc-800 space-y-2 pb-[env(safe-area-inset-bottom)]">
+          <div className="shrink-0 px-4 pt-3 pb-4 border-t border-border space-y-2 pb-[env(safe-area-inset-bottom)]">
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <button
               type="button"
               onClick={() => void handleImport()}
               disabled={importing}
-              className="w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80 disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-accent text-on-accent font-bold text-base active:opacity-80 disabled:opacity-50"
             >
               {importing
                 ? "Importing..."

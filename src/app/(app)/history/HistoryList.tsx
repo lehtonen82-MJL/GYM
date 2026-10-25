@@ -176,7 +176,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search exercise, workout, notes or date"
         aria-label="Search history"
-        className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base placeholder:text-zinc-600"
+        className="w-full px-4 py-3 rounded-xl bg-card text-white border border-border focus:border-accent focus:outline-none text-base placeholder:text-subtle"
       />
       {(query || selectedDay) && (
         <p className="text-muted text-xs" role="status">
@@ -198,7 +198,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
             <button
               type="button"
               onClick={() => setShowImport(true)}
-              className="flex-1 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-accent font-semibold text-sm active:bg-zinc-800"
+              className="flex-1 py-3 rounded-xl bg-card border border-border text-accent font-semibold text-sm active:bg-surface"
             >
               + Import
             </button>
@@ -206,14 +206,14 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
               type="button"
               onClick={() => void handleExport()}
               disabled={exporting}
-              className="flex-1 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-accent font-semibold text-sm active:bg-zinc-800 disabled:opacity-50"
+              className="flex-1 py-3 rounded-xl bg-card border border-border text-accent font-semibold text-sm active:bg-surface disabled:opacity-50"
             >
               {exporting ? "Exporting…" : "📤 Export"}
             </button>
             <button
               type="button"
               onClick={enterSelectMode}
-              className="py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-semibold text-sm active:bg-zinc-800"
+              className="py-3 px-4 rounded-xl bg-card border border-border text-muted font-semibold text-sm active:bg-surface"
               aria-label="Select workouts"
             >
               Select
@@ -224,14 +224,14 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
             <button
               type="button"
               onClick={exitSelectMode}
-              className="py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-semibold text-sm active:bg-zinc-800"
+              className="py-3 px-4 rounded-xl bg-card border border-border text-muted font-semibold text-sm active:bg-surface"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={toggleSelectAll}
-              className="py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 font-semibold text-sm active:bg-zinc-800"
+              className="py-3 px-4 rounded-xl bg-card border border-border text-muted font-semibold text-sm active:bg-surface"
             >
               {allSelected ? "Deselect All" : "Select All"}
             </button>
@@ -240,7 +240,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                 <button
                   type="button"
                   onClick={() => setConfirmBulk(false)}
-                  className="flex-1 py-3 rounded-xl bg-zinc-700 text-white font-semibold text-sm active:bg-zinc-600"
+                  className="flex-1 py-3 rounded-xl bg-surface-hover text-white font-semibold text-sm active:bg-surface-strong"
                 >
                   Cancel
                 </button>
@@ -258,7 +258,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                 type="button"
                 onClick={() => { if (visibleSelectedIds.length > 0) setConfirmBulk(true); }}
                 disabled={visibleSelectedIds.length === 0 || bulkDeleting}
-                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm active:bg-red-700 disabled:opacity-40 disabled:bg-zinc-800 disabled:text-zinc-500"
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm active:bg-red-700 disabled:opacity-40 disabled:bg-surface disabled:text-muted"
               >
                 {bulkDeleting ? "Deleting…" : `Delete (${visibleSelectedIds.length})`}
               </button>
@@ -274,7 +274,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
             <button
               type="button"
               onClick={() => setConfirmClearImported(false)}
-              className="flex-1 py-3 rounded-xl bg-zinc-700 text-white font-semibold text-sm active:bg-zinc-600"
+              className="flex-1 py-3 rounded-xl bg-surface-hover text-white font-semibold text-sm active:bg-surface-strong"
             >
               Cancel
             </button>
@@ -291,7 +291,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
           <button
             type="button"
             onClick={() => setConfirmClearImported(true)}
-            className="w-full py-3 rounded-xl bg-zinc-900 border border-red-900/50 text-red-400 font-semibold text-sm active:bg-zinc-800"
+            className="w-full py-3 rounded-xl bg-card border border-red-900/50 text-red-400 font-semibold text-sm active:bg-surface"
           >
             Delete All Imported Workouts
           </button>
@@ -321,7 +321,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                 <div className="flex items-center pt-0.5 shrink-0">
                   <div
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selected ? "border-accent bg-accent" : "border-zinc-600"
+                      selected ? "border-accent bg-accent" : "border-border-strong"
                     }`}
                   >
                     {selected && (
@@ -340,7 +340,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                       {workoutTitle(w)}
                     </p>
                     {imported && (
-                      <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
+                      <span className="text-xs bg-surface-hover text-soft rounded px-1.5 py-0.5">Imported</span>
                     )}
                     {w.is_deload && (
                       <span className="text-xs bg-amber-500/20 text-amber-400 rounded px-1.5 py-0.5">🔄 Easy week</span>
@@ -357,7 +357,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                       {workoutTitle(w)}
                     </p>
                     {imported && (
-                      <span className="text-xs bg-zinc-700 text-zinc-300 rounded px-1.5 py-0.5">Imported</span>
+                      <span className="text-xs bg-surface-hover text-soft rounded px-1.5 py-0.5">Imported</span>
                     )}
                     {w.is_deload && (
                       <span className="text-xs bg-amber-500/20 text-amber-400 rounded px-1.5 py-0.5">🔄 Easy week</span>
@@ -391,7 +391,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                       <button
                         type="button"
                         onClick={() => setConfirmId(null)}
-                        className="rounded-lg bg-zinc-700 px-3 py-2 text-xs font-medium text-white active:bg-zinc-600"
+                        className="rounded-lg bg-surface-hover px-3 py-2 text-xs font-medium text-white active:bg-surface-strong"
                       >
                         Cancel
                       </button>
@@ -399,7 +399,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                         type="button"
                         onClick={() => void handleDeleteConfirmed(w.id)}
                         disabled={deletingId === w.id}
-                        className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white active:bg-red-700 disabled:bg-zinc-600"
+                        className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white active:bg-red-700 disabled:bg-surface-strong"
                       >
                         {deletingId === w.id ? "Deleting…" : "Confirm"}
                       </button>
@@ -409,7 +409,7 @@ export default function HistoryList({ workouts: allWorkouts }: { workouts: Worko
                       type="button"
                       onClick={() => setConfirmId(w.id)}
                       disabled={deletingId === w.id}
-                      className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-red-400 active:bg-zinc-700 disabled:opacity-50"
+                      className="rounded-lg bg-surface px-3 py-2 text-xs font-medium text-red-400 active:bg-surface-hover disabled:opacity-50"
                     >
                       Delete
                     </button>

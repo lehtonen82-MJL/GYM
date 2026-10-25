@@ -61,7 +61,7 @@ export default function MusclesTab() {
               </span>
             </div>
             <div className="flex items-center gap-3 mt-1">
-              <div className="flex-1 h-2 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="flex-1 h-2 rounded-full bg-surface overflow-hidden">
                 <div
                   className="h-full rounded-full bg-accent"
                   style={{ width: `${(thisWeek(m) / maxThisWeek) * 100}%` }}
@@ -71,7 +71,7 @@ export default function MusclesTab() {
                 {m.weeklySets.map((n, i) => (
                   <div
                     key={i}
-                    className={`w-1.5 rounded-sm ${i === WEEKS - 1 ? "bg-accent" : "bg-zinc-600"}`}
+                    className={`w-1.5 rounded-sm ${i === WEEKS - 1 ? "bg-accent" : "bg-surface-strong"}`}
                     style={{ height: `${Math.max(8, (n / maxAnyWeek) * 100)}%`, opacity: n === 0 ? 0.3 : 1 }}
                   />
                 ))}

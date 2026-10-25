@@ -123,17 +123,17 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 rounded-3xl w-full max-w-md flex flex-col pb-6 max-h-[90dvh] overflow-y-auto">
+      <div className="bg-card rounded-3xl w-full max-w-md flex flex-col pb-6 max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 shrink-0">
           <div>
             <h2 className="text-white text-lg font-bold">🔄 Easy Week</h2>
-            <p className="text-zinc-400 text-xs mt-0.5">{deloadSetPct}% fewer sets · {deloadWeightPct}% weight</p>
+            <p className="text-muted text-xs mt-0.5">{deloadSetPct}% fewer sets · {deloadWeightPct}% weight</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 active:text-white text-sm font-medium"
+            className="text-muted active:text-white text-sm font-medium"
           >
             Cancel
           </button>
@@ -143,8 +143,8 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
           {/* ── Quick-start view ── */}
           {!isSetupView && savedTemplate && (
             <>
-              <div className="bg-zinc-800 rounded-2xl p-4 space-y-1">
-                <p className="text-zinc-400 text-xs font-semibold uppercase tracking-wide">
+              <div className="bg-surface rounded-2xl p-4 space-y-1">
+                <p className="text-muted text-xs font-semibold uppercase tracking-wide">
                   Saved setup
                 </p>
                 <p className="text-white font-semibold">
@@ -152,7 +152,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
                     ? `Compact — ${selectedDayNames.join(" + ")}`
                     : "Normal schedule"}
                 </p>
-                <p className="text-zinc-500 text-xs">
+                <p className="text-muted text-xs">
                   Saved {formatShortDate(savedTemplate.savedAt)}
                 </p>
               </div>
@@ -169,7 +169,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
               <button
                 type="button"
                 onClick={() => setShowModify(true)}
-                className="w-full py-3 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm active:bg-zinc-700"
+                className="w-full py-3 rounded-xl bg-surface text-soft font-semibold text-sm active:bg-surface-hover"
               >
                 Modify Setup
               </button>
@@ -181,7 +181,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
             <>
               {/* Mode picker */}
               <div className="space-y-2">
-                <p className="text-zinc-400 text-xs font-semibold uppercase tracking-wide">
+                <p className="text-muted text-xs font-semibold uppercase tracking-wide">
                   Schedule
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -193,14 +193,14 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
                       className={`py-3 rounded-xl border text-sm font-semibold transition-colors ${
                         mode === m
                           ? "bg-amber-500/20 border-amber-500/60 text-amber-400"
-                          : "bg-zinc-800 border-zinc-700 text-zinc-400 active:bg-zinc-700"
+                          : "bg-surface border-border-strong text-muted active:bg-surface-hover"
                       }`}
                     >
                       {m === "normal" ? "Normal days" : "Compact"}
                     </button>
                   ))}
                 </div>
-                <p className="text-zinc-500 text-xs">
+                <p className="text-muted text-xs">
                   {mode === "normal"
                     ? "Same training days, lighter loads. Train on the usual schedule."
                     : "Combine multiple days into one session — great if you want to finish the week faster."}
@@ -210,7 +210,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
               {/* Compact: day selector */}
               {mode === "compact" && otherDays.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-zinc-400 text-xs font-semibold uppercase tracking-wide">
+                  <p className="text-muted text-xs font-semibold uppercase tracking-wide">
                     Add to today&apos;s session
                   </p>
                   <div className="space-y-1.5">
@@ -235,17 +235,17 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
                           onClick={() => toggleDay(day.id)}
                           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${
                             selected
-                              ? "bg-zinc-700 border-zinc-500 text-white"
-                              : "bg-zinc-800 border-zinc-700 text-zinc-400 active:bg-zinc-700"
+                              ? "bg-surface-hover border-border-strong text-white"
+                              : "bg-surface border-border-strong text-muted active:bg-surface-hover"
                           }`}
                         >
                           <div
                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                              selected ? "border-white bg-white" : "border-zinc-600"
+                              selected ? "border-white bg-white" : "border-border-strong"
                             }`}
                           >
                             {selected && (
-                              <svg viewBox="0 0 12 10" className="w-3 h-3 fill-none stroke-zinc-900 stroke-[2]">
+                              <svg viewBox="0 0 12 10" className="w-3 h-3 fill-none stroke-on-accent stroke-[2]">
                                 <polyline points="1,5 4,8 11,1" />
                               </svg>
                             )}
@@ -256,7 +256,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
                     })}
                   </div>
                   {additionalDayIds.length > 0 && (
-                    <p className="text-zinc-500 text-xs">
+                    <p className="text-muted text-xs">
                       Combined: {selectedDayNames.join(" + ")}
                     </p>
                   )}
@@ -271,7 +271,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
               >
                 <div
                   className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${
-                    remember ? "bg-amber-500" : "bg-zinc-700"
+                    remember ? "bg-amber-500" : "bg-surface-hover"
                   }`}
                 >
                   <div
@@ -280,7 +280,7 @@ export default function DeloadSetupModal({ programId, allDays, primaryDayId, onC
                     }`}
                   />
                 </div>
-                <span className="text-zinc-300 text-sm">Remember this setup for next time</span>
+                <span className="text-soft text-sm">Remember this setup for next time</span>
               </button>
 
               {/* Start button */}

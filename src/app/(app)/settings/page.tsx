@@ -125,14 +125,14 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setDeloadWeightPct(Math.max(50, deloadWeightPct - 5))}
-              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+              className="w-9 h-9 rounded-xl bg-surface text-white font-bold text-lg active:bg-surface-hover flex items-center justify-center"
             >
               −
             </button>
             <span className="w-12 text-center text-white font-semibold tabular-nums">{deloadWeightPct}%</span>
             <button
               onClick={() => setDeloadWeightPct(Math.min(95, deloadWeightPct + 5))}
-              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+              className="w-9 h-9 rounded-xl bg-surface text-white font-bold text-lg active:bg-surface-hover flex items-center justify-center"
             >
               +
             </button>
@@ -148,14 +148,14 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setDeloadSetPct(Math.max(25, deloadSetPct - 5))}
-              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+              className="w-9 h-9 rounded-xl bg-surface text-white font-bold text-lg active:bg-surface-hover flex items-center justify-center"
             >
               −
             </button>
             <span className="w-12 text-center text-white font-semibold tabular-nums">{deloadSetPct}%</span>
             <button
               onClick={() => setDeloadSetPct(Math.min(90, deloadSetPct + 5))}
-              className="w-9 h-9 rounded-xl bg-zinc-800 text-white font-bold text-lg active:bg-zinc-700 flex items-center justify-center"
+              className="w-9 h-9 rounded-xl bg-surface text-white font-bold text-lg active:bg-surface-hover flex items-center justify-center"
             >
               +
             </button>
@@ -188,7 +188,7 @@ export default function SettingsPage() {
             role="switch"
             aria-checked={deloadReduceWarmups}
             onClick={() => setDeloadReduceWarmups(!deloadReduceWarmups)}
-            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${deloadReduceWarmups ? "bg-amber-500" : "bg-zinc-700"}`}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${deloadReduceWarmups ? "bg-amber-500" : "bg-surface-hover"}`}
           >
             <span
               className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${
@@ -216,7 +216,7 @@ export default function SettingsPage() {
             aria-checked={debugBorders}
             onClick={() => setDebugBorders(!debugBorders)}
             className={`relative w-12 h-7 rounded-full transition-colors ${
-              debugBorders ? "bg-accent" : "bg-zinc-700"
+              debugBorders ? "bg-accent" : "bg-surface-hover"
             }`}
           >
             <span

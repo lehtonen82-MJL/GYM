@@ -459,7 +459,7 @@ export default function WorkoutClient({
           </div>
           <button
             onClick={() => router.push("/history")}
-            className="px-4 py-2 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:opacity-80"
+            className="px-4 py-2 rounded-xl bg-surface text-white font-semibold text-sm active:opacity-80"
           >
             {"<"} Back
           </button>
@@ -474,7 +474,7 @@ export default function WorkoutClient({
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="font-semibold text-white">{entry.exercise?.name}</h3>
                 {entry.original_exercise && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 leading-tight">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight">
                     ↩ {entry.original_exercise.name}
                   </span>
                 )}
@@ -531,7 +531,7 @@ export default function WorkoutClient({
           <button
             type="button"
             onClick={() => { setShowSummary(false); setAutoAdvanceLocked(true); }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-sm font-semibold active:bg-zinc-700"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface text-soft text-sm font-semibold active:bg-surface-hover"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             Back to workout
@@ -580,14 +580,14 @@ export default function WorkoutClient({
             onChange={(e) => setNotes(e.target.value)}
             placeholder="How did it feel?"
             rows={3}
-            className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base resize-none"
+            className="w-full px-4 py-3 rounded-xl bg-card text-white border border-border focus:border-accent focus:outline-none text-base resize-none"
           />
         </div>
 
         <button
           onClick={handleFinish}
           disabled={saving || discarding}
-          className="w-full py-4 rounded-xl bg-success text-white font-bold text-lg active:opacity-80 disabled:opacity-50"
+          className="w-full py-4 rounded-xl bg-success text-on-accent font-bold text-lg active:opacity-80 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save Workout"}
         </button>
@@ -597,7 +597,7 @@ export default function WorkoutClient({
             <button
               type="button"
               onClick={() => setShowDiscardConfirm(false)}
-              className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:bg-zinc-700"
+              className="flex-1 py-3 rounded-xl bg-surface text-white font-semibold text-sm active:bg-surface-hover"
             >
               Keep
             </button>
@@ -615,7 +615,7 @@ export default function WorkoutClient({
             type="button"
             onClick={() => setShowDiscardConfirm(true)}
             disabled={saving}
-            className="w-full py-3 rounded-xl bg-zinc-900 text-red-400 font-semibold text-sm border border-zinc-800 active:bg-zinc-800 disabled:opacity-50"
+            className="w-full py-3 rounded-xl bg-card text-red-400 font-semibold text-sm border border-border active:bg-surface disabled:opacity-50"
           >
             Discard Workout
           </button>
@@ -625,9 +625,9 @@ export default function WorkoutClient({
       {/* Save as reusable workout prompt */}
       {showSaveTemplate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+          <div className="bg-card rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
             <h2 className="text-white text-lg font-bold">Save as workout?</h2>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-muted text-sm">
               Give this workout a name so you can start it again from Today.
             </p>
             <input
@@ -635,14 +635,14 @@ export default function WorkoutClient({
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
               placeholder="Workout name"
-              className="w-full px-4 py-3 rounded-xl bg-zinc-800 text-white border border-zinc-700 focus:border-blue-500 focus:outline-none text-base"
+              className="w-full px-4 py-3 rounded-xl bg-surface text-white border border-border-strong focus:border-accent focus:outline-none text-base"
               autoFocus
             />
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => { setShowSaveTemplate(false); router.push("/today"); }}
-                className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:bg-zinc-700"
+                className="flex-1 py-3 rounded-xl bg-surface text-white font-semibold text-sm active:bg-surface-hover"
               >
                 Skip
               </button>
@@ -655,7 +655,7 @@ export default function WorkoutClient({
                   setShowSaveTemplate(false);
                   router.push("/today");
                 }}
-                className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm active:bg-blue-700"
+                className="flex-1 py-3 rounded-xl bg-accent text-on-accent font-semibold text-sm active:bg-accent"
               >
                 Save
               </button>
@@ -741,14 +741,14 @@ export default function WorkoutClient({
       <button
         type="button"
         onClick={() => setShowAddExercise(true)}
-        className="w-full py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm border border-zinc-700 active:bg-zinc-700"
+        className="w-full py-3 rounded-xl bg-surface text-white font-semibold text-sm border border-border-strong active:bg-surface-hover"
       >
         + Add exercise
       </button>
 
       <button
         onClick={handleFinishClick}
-        className="w-full py-4 rounded-xl bg-success text-white font-bold text-lg active:opacity-80"
+        className="w-full py-4 rounded-xl bg-success text-on-accent font-bold text-lg active:opacity-80"
       >
         Finish Workout
       </button>
@@ -763,9 +763,9 @@ export default function WorkoutClient({
       {/* Update Program dialog — shown after a mid-workout swap */}
       {updateProgramDialog && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+          <div className="bg-card rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
             <h2 className="text-white text-lg font-bold">Update Program?</h2>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-muted text-sm">
               You swapped <span className="text-white font-semibold">{updateProgramDialog.oldExerciseName}</span>{" "}
               → <span className="text-white font-semibold">{updateProgramDialog.newExerciseName}</span>.
               Should this change be permanent in your program?
@@ -774,7 +774,7 @@ export default function WorkoutClient({
               <button
                 type="button"
                 onClick={() => setUpdateProgramDialog(null)}
-                className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm active:bg-zinc-700"
+                className="flex-1 py-3 rounded-xl bg-surface text-white font-semibold text-sm active:bg-surface-hover"
               >
                 Just this time
               </button>
@@ -789,7 +789,7 @@ export default function WorkoutClient({
                     );
                     setUpdateProgramDialog(null);
                   }}
-                  className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm active:bg-blue-700"
+                  className="flex-1 py-3 rounded-xl bg-accent text-on-accent font-semibold text-sm active:bg-accent"
                 >
                   Update Program
                 </button>
@@ -802,9 +802,9 @@ export default function WorkoutClient({
       {/* Incomplete sets warning modal */}
       {showIncompleteWarning && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+          <div className="bg-card rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
             <h2 className="text-white text-xl font-bold">Incomplete Sets</h2>
-            <p className="text-zinc-400 text-sm">The following exercises have uncompleted sets:</p>
+            <p className="text-muted text-sm">The following exercises have uncompleted sets:</p>
             <ul className="space-y-1">
               {entries
                 .filter((entry) => (setsMap[entry.id] ?? []).some((s) => !s.completed))
@@ -826,7 +826,7 @@ export default function WorkoutClient({
               <button
                 type="button"
                 onClick={() => setShowIncompleteWarning(false)}
-                className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-semibold active:bg-zinc-700"
+                className="flex-1 py-3 rounded-xl bg-surface text-white font-semibold active:bg-surface-hover"
               >
                 Go Back
               </button>

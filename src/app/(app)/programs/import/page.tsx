@@ -68,8 +68,8 @@ export default function ImportPage() {
         <div className="mb-6 rounded-lg border border-accent/50 bg-accent/10 p-4">
           <h2 className="mb-3 font-semibold text-white">How to Format</h2>
           <ol className="list-inside list-decimal space-y-2 text-sm text-muted">
-            <li>Start each day with <code className="rounded bg-zinc-900 px-1 font-mono text-xs text-white">[Day Name]</code></li>
-            <li>Format exercises as: <code className="rounded bg-zinc-900 px-1 font-mono text-xs text-white">Exercise | Scheme | Notes</code></li>
+            <li>Start each day with <code className="rounded bg-card px-1 font-mono text-xs text-white">[Day Name]</code></li>
+            <li>Format exercises as: <code className="rounded bg-card px-1 font-mono text-xs text-white">Exercise | Scheme | Notes</code></li>
             <li>Scheme and notes are optional</li>
             <li>Each line is one exercise</li>
           </ol>
@@ -77,7 +77,7 @@ export default function ImportPage() {
 
         <div className="mb-6 rounded-lg border border-border bg-card p-4">
           <h3 className="mb-2 font-semibold text-white">Sample Format:</h3>
-          <pre className="whitespace-pre-wrap break-words rounded border border-border bg-zinc-950 p-3 font-mono text-xs text-muted">
+          <pre className="whitespace-pre-wrap break-words rounded border border-border bg-deep p-3 font-mono text-xs text-muted">
 {`[Monday]
 Back Squat | 4x2
 Bench Press | 5x5
@@ -99,7 +99,7 @@ Pull-ups | 3x8 | Assisted if needed`}
             onChange={(e) => setText(e.target.value)}
             placeholder="[Day Name]&#10;Exercise Name | Scheme | Notes&#10;..."
             rows={10}
-            className="w-full rounded-lg border border-border bg-zinc-950 px-4 py-3 font-mono text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full rounded-lg border border-border bg-deep px-4 py-3 font-mono text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
             disabled={isLoading}
           />
         </div>
@@ -107,14 +107,14 @@ Pull-ups | 3x8 | Assisted if needed`}
         <div className="flex gap-2">
           <button
             onClick={() => router.push("/programs")}
-            className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-600 active:bg-zinc-500 disabled:bg-zinc-700/60"
+            className="flex-1 rounded-lg border border-border bg-surface-hover py-3 text-base font-medium text-white transition-colors hover:bg-surface-strong active:bg-surface-strong disabled:bg-surface-hover/60"
             disabled={isLoading}
           >
             Cancel
           </button>
           <button
             onClick={handleParse}
-            className="flex-1 rounded-lg bg-accent py-3 text-base font-medium text-white transition-colors hover:bg-accent-hover active:bg-accent-hover disabled:bg-zinc-600"
+            className="flex-1 rounded-lg bg-accent py-3 text-base font-medium text-on-accent transition-colors hover:bg-accent-hover active:bg-accent-hover disabled:bg-surface-strong"
             disabled={isLoading || !text.trim()}
           >
             {isLoading ? "Parsing..." : "Preview"}

@@ -83,16 +83,16 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
         {templates.map((t) => {
           const isExpanded = expandedId === t.id;
           return (
-            <div key={t.id} className="rounded-xl border border-zinc-700 overflow-hidden">
+            <div key={t.id} className="rounded-xl border border-border-strong overflow-hidden">
               {/* Row: name + exercise count + expand toggle */}
               <button
                 type="button"
                 onClick={() => void handleExpand(t.id)}
-                className="w-full text-left px-4 py-3 bg-zinc-800 active:bg-zinc-700 flex items-center justify-between gap-3"
+                className="w-full text-left px-4 py-3 bg-surface active:bg-surface-hover flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
                   <p className="text-white font-medium text-sm truncate">{t.name}</p>
-                  <p className="text-zinc-500 text-xs mt-0.5">
+                  <p className="text-muted text-xs mt-0.5">
                     {t.exercise_count} exercise{t.exercise_count !== 1 ? "s" : ""}
                     {t.exercise_names.length > 0 && (
                       <> · {t.exercise_names.slice(0, 3).join(", ")}{t.exercise_count > 3 ? "…" : ""}</>
@@ -109,7 +109,7 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className={`text-zinc-500 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                  className={`text-muted shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                 >
                   <path d="m6 9 6 6 6-6" />
                 </svg>
@@ -117,15 +117,15 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
 
               {/* Expanded: preview + actions */}
               {isExpanded && (
-                <div className="px-4 py-3 bg-zinc-900 space-y-3 border-t border-zinc-700">
+                <div className="px-4 py-3 bg-card space-y-3 border-t border-border-strong">
                   {previewLoading || !preview ? (
-                    <p className="text-zinc-500 text-sm">Loading…</p>
+                    <p className="text-muted text-sm">Loading…</p>
                   ) : (
                     <div className="space-y-1">
                       {preview.exercises.map((ex) => (
                         <div key={ex.id} className="flex items-center justify-between text-sm">
                           <span className="text-white">{ex.exercise_name_snapshot}</span>
-                          <span className="text-zinc-500 tabular-nums">
+                          <span className="text-muted tabular-nums">
                             {ex.target_sets}×{ex.target_reps}
                           </span>
                         </div>
@@ -141,27 +141,27 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") void handleRename(t.id); if (e.key === "Escape") setRenamingId(null); }}
-                        className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 text-white border border-zinc-600 focus:border-blue-500 focus:outline-none text-sm"
+                        className="flex-1 px-3 py-2 rounded-lg bg-surface text-white border border-border-strong focus:border-accent focus:outline-none text-sm"
                         autoFocus
                       />
                       <button
                         type="button"
                         onClick={() => void handleRename(t.id)}
-                        className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold active:bg-blue-700"
+                        className="px-3 py-2 rounded-lg bg-accent text-on-accent text-sm font-semibold active:bg-accent"
                       >
                         Save
                       </button>
                       <button
                         type="button"
                         onClick={() => setRenamingId(null)}
-                        className="px-3 py-2 rounded-lg bg-zinc-700 text-white text-sm active:bg-zinc-600"
+                        className="px-3 py-2 rounded-lg bg-surface-hover text-white text-sm active:bg-surface-strong"
                       >
                         ✕
                       </button>
                     </div>
                   ) : confirmDeleteId === t.id ? (
                     <div className="flex gap-2">
-                      <p className="flex-1 text-zinc-400 text-sm self-center">Delete &ldquo;{t.name}&rdquo;?</p>
+                      <p className="flex-1 text-muted text-sm self-center">Delete &ldquo;{t.name}&rdquo;?</p>
                       <button
                         type="button"
                         onClick={() => void handleDelete(t.id)}
@@ -172,7 +172,7 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteId(null)}
-                        className="px-3 py-2 rounded-lg bg-zinc-700 text-white text-sm active:bg-zinc-600"
+                        className="px-3 py-2 rounded-lg bg-surface-hover text-white text-sm active:bg-surface-strong"
                       >
                         Keep
                       </button>
@@ -183,21 +183,21 @@ export default function MyWorkoutsSection({ templates: initialTemplates }: Props
                         type="button"
                         onClick={() => void handleStart(t.id)}
                         disabled={starting === t.id}
-                        className="flex-1 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm active:bg-accent-hover disabled:opacity-50"
+                        className="flex-1 py-2.5 rounded-lg bg-accent text-on-accent font-semibold text-sm active:bg-accent-hover disabled:opacity-50"
                       >
                         {starting === t.id ? "Starting…" : "Start"}
                       </button>
                       <button
                         type="button"
                         onClick={() => { setRenamingId(t.id); setRenameValue(t.name); }}
-                        className="px-3 py-2.5 rounded-lg bg-zinc-800 text-zinc-300 text-sm active:bg-zinc-700"
+                        className="px-3 py-2.5 rounded-lg bg-surface text-soft text-sm active:bg-surface-hover"
                       >
                         Rename
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteId(t.id)}
-                        className="px-3 py-2.5 rounded-lg bg-zinc-800 text-red-400 text-sm active:bg-zinc-700"
+                        className="px-3 py-2.5 rounded-lg bg-surface text-red-400 text-sm active:bg-surface-hover"
                       >
                         Delete
                       </button>

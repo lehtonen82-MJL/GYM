@@ -65,7 +65,7 @@ export default function ExerciseLibrarySection() {
           type="button"
           onClick={handleRelink}
           disabled={relinking || unlinked === null || unlinked.length === 0}
-          className="w-full py-3 rounded-xl border-2 border-border text-sm font-medium text-white active:bg-zinc-800 disabled:opacity-40"
+          className="w-full py-3 rounded-xl border-2 border-border text-sm font-medium text-white active:bg-surface disabled:opacity-40"
         >
           {relinking ? "Re-linking…" : "Re-link exercises"}
         </button>

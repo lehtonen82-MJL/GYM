@@ -124,14 +124,14 @@ export default function ProgressClient({
   return (
     <div className="space-y-4">
       {/* Tab toggle */}
-      <div className="flex rounded-xl bg-zinc-900 border border-zinc-800 p-1 gap-1">
+      <div className="flex rounded-xl bg-card border border-border p-1 gap-1">
         {(["lifting", "muscles", "body", "rowing"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              tab === t ? "bg-zinc-700 text-white" : "text-zinc-500 active:text-zinc-300"
+              tab === t ? "bg-surface-hover text-white" : "text-muted active:text-soft"
             }`}
           >
             {{ lifting: "Lifting", muscles: "Muscles", body: "Body", rowing: "Rowing" }[t]}
@@ -149,7 +149,7 @@ export default function ProgressClient({
               setPRs([]);
               setSelectedId(e.target.value);
             }}
-            className="w-full px-4 py-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 focus:border-blue-500 focus:outline-none text-base"
+            className="w-full px-4 py-3 rounded-xl bg-card text-white border border-border focus:border-accent focus:outline-none text-base"
           >
             {exercises.map((ex) => (
               <option key={ex.id} value={ex.id}>
@@ -168,8 +168,8 @@ export default function ProgressClient({
                   aria-pressed={u.equipment_type === selectedEquipment}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                     u.equipment_type === selectedEquipment
-                      ? "bg-blue-600 border-blue-500 text-white"
-                      : "bg-zinc-900 border-zinc-800 text-zinc-400 active:text-zinc-200"
+                      ? "bg-accent border-accent text-on-accent"
+                      : "bg-card border-border text-muted active:text-soft"
                   }`}
                 >
                   {u.label}
@@ -200,10 +200,10 @@ export default function ProgressClient({
                         ? formatVolume(pr.value, unit)
                         : formatWeight(pr.value, unit, { maxDecimals: 1 });
                     return (
-                      <div key={type} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-zinc-500 uppercase tracking-wide">{labels[type]}</p>
+                      <div key={type} className="bg-card border border-border rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted uppercase tracking-wide">{labels[type]}</p>
                         <p className="text-white font-bold text-base mt-0.5">{formatted}</p>
-                        <p className="text-[10px] text-zinc-600 mt-0.5">
+                        <p className="text-[10px] text-subtle mt-0.5">
                           {formatShortDate(pr.achieved_at)}
                         </p>
                       </div>
@@ -218,7 +218,7 @@ export default function ProgressClient({
                 <MiniChart
                   data={data}
                   getValue={(d) => isBodyweight ? (d as DataPoint).reps : toDisplay((d as DataPoint).weight_kg, unit)}
-                  color="#3b82f6"
+                  color="#c6f432"
                   unit={isBodyweight ? "" : ""}
                   formatLabel={isBodyweight ? (v) => `${Math.round(v)} reps` : undefined}
                 />
@@ -230,7 +230,7 @@ export default function ProgressClient({
                   <MiniChart
                     data={data}
                     getValue={(d) => toDisplayVolume((d as DataPoint).volume, unit)}
-                    color="#22c55e"
+                    color="#c6f432"
                     unit=""
                   />
                 </div>
@@ -286,7 +286,7 @@ export default function ProgressClient({
               {/* Avg 500m pace chart — inverted: lower = faster = higher on chart */}
               <div className="bg-card rounded-2xl border border-border p-4">
                 <p className="text-sm font-semibold text-muted mb-1">Avg 500m Pace</p>
-                <p className="text-xs text-zinc-500 mb-2">Lower is faster ↓</p>
+                <p className="text-xs text-muted mb-2">Lower is faster ↓</p>
                 <MiniChart
                   data={rowingData}
                   getValue={(d) => (d as RowingDataPoint).pace_per_500_seconds}

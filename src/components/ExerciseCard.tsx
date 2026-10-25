@@ -160,7 +160,7 @@ export default function ExerciseCard({
       ref={cardRef}
       className={`rounded-2xl border overflow-hidden transition-colors ${
         allDone && !isActive
-          ? "bg-zinc-900 border-zinc-800 opacity-60"
+          ? "bg-card border-border opacity-60"
           : "bg-card border-border"
       }`}
     >
@@ -173,17 +173,17 @@ export default function ExerciseCard({
           className="flex-1 min-w-0 text-left active:opacity-70"
         >
           <div className="flex items-center gap-2">
-            <h3 className={`font-semibold text-lg ${allDone && !isActive ? "text-zinc-400" : "text-white"}`}>
+            <h3 className={`font-extrabold text-base uppercase tracking-wide ${allDone && !isActive ? "text-muted" : "text-white"}`}>
               {entry.exercise?.name}
             </h3>
             {originalExerciseName && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 leading-tight">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight">
                 ↩ {originalExerciseName}
               </span>
             )}
             {/* Where the suggested weight goes compared with last time */}
             {suggestionTrend === "up" && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 leading-tight">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/20 text-accent leading-tight">
                 Add weight
               </span>
             )}
@@ -202,7 +202,7 @@ export default function ExerciseCard({
             <p className="text-muted text-sm">
               {targetSets}×{targetRepsLabel}
               {suggestedWeight !== null && (
-                <span className="ml-2 text-accent">
+                <span className="ml-2 text-accent font-num font-bold">
                   {suggestionTrend === "down" ? "↓ " : suggestionTrend === "same" ? "= " : suggestionTrend === "up" ? "↑ " : ""}
                   {formatWeight(suggestedWeight, unit)}
                 </span>
@@ -224,7 +224,7 @@ export default function ExerciseCard({
             <button
               type="button"
               onClick={() => setShowSwapModal(true)}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold border text-zinc-400 border-zinc-700 bg-zinc-800 active:bg-zinc-700"
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold border text-muted border-border-strong bg-surface active:bg-surface-hover"
               title="Swap exercise"
             >
               🔄
@@ -237,7 +237,7 @@ export default function ExerciseCard({
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
                 isEditMode
                   ? "text-accent border-accent/40 bg-accent/10"
-                  : "text-zinc-400 border-zinc-700 bg-zinc-800 active:bg-zinc-700"
+                  : "text-muted border-border-strong bg-surface active:bg-surface-hover"
               }`}
             >
               {isEditMode ? "Done" : "Edit"}
@@ -312,7 +312,7 @@ export default function ExerciseCard({
             <button
               type="button"
               onClick={handleAddSet}
-              className="w-full py-2 rounded-xl bg-zinc-800 border border-accent/30 text-accent text-sm font-semibold active:bg-zinc-700"
+              className="w-full py-2 rounded-xl bg-surface border border-accent/30 text-accent text-sm font-semibold active:bg-surface-hover"
             >
               + Add Set
             </button>
@@ -324,7 +324,7 @@ export default function ExerciseCard({
               <button
                 type="button"
                 onClick={() => setShowTimer(true)}
-                className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700 flex items-center justify-center gap-2"
+                className="flex-1 py-2 rounded-xl bg-surface text-muted text-sm active:bg-surface-hover flex items-center justify-center gap-2"
               >
                 <span>⏱</span>
                 <span>Interval Timer</span>
@@ -335,7 +335,7 @@ export default function ExerciseCard({
                 className={`px-3 py-2 rounded-xl text-sm font-semibold active:opacity-80 flex items-center gap-1.5 ${
                   hasTooHeavySets
                     ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40"
-                    : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                    : "bg-surface text-muted border border-border-strong"
                 }`}
               >
                 <span className="text-base">{hasTooHeavySets ? "⚠️" : "🏋️"}</span>
@@ -349,9 +349,9 @@ export default function ExerciseCard({
       {/* Too Heavy — step 1: pick which sets */}
       {showTooHeavyPicker && !showRepsStep && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+          <div className="bg-card rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
             <h2 className="text-white text-lg font-bold">Which sets were too heavy?</h2>
-            <p className="text-zinc-400 text-sm">Tap the sets you couldn&apos;t complete with full reps.</p>
+            <p className="text-muted text-sm">Tap the sets you couldn&apos;t complete with full reps.</p>
             <div className="space-y-2">
               {sets.filter((s) => !s.is_warmup).map((set) => (
                 <button
@@ -370,13 +370,13 @@ export default function ExerciseCard({
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-colors ${
                     set.too_heavy
                       ? "bg-red-500/20 border-red-500/40 text-red-400"
-                      : "bg-zinc-800 border-zinc-700 text-zinc-300"
+                      : "bg-surface border-border-strong text-soft"
                   }`}
                 >
                   <span className="font-semibold">
                     Set {set.set_number}
                     {set.weight_kg != null && (
-                      <span className="ml-2 text-sm font-normal text-zinc-400">
+                      <span className="ml-2 text-sm font-normal text-muted">
                         {formatWeight(set.weight_kg, unit)} × {set.reps ?? targetReps}
                       </span>
                     )}
@@ -400,7 +400,7 @@ export default function ExerciseCard({
                   setShowTooHeavyPicker(false);
                 }
               }}
-              className="w-full py-3 rounded-xl bg-accent text-white font-bold text-base active:opacity-80"
+              className="w-full py-3 rounded-xl bg-accent text-on-accent font-bold text-base active:opacity-80"
             >
               {sets.filter((s) => !s.is_warmup && s.too_heavy).length > 0 ? "Next →" : "Done"}
             </button>
@@ -411,20 +411,20 @@ export default function ExerciseCard({
       {/* Too Heavy — step 2: how many reps did you achieve? */}
       {showRepsStep && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-          <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+          <div className="bg-card rounded-t-3xl w-full max-w-md p-6 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
             <h2 className="text-white text-lg font-bold">How many reps did you achieve?</h2>
-            <p className="text-zinc-400 text-sm">Enter the reps you actually completed for each failed set.</p>
+            <p className="text-muted text-sm">Enter the reps you actually completed for each failed set.</p>
             <div className="space-y-3">
               {sets.filter((s) => pendingTooHeavyIds.includes(s.id)).map((set) => (
-                <div key={set.id} className="flex items-center justify-between bg-zinc-800 rounded-xl px-4 py-3">
+                <div key={set.id} className="flex items-center justify-between bg-surface rounded-xl px-4 py-3">
                   <span className="text-white font-semibold">
                     Set {set.set_number}
-                    <span className="ml-2 text-sm font-normal text-zinc-400">
+                    <span className="ml-2 text-sm font-normal text-muted">
                       {set.weight_kg != null ? formatWeight(set.weight_kg, unit) : ""}
                     </span>
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-400 text-sm">/ {targetReps}</span>
+                    <span className="text-muted text-sm">/ {targetReps}</span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -436,7 +436,7 @@ export default function ExerciseCard({
                         setPendingReps((prev) => ({ ...prev, [set.id]: isNaN(v) ? null : v }));
                       }}
                       placeholder="0"
-                      className="w-14 h-10 text-center text-base font-bold bg-zinc-700 rounded-xl text-white border border-zinc-600 focus:border-red-500 focus:outline-none"
+                      className="w-14 h-10 text-center text-base font-bold bg-surface-hover rounded-xl text-white border border-border-strong focus:border-red-500 focus:outline-none"
                     />
                   </div>
                 </div>

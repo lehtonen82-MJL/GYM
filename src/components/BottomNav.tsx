@@ -38,10 +38,10 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={`fixed left-0 right-0 bg-zinc-900 z-50 ${
+      className={`fixed left-0 right-0 bg-card z-50 ${
         isTop
-          ? "top-0 border-b border-zinc-800 pt-[env(safe-area-inset-top)]"
-          : "bottom-0 border-t border-zinc-800 pb-[env(safe-area-inset-bottom)]"
+          ? "top-0 border-b border-border pt-[env(safe-area-inset-top)]"
+          : "bottom-0 border-t border-border pb-[env(safe-area-inset-bottom)]"
       }`}
     >
       <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
@@ -53,7 +53,7 @@ export default function BottomNav() {
               href={tab.href}
               prefetch
               className={`flex flex-col items-center justify-center flex-1 py-1 text-xs ${
-                active ? "text-blue-500" : "text-zinc-500"
+                active ? "text-accent" : "text-muted"
               }`}
             >
               <span className="text-xl">{tab.icon}</span>

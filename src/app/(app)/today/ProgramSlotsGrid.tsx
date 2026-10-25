@@ -68,7 +68,7 @@ export default function ProgramSlotsGrid({ allDays, serverFinishedIds, programId
               key={day.id}
               className={`bg-card rounded-xl border p-3 ${
                 done
-                  ? "border-green-600/50 bg-green-500/5"
+                  ? "border-accent/50 bg-accent/5"
                   : isToday
                   ? "border-accent bg-accent/5"
                   : "border-border"
@@ -77,7 +77,7 @@ export default function ProgramSlotsGrid({ allDays, serverFinishedIds, programId
               <div className="flex items-start justify-between">
                 <p className="text-muted text-xs">Workout {index + 1}</p>
                 {done && (
-                  <span className="text-xs text-green-400 font-semibold">✓ Done</span>
+                  <span className="text-xs text-accent font-semibold">✓ Done</span>
                 )}
               </div>
               <p className="text-white font-medium">{day.name}</p>

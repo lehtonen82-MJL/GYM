@@ -583,21 +583,21 @@ export default function ProgramEditorPage({ params }: PageProps) {
             <button
               onClick={handlePreviewFromText}
               disabled={isAutoBuilding}
-              className="mb-3 w-full rounded-lg bg-emerald-500 py-3 text-base font-medium text-white transition-colors hover:bg-emerald-600 active:bg-emerald-700 disabled:bg-zinc-600"
+              className="mb-3 w-full rounded-lg bg-accent py-3 text-base font-medium text-on-accent transition-colors hover:bg-accent active:bg-accent disabled:bg-surface-strong"
             >
               {isAutoBuilding ? "Saving..." : "Preview Auto-generate From Text"}
             </button>
 
             {parsedPreview && (
-              <div className="mb-4 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-4">
-                <p className="mb-2 text-xs text-emerald-200">
+              <div className="mb-4 rounded-lg border border-accent/50 bg-accent/10 p-4">
+                <p className="mb-2 text-xs text-accent">
                   Nothing is changed yet. Press Save to apply these generated workouts.
                 </p>
-                <p className="text-sm font-semibold text-emerald-100">
+                <p className="text-sm font-semibold text-accent">
                   Parse Preview: {parsedPreview.days.length} day(s),{" "}
                   {parsedPreview.days.reduce((sum, d) => sum + d.exercises.length, 0)} exercise(s)
                 </p>
-                <p className="mt-1 text-xs text-emerald-200">
+                <p className="mt-1 text-xs text-accent">
                   Mode: {parsedPreview.detectedMode === "weekday" ? "Weekday" : "Session"}
                   {parsedPreview.warnings.length > 0
                     ? ` - ${parsedPreview.warnings.length} warning(s)`
@@ -607,16 +607,16 @@ export default function ProgramEditorPage({ params }: PageProps) {
                   {parsedPreview.days.map((day, dayIndex) => (
                     <div
                       key={`${day.name}-${dayIndex}`}
-                      className="rounded border border-emerald-500/50 bg-zinc-900 p-3"
+                      className="rounded border border-accent/50 bg-card p-3"
                     >
                       <div className="mb-2">
-                        <label className="mb-1 block text-xs font-medium text-emerald-200">
+                        <label className="mb-1 block text-xs font-medium text-accent">
                           Workout {dayIndex + 1} name
                         </label>
                         <input
                           value={day.name}
                           onChange={(e) => handlePreviewDayNameChange(dayIndex, e.target.value)}
-                          className="w-full rounded border border-emerald-500/50 bg-zinc-950 px-2 py-1 text-sm text-white"
+                          className="w-full rounded border border-accent/50 bg-deep px-2 py-1 text-sm text-white"
                         />
                       </div>
 
@@ -638,7 +638,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
                                   )
                                 }
                                 placeholder="Exercise name"
-                                className="rounded border border-border bg-zinc-950 px-2 py-1 text-sm text-white"
+                                className="rounded border border-border bg-deep px-2 py-1 text-sm text-white"
                               />
                               <input
                                 value={exercise.schemeText || ""}
@@ -651,13 +651,13 @@ export default function ProgramEditorPage({ params }: PageProps) {
                                   )
                                 }
                                 placeholder="Scheme (e.g. 4x6)"
-                                className="rounded border border-border bg-zinc-950 px-2 py-1 text-sm text-white"
+                                className="rounded border border-border bg-deep px-2 py-1 text-sm text-white"
                               />
                               <input
                                 value={exercise.targetSets?.toString() || ""}
                                 readOnly
                                 placeholder="Sets"
-                                className="rounded border border-border bg-zinc-800 px-2 py-1 text-sm text-white"
+                                className="rounded border border-border bg-surface px-2 py-1 text-sm text-white"
                               />
                               <button
                                 onClick={() =>
@@ -679,7 +679,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
                                 )
                               }
                               placeholder="Notes (optional)"
-                              className="mt-2 w-full rounded border border-border bg-zinc-950 px-2 py-1 text-sm text-white"
+                              className="mt-2 w-full rounded border border-border bg-deep px-2 py-1 text-sm text-white"
                             />
                           </div>
                         ))}
@@ -687,7 +687,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
 
                       <button
                         onClick={() => handlePreviewAddExercise(dayIndex)}
-                        className="mt-2 rounded bg-emerald-500/20 px-3 py-1 text-sm font-medium text-emerald-200 hover:bg-emerald-500/30"
+                        className="mt-2 rounded bg-accent/20 px-3 py-1 text-sm font-medium text-accent hover:bg-accent/30"
                       >
                         + Add movement
                       </button>
@@ -698,21 +698,21 @@ export default function ProgramEditorPage({ params }: PageProps) {
                   <button
                     onClick={() => void handleApplyParsed("replace")}
                     disabled={isAutoBuilding}
-                    className="flex-1 rounded bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-zinc-600"
+                    className="flex-1 rounded bg-accent py-2 text-sm font-medium text-on-accent hover:bg-accent disabled:bg-surface-strong"
                   >
                     Save and Continue
                   </button>
                   <button
                     onClick={() => void handleApplyParsed("append")}
                     disabled={isAutoBuilding}
-                    className="flex-1 rounded bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-zinc-600"
+                    className="flex-1 rounded bg-accent py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:bg-surface-strong"
                   >
                     Save and Append
                   </button>
                   <button
                     onClick={() => setParsedPreview(null)}
                     disabled={isAutoBuilding}
-                    className="rounded border border-border bg-zinc-700 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-600 disabled:bg-zinc-700/60"
+                    className="rounded border border-border bg-surface-hover px-3 py-2 text-sm font-medium text-white hover:bg-surface-strong disabled:bg-surface-hover/60"
                   >
                     Cancel
                   </button>
@@ -724,7 +724,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
 
         <button
           onClick={handleAddDay}
-          className="mb-6 w-full rounded-lg bg-accent py-3 text-base font-medium text-white transition-colors hover:bg-accent-hover active:bg-accent-hover"
+          className="mb-6 w-full rounded-lg bg-accent py-3 text-base font-medium text-on-accent transition-colors hover:bg-accent-hover active:bg-accent-hover"
         >
           + Add Day
         </button>
@@ -782,7 +782,7 @@ export default function ProgramEditorPage({ params }: PageProps) {
                 {/* Add Exercise Button */}
                 <button
                   onClick={() => handleAddExercise(day.id)}
-                  className="mt-2 w-full rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
+                  className="mt-2 w-full rounded border border-border bg-surface-hover py-2 text-sm font-medium text-white hover:bg-surface-strong active:bg-surface-strong"
                 >
                   + Add Exercise
                 </button>

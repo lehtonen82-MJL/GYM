@@ -56,7 +56,7 @@ export function DuplicateProgramModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
-              className="w-full rounded-lg border border-border bg-zinc-900 px-3 py-2 text-base text-white focus:outline-none focus:ring-2 focus:ring-accent"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-base text-white focus:outline-none focus:ring-2 focus:ring-accent"
               disabled={isLoading}
             />
             <p className="mt-1 text-xs text-muted">Original: {currentName}</p>
@@ -66,14 +66,14 @@ export function DuplicateProgramModal({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 font-medium text-white hover:bg-zinc-600 active:bg-zinc-500 disabled:bg-zinc-700/60"
+              className="flex-1 rounded-lg border border-border bg-surface-hover py-3 font-medium text-white hover:bg-surface-strong active:bg-surface-strong disabled:bg-surface-hover/60"
               disabled={isLoading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-lg bg-accent py-3 font-medium text-white hover:bg-accent-hover active:bg-accent-hover disabled:bg-zinc-600"
+              className="flex-1 rounded-lg bg-accent py-3 font-medium text-on-accent hover:bg-accent-hover active:bg-accent-hover disabled:bg-surface-strong"
               disabled={isLoading}
             >
               {isLoading ? "Creating..." : "Create Copy"}

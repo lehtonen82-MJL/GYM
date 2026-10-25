@@ -30,7 +30,7 @@ export default function StartBlankWorkoutButton() {
       <button
         onClick={handleStart}
         disabled={loading}
-        className="w-full py-3 rounded-xl bg-zinc-800 text-white font-semibold text-sm border border-zinc-700 active:bg-zinc-700 disabled:opacity-50"
+        className="w-full py-3 rounded-xl bg-surface text-white font-semibold text-sm border border-border-strong active:bg-surface-hover disabled:opacity-50"
       >
         {loading ? "Starting…" : "+ Start blank workout"}
       </button>

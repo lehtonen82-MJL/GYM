@@ -48,7 +48,7 @@ export function ProgramDayCard({
       <div className="flex items-center gap-3 p-4">
         <button
           onClick={onToggle}
-          className="h-10 w-10 flex-shrink-0 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+          className="h-10 w-10 flex-shrink-0 rounded text-muted transition-colors hover:bg-surface hover:text-white active:bg-surface-hover"
           aria-label={isExpanded ? "Collapse day" : "Expand day"}
         >
           {isExpanded ? "v" : ">"}
@@ -70,7 +70,7 @@ export function ProgramDayCard({
               }}
               placeholder="Day name"
               autoFocus
-              className="w-full rounded border border-accent bg-zinc-900 px-2 py-1 text-base text-white focus:outline-none"
+              className="w-full rounded border border-accent bg-card px-2 py-1 text-base text-white focus:outline-none"
             />
           ) : (
             <h3
@@ -88,7 +88,7 @@ export function ProgramDayCard({
           {canMoveUp && (
             <button
               onClick={onMoveUp}
-              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-surface hover:text-white active:bg-surface-hover"
               title="Move day up"
               aria-label="Move day up"
             >
@@ -98,7 +98,7 @@ export function ProgramDayCard({
           {canMoveDown && (
             <button
               onClick={onMoveDown}
-              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-surface hover:text-white active:bg-surface-hover"
               title="Move day down"
               aria-label="Move day down"
             >
@@ -119,7 +119,7 @@ export function ProgramDayCard({
       </div>
 
       {isExpanded && (
-        <div className="border-t border-border bg-zinc-900/40 p-4 space-y-4">
+        <div className="border-t border-border bg-card/40 p-4 space-y-4">
           {/* Weekday picker */}
           {onWeekdayChange && (
             <div>
@@ -132,8 +132,8 @@ export function ProgramDayCard({
                     onClick={() => onWeekdayChange(i)}
                     className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${
                       day.day_of_week === i
-                        ? "bg-accent text-white"
-                        : "bg-zinc-800 text-zinc-400 active:bg-zinc-700"
+                        ? "bg-accent text-on-accent"
+                        : "bg-surface text-muted active:bg-surface-hover"
                     }`}
                   >
                     {label}

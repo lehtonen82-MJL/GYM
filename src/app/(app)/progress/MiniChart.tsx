@@ -39,7 +39,7 @@ export default function MiniChart<T extends { date: string }>({
           y1={20 + f * 140}
           x2="310"
           y2={20 + f * 140}
-          stroke="#3f3f46"
+          stroke="#333333"
           strokeWidth="0.5"
         />
       ))}
@@ -48,7 +48,7 @@ export default function MiniChart<T extends { date: string }>({
       {[0, 0.5, 1].map((f) => {
         const v = inverted ? minVal + f * range : maxVal - f * range;
         return (
-          <text key={f} x="35" y={24 + f * 140} textAnchor="end" fill="#a1a1aa" fontSize="10">
+          <text key={f} x="35" y={24 + f * 140} textAnchor="end" fill="#8a8a8a" fontSize="10">
             {labelFor(v)}
           </text>
         );

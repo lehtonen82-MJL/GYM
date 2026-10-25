@@ -98,14 +98,14 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-      <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md flex flex-col max-h-[85vh] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="bg-card rounded-t-3xl w-full max-w-md flex flex-col max-h-[85vh] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <h2 className="text-white text-lg font-bold">Add Exercise</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 active:text-white text-sm font-medium"
+            className="text-muted active:text-white text-sm font-medium"
           >
             Cancel
           </button>
@@ -118,7 +118,7 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setShowCustom(false); }}
             placeholder="Search exercises…"
-            className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white border border-zinc-700 focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface text-white border border-border-strong focus:border-accent focus:outline-none text-sm"
             autoFocus
           />
         </div>
@@ -133,21 +133,21 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
               onChange={(e) => setCustomName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleAddCustom(); if (e.key === "Escape") setShowCustom(false); }}
               placeholder="Exercise name…"
-              className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white border border-zinc-600 focus:border-blue-500 focus:outline-none text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface text-white border border-border-strong focus:border-accent focus:outline-none text-sm"
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => void handleAddCustom()}
                 disabled={!customName.trim() || creatingCustom}
-                className="flex-1 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm active:bg-accent-hover disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl bg-accent text-on-accent font-semibold text-sm active:bg-accent-hover disabled:opacity-50"
               >
                 {creatingCustom ? "Adding…" : "Add"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowCustom(false)}
-                className="px-4 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm active:bg-zinc-700"
+                className="px-4 py-2.5 rounded-xl bg-surface text-muted text-sm active:bg-surface-hover"
               >
                 Cancel
               </button>
@@ -158,7 +158,7 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
         {/* List */}
         <div className="overflow-y-auto flex-1 px-5">
           {loading ? (
-            <p className="text-zinc-500 text-sm py-4 text-center">Loading…</p>
+            <p className="text-muted text-sm py-4 text-center">Loading…</p>
           ) : (
             <div className="space-y-1 pb-2">
               {/* "Add as custom" prompt when no match found */}
@@ -166,11 +166,11 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
                 <button
                   type="button"
                   onClick={() => { setCustomName(searchTrimmed); setShowCustom(true); }}
-                  className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 border border-dashed border-zinc-600 text-sm active:bg-zinc-700"
+                  className="w-full text-left px-4 py-3 rounded-xl bg-surface border border-dashed border-border-strong text-sm active:bg-surface-hover"
                 >
-                  <span className="text-zinc-400">Add </span>
+                  <span className="text-muted">Add </span>
                   <span className="text-white font-medium">&ldquo;{searchTrimmed}&rdquo;</span>
-                  <span className="text-zinc-400"> as custom exercise</span>
+                  <span className="text-muted"> as custom exercise</span>
                 </button>
               )}
 
@@ -179,14 +179,14 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
                 <button
                   type="button"
                   onClick={() => { setCustomName(""); setShowCustom(true); }}
-                  className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 border border-dashed border-zinc-600 text-zinc-400 text-sm active:bg-zinc-700"
+                  className="w-full text-left px-4 py-3 rounded-xl bg-surface border border-dashed border-border-strong text-muted text-sm active:bg-surface-hover"
                 >
                   + Custom exercise (no library match)
                 </button>
               )}
 
               {filtered.length === 0 && !showAddCustomPrompt ? (
-                <p className="text-zinc-500 text-sm py-4 text-center">No exercises found</p>
+                <p className="text-muted text-sm py-4 text-center">No exercises found</p>
               ) : (
                 filtered.map((ex) => (
                   <button
@@ -194,18 +194,18 @@ export default function AddExerciseModal({ onAdd, onClose }: Props) {
                     type="button"
                     onClick={() => void handleAdd(ex)}
                     disabled={adding === ex.id}
-                    className="w-full text-left px-4 py-3 rounded-xl bg-zinc-800 text-white text-sm active:bg-zinc-700 disabled:opacity-50"
+                    className="w-full text-left px-4 py-3 rounded-xl bg-surface text-white text-sm active:bg-surface-hover disabled:opacity-50"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{ex.name}</span>
                       <div className="flex items-center gap-1 shrink-0">
                         {ex.equipment_type && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-hover text-soft">
                             {EQUIPMENT_LABELS[ex.equipment_type] ?? ex.equipment_type}
                           </span>
                         )}
                         {ex.primary_muscle && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/60 text-accent">
                             {MUSCLE_LABELS[ex.primary_muscle] ?? ex.primary_muscle}
                           </span>
                         )}

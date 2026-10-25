@@ -228,10 +228,10 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
   if (phase === "countdown") {
     return (
       <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-6">
-        <p className="text-zinc-400 text-lg tracking-widest uppercase">Get ready</p>
+        <p className="text-muted text-lg tracking-widest uppercase">Get ready</p>
         <div className="relative w-44 h-44 sm:w-60 sm:h-60">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="54" fill="none" stroke="#27272a" strokeWidth="8" />
+            <circle cx="60" cy="60" r="54" fill="none" stroke="#262626" strokeWidth="8" />
             <circle
               cx="60" cy="60" r="54" fill="none"
               stroke="#f59e0b"
@@ -262,13 +262,13 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
   if (phase === "config") {
     return (
       <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
-        <div className="bg-zinc-900 rounded-t-3xl w-full max-w-md p-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] space-y-5">
+        <div className="bg-card rounded-t-3xl w-full max-w-md p-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-white text-xl font-bold">Interval Timer</h2>
             <button
               type="button"
               onClick={onClose}
-              className="text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center"
+              className="text-muted text-2xl w-10 h-10 flex items-center justify-center"
             >
               ✕
             </button>
@@ -276,12 +276,12 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
 
           {/* Rounds */}
           <div>
-            <p className="text-zinc-400 text-sm mb-2">Rounds</p>
+            <p className="text-muted text-sm mb-2">Rounds</p>
             <div className="flex items-center gap-4">
               <button
                 type="button"
                 onClick={() => setRounds((r) => Math.max(1, r - 1))}
-                className="w-11 h-11 bg-zinc-800 rounded-xl text-white text-2xl active:bg-zinc-700"
+                className="w-11 h-11 bg-surface rounded-xl text-white text-2xl active:bg-surface-hover"
               >
                 −
               </button>
@@ -291,7 +291,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
               <button
                 type="button"
                 onClick={() => setRounds((r) => r + 1)}
-                className="w-11 h-11 bg-zinc-800 rounded-xl text-white text-2xl active:bg-zinc-700"
+                className="w-11 h-11 bg-surface rounded-xl text-white text-2xl active:bg-surface-hover"
               >
                 +
               </button>
@@ -300,12 +300,12 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
 
           {/* Interval */}
           <div>
-            <p className="text-zinc-400 text-sm mb-2">Interval (minutes)</p>
+            <p className="text-muted text-sm mb-2">Interval (minutes)</p>
             <div className="flex items-center gap-4">
               <button
                 type="button"
                 onClick={() => setIntervalMins((m) => Math.max(1, m - 1))}
-                className="w-11 h-11 bg-zinc-800 rounded-xl text-white text-2xl active:bg-zinc-700"
+                className="w-11 h-11 bg-surface rounded-xl text-white text-2xl active:bg-surface-hover"
               >
                 −
               </button>
@@ -315,21 +315,21 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
               <button
                 type="button"
                 onClick={() => setIntervalMins((m) => m + 1)}
-                className="w-11 h-11 bg-zinc-800 rounded-xl text-white text-2xl active:bg-zinc-700"
+                className="w-11 h-11 bg-surface rounded-xl text-white text-2xl active:bg-surface-hover"
               >
                 +
               </button>
             </div>
           </div>
 
-          <p className="text-zinc-500 text-sm">
+          <p className="text-muted text-sm">
             Starts rep 1 immediately, then signals every {intervalMins} min until {rounds} reps done.
           </p>
 
           <button
             type="button"
             onClick={startTimer}
-            className="w-full h-14 bg-blue-600 rounded-2xl text-white font-bold text-lg active:bg-blue-700"
+            className="w-full h-14 bg-accent rounded-2xl text-on-accent font-bold text-lg active:bg-accent"
           >
             Start
           </button>
@@ -342,7 +342,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
   function renderSetLog(highlightRound: number | null) {
     return (
       <div className="w-full max-w-sm px-4 space-y-2">
-        <p className="text-zinc-500 text-xs uppercase tracking-widest mb-1">Sets</p>
+        <p className="text-muted text-xs uppercase tracking-widest mb-1">Sets</p>
         {sets.map((set) => {
           const isActive = highlightRound === set.set_number;
           return (
@@ -350,14 +350,14 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
               key={set.id}
               className={`flex items-center gap-2 rounded-xl px-3 py-2 transition-colors ${
                 set.completed
-                  ? "bg-green-950/40 border border-green-800/50"
+                  ? "bg-accent/40 border border-accent/50"
                   : isActive
-                  ? "bg-blue-950/50 border border-blue-700/60"
-                  : "bg-zinc-900 border border-transparent"
+                  ? "bg-accent/50 border border-accent/60"
+                  : "bg-card border border-transparent"
               }`}
             >
               {/* Set number */}
-              <span className="text-zinc-500 text-sm w-4 shrink-0">{set.set_number}</span>
+              <span className="text-muted text-sm w-4 shrink-0">{set.set_number}</span>
 
               {/* Weight */}
               <input
@@ -374,10 +374,10 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
                     )
                   );
                 }}
-                className="w-16 h-9 text-center text-sm font-semibold bg-zinc-800 rounded-lg text-white border border-zinc-700 focus:border-blue-500 focus:outline-none"
+                className="w-16 h-9 text-center text-sm font-semibold bg-surface rounded-lg text-white border border-border-strong focus:border-accent focus:outline-none"
               />
 
-              <span className="text-zinc-600 text-xs">{unit} ×</span>
+              <span className="text-subtle text-xs">{unit} ×</span>
 
               {/* Reps */}
               <input
@@ -393,7 +393,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
                     )
                   );
                 }}
-                className="w-14 h-9 text-center text-sm font-semibold bg-zinc-800 rounded-lg text-white border border-zinc-700 focus:border-blue-500 focus:outline-none"
+                className="w-14 h-9 text-center text-sm font-semibold bg-surface rounded-lg text-white border border-border-strong focus:border-accent focus:outline-none"
               />
 
               {/* Pass / Fail toggle */}
@@ -408,8 +408,8 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
                 }
                 className={`ml-auto w-9 h-9 rounded-lg text-sm font-bold shrink-0 ${
                   set.completed
-                    ? "bg-green-600 text-white"
-                    : "bg-zinc-800 text-zinc-500 active:bg-zinc-700"
+                    ? "bg-accent text-on-accent"
+                    : "bg-surface text-muted active:bg-surface-hover"
                 }`}
               >
                 {set.completed ? "✓" : "✗"}
@@ -428,7 +428,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
         <div className="text-center space-y-1">
           <div className="text-5xl">✓</div>
           <h2 className="text-white text-2xl font-bold">Done!</h2>
-          <p className="text-zinc-400">
+          <p className="text-muted">
             {activeRounds} round{activeRounds !== 1 ? "s" : ""} completed
           </p>
         </div>
@@ -438,7 +438,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
         <button
           type="button"
           onClick={onClose}
-          className="w-full max-w-sm h-12 bg-green-600 rounded-2xl text-white font-bold active:bg-green-700"
+          className="w-full max-w-sm h-12 bg-accent rounded-2xl text-on-accent font-bold active:bg-accent"
         >
           Close
         </button>
@@ -452,16 +452,16 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
       {/* Go flash */}
       {showGo && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-green-400 text-7xl font-black animate-pulse">
+          <span className="text-accent text-7xl font-black animate-pulse">
             GO!
           </span>
         </div>
       )}
 
-      <p className="text-zinc-400 text-lg">
+      <p className="text-muted text-lg">
         Round{" "}
         <span className="text-white font-bold text-2xl">{currentRound}</span>
-        <span className="text-zinc-500"> / {activeRounds}</span>
+        <span className="text-muted"> / {activeRounds}</span>
       </p>
 
       {/* Circular countdown */}
@@ -472,7 +472,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
             cy="60"
             r="54"
             fill="none"
-            stroke="#27272a"
+            stroke="#262626"
             strokeWidth="8"
           />
           <circle
@@ -480,7 +480,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
             cy="60"
             r="54"
             fill="none"
-            stroke={phase === "paused" ? "#71717a" : "#3b82f6"}
+            stroke={phase === "paused" ? "#5c5c5c" : "#c6f432"}
             strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -493,7 +493,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
             {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
           </span>
           {phase === "paused" && (
-            <span className="text-zinc-500 text-xs uppercase tracking-widest">
+            <span className="text-muted text-xs uppercase tracking-widest">
               paused
             </span>
           )}
@@ -501,7 +501,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
       </div>
 
       {/* Next round hint */}
-      <p className="text-zinc-500 text-sm">
+      <p className="text-muted text-sm">
         {currentRound < activeRounds
           ? `Rep ${currentRound + 1} in ${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
           : "Last round"}
@@ -512,7 +512,7 @@ export default function IntervalTimer({ defaultRounds, exerciseId, sets, targetR
         <button
           type="button"
           onClick={phase === "running" ? pauseTimer : resumeTimer}
-          className="w-28 h-14 bg-zinc-800 rounded-2xl text-white font-bold active:bg-zinc-700"
+          className="w-28 h-14 bg-surface rounded-2xl text-white font-bold active:bg-surface-hover"
         >
           {phase === "running" ? "Pause" : "Resume"}
         </button>

@@ -27,7 +27,7 @@ export default function WeightStepper({
       <button
         type="button"
         onClick={() => commit(Math.max(0, current - stepSize))}
-        className="w-10 h-10 rounded-xl bg-zinc-800 text-zinc-300 text-sm font-bold active:bg-zinc-700 flex items-center justify-center shrink-0"
+        className="w-10 h-10 rounded-xl bg-surface text-soft text-sm font-bold active:bg-surface-hover flex items-center justify-center shrink-0"
       >
         −{stepSize}
       </button>
@@ -38,12 +38,12 @@ export default function WeightStepper({
         onChange={(e) => commit(parseFloat(e.target.value) || 0)}
         placeholder={unit}
         aria-label={`Weight (${unit})`}
-        className="w-16 h-10 text-center text-base font-semibold bg-zinc-800 rounded-xl text-white border border-zinc-700 focus:border-blue-500 focus:outline-none"
+        className="w-16 h-10 text-center text-base font-bold font-num bg-surface rounded-xl text-white border border-border-strong focus:border-accent focus:outline-none"
       />
       <button
         type="button"
         onClick={() => commit(current + stepSize)}
-        className="w-10 h-10 rounded-xl bg-zinc-800 text-zinc-300 text-sm font-bold active:bg-zinc-700 flex items-center justify-center shrink-0"
+        className="w-10 h-10 rounded-xl bg-surface text-soft text-sm font-bold active:bg-surface-hover flex items-center justify-center shrink-0"
       >
         +{stepSize}
       </button>

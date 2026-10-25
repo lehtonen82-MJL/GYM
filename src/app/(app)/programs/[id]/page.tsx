@@ -99,7 +99,7 @@ export default function ProgramDetailPage() {
           </div>
           <Link
             href={`/programs/${programId}/edit`}
-            className="rounded bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+            className="rounded bg-accent px-3 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             Edit
           </Link>
@@ -133,10 +133,10 @@ export default function ProgramDetailPage() {
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-white">{day.name}</h2>
                     {program.mode === "weekday" && day.weekday_label && (
-                      <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-muted">{day.weekday_label}</span>
+                      <span className="rounded bg-surface px-2 py-1 text-xs text-muted">{day.weekday_label}</span>
                     )}
                     {program.mode === "session" && day.session_label && (
-                      <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-muted">{day.session_label}</span>
+                      <span className="rounded bg-surface px-2 py-1 text-xs text-muted">{day.session_label}</span>
                     )}
                   </div>
 
@@ -169,7 +169,7 @@ export default function ProgramDetailPage() {
             <p className="mb-4 text-muted">No days added yet</p>
             <Link
               href={`/programs/${programId}/edit`}
-              className="inline-block rounded bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover"
+              className="inline-block rounded bg-accent px-4 py-2 font-medium text-on-accent hover:bg-accent-hover"
             >
               Add Days
             </Link>

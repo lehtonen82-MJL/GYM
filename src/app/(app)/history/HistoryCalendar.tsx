@@ -46,7 +46,7 @@ export default function HistoryCalendar({
           onClick={() => shift(-1)}
           disabled={!canGoBack}
           aria-label="Previous month"
-          className="w-9 h-9 rounded-lg text-white disabled:opacity-20 active:bg-zinc-800"
+          className="w-9 h-9 rounded-lg text-white disabled:opacity-20 active:bg-surface"
         >
           ‹
         </button>
@@ -61,7 +61,7 @@ export default function HistoryCalendar({
           onClick={() => shift(1)}
           disabled={!canGoForward}
           aria-label="Next month"
-          className="w-9 h-9 rounded-lg text-white disabled:opacity-20 active:bg-zinc-800"
+          className="w-9 h-9 rounded-lg text-white disabled:opacity-20 active:bg-surface"
         >
           ›
         </button>
@@ -85,12 +85,12 @@ export default function HistoryCalendar({
               aria-label={trained ? `Workouts on ${day}` : day}
               className={`aspect-square rounded-lg text-sm flex flex-col items-center justify-center ${
                 selected
-                  ? "bg-accent text-white"
+                  ? "bg-accent text-on-accent"
                   : trained
                     ? "bg-accent/15 text-white active:bg-accent/30"
                     : day === today
-                      ? "text-white ring-1 ring-zinc-600"
-                      : "text-zinc-600"
+                      ? "text-white ring-1 ring-border-strong"
+                      : "text-subtle"
               }`}
             >
               {Number(day.slice(8))}

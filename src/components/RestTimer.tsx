@@ -33,10 +33,10 @@ export default function RestTimer({ endsAt, onAdd, onDismiss }: Props) {
       role="timer"
       aria-live={done ? "assertive" : "off"}
       className={`flex items-center gap-2 rounded-xl px-3 py-2 border ${
-        done ? "bg-green-950/40 border-green-800/60" : "bg-blue-950/40 border-blue-800/50"
+        done ? "bg-accent/40 border-accent/60" : "bg-accent/40 border-accent/50"
       }`}
     >
-      <span className={`text-sm font-semibold ${done ? "text-green-400" : "text-blue-300"}`}>
+      <span className={`text-sm font-semibold ${done ? "text-accent" : "text-accent"}`}>
         {done ? "Rest over — go!" : "Rest"}
       </span>
       {!done && <span className="text-white font-mono font-bold text-lg tabular-nums">{formatPace(remaining)}</span>}
@@ -45,7 +45,7 @@ export default function RestTimer({ endsAt, onAdd, onDismiss }: Props) {
           <button
             type="button"
             onClick={() => onAdd(15)}
-            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800 text-zinc-300 active:bg-zinc-700"
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-surface text-soft active:bg-surface-hover"
           >
             +15s
           </button>
@@ -53,7 +53,7 @@ export default function RestTimer({ endsAt, onAdd, onDismiss }: Props) {
         <button
           type="button"
           onClick={onDismiss}
-          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800 text-zinc-300 active:bg-zinc-700"
+          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-surface text-soft active:bg-surface-hover"
         >
           {done ? "OK" : "Skip"}
         </button>

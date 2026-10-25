@@ -64,8 +64,8 @@ export default function SetRow({
     : isWarmup
     ? "bg-yellow-950/30 border border-yellow-800/40"
     : completed
-    ? "bg-green-950/30 border border-green-900/50"
-    : "bg-zinc-900";
+    ? "bg-accent/30 border border-accent/50"
+    : "bg-card";
 
   return (
     <div className="space-y-0.5">
@@ -77,7 +77,7 @@ export default function SetRow({
             type="button"
             onClick={onMoveUp}
             disabled={isFirst}
-            className="w-6 h-5 flex items-center justify-center text-xs text-zinc-400 disabled:opacity-20 active:text-white"
+            className="w-6 h-5 flex items-center justify-center text-xs text-muted disabled:opacity-20 active:text-white"
           >
             ▲
           </button>
@@ -85,14 +85,14 @@ export default function SetRow({
             type="button"
             onClick={onMoveDown}
             disabled={isLast}
-            className="w-6 h-5 flex items-center justify-center text-xs text-zinc-400 disabled:opacity-20 active:text-white"
+            className="w-6 h-5 flex items-center justify-center text-xs text-muted disabled:opacity-20 active:text-white"
           >
             ▼
           </button>
         </div>
       )}
 
-      <span className="text-zinc-500 text-sm font-medium w-4 shrink-0 text-center">
+      <span className="text-muted text-sm font-medium w-4 shrink-0 text-center">
         {wasTooHeavyLastTime ? (
           <span className="text-red-500" title="Was too heavy last time">⚠</span>
         ) : (
@@ -103,14 +103,14 @@ export default function SetRow({
       <WeightStepper value={weightKg} onChange={onWeightChange} />
 
       <div className="flex items-center gap-1">
-        <span className="text-zinc-600 text-xs">×</span>
+        <span className="text-subtle text-xs">×</span>
         <input
           type="number"
           inputMode="numeric"
           value={reps || ""}
           onChange={(e) => onRepsChange(parseInt(e.target.value) || 0)}
           placeholder={String(targetReps)}
-          className="w-12 h-10 text-center text-base font-semibold bg-zinc-800 rounded-xl text-white border border-zinc-700 focus:border-blue-500 focus:outline-none"
+          className="w-12 h-10 text-center text-base font-bold font-num bg-surface rounded-xl text-white border border-border-strong focus:border-accent focus:outline-none"
         />
       </div>
 
@@ -121,8 +121,8 @@ export default function SetRow({
           onClick={onToggleComplete}
           className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${
             completed
-              ? "bg-green-600 text-white"
-              : "bg-zinc-800 text-zinc-500 active:bg-zinc-700"
+              ? "bg-accent text-on-accent"
+              : "bg-surface text-muted active:bg-surface-hover"
           }`}
         >
           ✓
@@ -138,7 +138,7 @@ export default function SetRow({
             className={`h-8 px-2 rounded-lg text-xs font-bold border transition-colors ${
               isWarmup
                 ? "bg-yellow-900/60 border-yellow-700 text-yellow-300"
-                : "bg-zinc-800 border-zinc-700 text-zinc-400"
+                : "bg-surface border-border-strong text-muted"
             }`}
             title={isWarmup ? "Warm-up set (tap to make work set)" : "Work set (tap to make warm-up)"}
           >
@@ -147,7 +147,7 @@ export default function SetRow({
           <button
             type="button"
             onClick={onDelete}
-            className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-red-400 text-base flex items-center justify-center active:bg-red-950/40"
+            className="w-8 h-8 rounded-lg bg-surface border border-border-strong text-red-400 text-base flex items-center justify-center active:bg-red-950/40"
           >
             ×
           </button>
@@ -161,7 +161,7 @@ export default function SetRow({
           type="button"
           onClick={() => setRpeOpen((o) => !o)}
           aria-expanded={rpeOpen}
-          className={`text-xs ${rpe != null ? "text-accent font-semibold" : "text-zinc-500"}`}
+          className={`text-xs ${rpe != null ? "text-accent font-semibold" : "text-muted"}`}
         >
           {rpe != null ? `RPE ${rpe}` : "+ RPE"}
         </button>
@@ -177,7 +177,7 @@ export default function SetRow({
                   setRpeOpen(false);
                 }}
                 className={`min-w-9 h-8 px-2 rounded-lg text-xs font-semibold border ${
-                  rpe === v ? "bg-accent text-white border-accent" : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                  rpe === v ? "bg-accent text-on-accent border-accent" : "bg-surface text-soft border-border-strong"
                 }`}
               >
                 {v}

@@ -158,7 +158,7 @@ export function ProgramExerciseRow({
 
   if (isEditing) {
     return (
-      <div className="mb-2 rounded-lg border border-accent/60 bg-zinc-900 p-3">
+      <div className="mb-2 rounded-lg border border-accent/60 bg-card p-3">
         {formError && (
           <div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-2 py-1 text-xs text-red-300">
             {formError}
@@ -172,7 +172,7 @@ export function ProgramExerciseRow({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., Back Squat"
-            className="mt-1 w-full rounded border border-border bg-zinc-950 px-2 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent"
+            className="mt-1 w-full rounded border border-border bg-deep px-2 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
@@ -198,7 +198,7 @@ export function ProgramExerciseRow({
                 value={row.weight}
                 onChange={(e) => handleSetChange(row.id, "weight", e.target.value)}
                 placeholder="kg"
-                className="col-span-4 rounded border border-border bg-zinc-950 px-2 py-2 text-sm font-medium text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                className="col-span-4 rounded border border-border bg-deep px-2 py-2 text-sm font-medium text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <input
                 type="number"
@@ -207,7 +207,7 @@ export function ProgramExerciseRow({
                 value={row.reps}
                 onChange={(e) => handleSetChange(row.id, "reps", e.target.value)}
                 placeholder="reps"
-                className="col-span-4 rounded border border-border bg-zinc-950 px-2 py-2 text-sm font-medium text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                className="col-span-4 rounded border border-border bg-deep px-2 py-2 text-sm font-medium text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <button
                 onClick={() => handleRemoveSet(row.id)}
@@ -235,20 +235,20 @@ export function ProgramExerciseRow({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g., top set + backoff"
-            className="mt-1 w-full rounded border border-border bg-zinc-950 px-2 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            className="mt-1 w-full rounded border border-border bg-deep px-2 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={handleSave}
-            className="flex-1 rounded bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover active:bg-accent-hover"
+            className="flex-1 rounded bg-accent py-2 text-sm font-medium text-on-accent hover:bg-accent-hover active:bg-accent-hover"
           >
             Save
           </button>
           <button
             onClick={onCancel}
-            className="flex-1 rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
+            className="flex-1 rounded border border-border bg-surface-hover py-2 text-sm font-medium text-white hover:bg-surface-strong active:bg-surface-strong"
           >
             Cancel
           </button>
@@ -283,11 +283,11 @@ export function ProgramExerciseRow({
               }
               setShowAlts((v) => !v);
             }}
-            className="mt-2 text-xs text-blue-400 active:text-blue-300"
+            className="mt-2 text-xs text-accent active:text-accent"
           >
             {showAlts ? "▲ Hide alternatives" : "▼ Alternatives"}
             {alternatives.length > 0 && !showAlts && (
-              <span className="ml-1 text-zinc-500">({alternatives.length})</span>
+              <span className="ml-1 text-muted">({alternatives.length})</span>
             )}
           </button>
         </div>
@@ -296,7 +296,7 @@ export function ProgramExerciseRow({
           {canMoveUp && (
             <button
               onClick={onMoveUp}
-              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-surface hover:text-white active:bg-surface-hover"
               title="Move up"
               aria-label="Move exercise up"
             >
@@ -306,7 +306,7 @@ export function ProgramExerciseRow({
           {canMoveDown && (
             <button
               onClick={onMoveDown}
-              className="h-10 w-10 rounded text-muted transition-colors hover:bg-zinc-800 hover:text-white active:bg-zinc-700"
+              className="h-10 w-10 rounded text-muted transition-colors hover:bg-surface hover:text-white active:bg-surface-hover"
               title="Move down"
               aria-label="Move exercise down"
             >
@@ -330,11 +330,11 @@ export function ProgramExerciseRow({
       {showAlts && (
         <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
           {loadingAlts ? (
-            <p className="text-xs text-zinc-500">Loading…</p>
+            <p className="text-xs text-muted">Loading…</p>
           ) : (
             <>
               {alternatives.length === 0 && !showAddAlt && (
-                <p className="text-xs text-zinc-500">No saved alternatives yet.</p>
+                <p className="text-xs text-muted">No saved alternatives yet.</p>
               )}
               {alternatives.map((alt) => (
                 <div key={alt.exercise_id} className="flex items-center justify-between">
@@ -358,7 +358,7 @@ export function ProgramExerciseRow({
                     value={altSearch}
                     onChange={(e) => setAltSearch(e.target.value)}
                     placeholder="Search exercises…"
-                    className="w-full px-2 py-1.5 rounded-lg bg-zinc-800 text-white text-xs border border-zinc-700 focus:border-blue-500 focus:outline-none"
+                    className="w-full px-2 py-1.5 rounded-lg bg-surface text-white text-xs border border-border-strong focus:border-accent focus:outline-none"
                     autoFocus
                   />
                   <div className="max-h-40 overflow-y-auto space-y-1">
@@ -381,7 +381,7 @@ export function ProgramExerciseRow({
                             setAltSearch("");
                             setShowAddAlt(false);
                           }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg bg-zinc-800 text-xs text-white active:bg-zinc-700"
+                          className="w-full text-left px-2 py-1.5 rounded-lg bg-surface text-xs text-white active:bg-surface-hover"
                         >
                           {ex.name}
                         </button>
@@ -390,7 +390,7 @@ export function ProgramExerciseRow({
                   <button
                     type="button"
                     onClick={() => { setShowAddAlt(false); setAltSearch(""); }}
-                    className="text-xs text-zinc-500 active:text-zinc-300"
+                    className="text-xs text-muted active:text-soft"
                   >
                     Cancel
                   </button>
@@ -399,7 +399,7 @@ export function ProgramExerciseRow({
                 <button
                   type="button"
                   onClick={() => setShowAddAlt(true)}
-                  className="text-xs text-blue-400 active:text-blue-300"
+                  className="text-xs text-accent active:text-accent"
                 >
                   + Add alternative
                 </button>

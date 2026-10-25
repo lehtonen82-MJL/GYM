@@ -120,7 +120,7 @@ export default function ImportPreviewPage() {
           <p className="mb-4 text-muted">{error || "Preview not available"}</p>
           <button
             onClick={() => router.push("/programs/import")}
-            className="rounded-lg bg-accent px-6 py-2 font-medium text-white hover:bg-accent-hover"
+            className="rounded-lg bg-accent px-6 py-2 font-medium text-on-accent hover:bg-accent-hover"
           >
             Go Back
           </button>
@@ -195,7 +195,7 @@ export default function ImportPreviewPage() {
                   setValidationWarnings(null);
                   router.push("/programs/import");
                 }}
-                className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 text-base font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
+                className="flex-1 rounded-lg border border-border bg-surface-hover py-3 text-base font-medium text-white hover:bg-surface-strong active:bg-surface-strong"
               >
                 Fix Import
               </button>
@@ -219,7 +219,7 @@ export default function ImportPreviewPage() {
             type="text"
             value={programName}
             onChange={(e) => setProgramName(e.target.value)}
-            className="w-full rounded-lg border border-border bg-zinc-950 px-3 py-2 text-base text-white focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full rounded-lg border border-border bg-deep px-3 py-2 text-base text-white focus:outline-none focus:ring-2 focus:ring-accent"
             disabled={isSaving}
           />
         </div>
@@ -248,7 +248,7 @@ export default function ImportPreviewPage() {
             >
               <div className="space-y-2">
                 {day.exercises.map((ex, exIdx) => (
-                  <div key={exIdx} className="rounded border border-border bg-zinc-900 p-3 text-sm">
+                  <div key={exIdx} className="rounded border border-border bg-card p-3 text-sm">
                     <div className="font-medium text-white">
                       {ex.name}
                       {ex.supersetGroup && (
@@ -274,7 +274,7 @@ export default function ImportPreviewPage() {
           <button
             type="button"
             onClick={() => router.push("/programs/import")}
-            className="flex-1 rounded-lg border border-border bg-zinc-700 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-600 active:bg-zinc-500 disabled:bg-zinc-700/60"
+            className="flex-1 rounded-lg border border-border bg-surface-hover py-3 text-base font-medium text-white transition-colors hover:bg-surface-strong active:bg-surface-strong disabled:bg-surface-hover/60"
             disabled={isSaving}
           >
             Back
@@ -282,7 +282,7 @@ export default function ImportPreviewPage() {
           <button
             type="submit"
             disabled={isSaving || !programName.trim()}
-            className="flex-1 rounded-lg bg-success py-3 text-base font-medium text-white transition-colors hover:bg-green-600 active:bg-green-700 disabled:bg-zinc-600"
+            className="flex-1 rounded-lg bg-success py-3 text-base font-medium text-on-accent transition-colors hover:bg-accent active:bg-accent disabled:bg-surface-strong"
           >
             {isSaving ? "Saving..." : "Save Program"}
           </button>

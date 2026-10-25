@@ -49,7 +49,7 @@ export function ProgramCard({
         {onOpen && (
           <button
             onClick={onOpen}
-            className="rounded bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover active:bg-accent-hover"
+            className="rounded bg-accent py-2 text-sm font-medium text-on-accent hover:bg-accent-hover active:bg-accent-hover"
           >
             Open
           </button>
@@ -57,7 +57,7 @@ export function ProgramCard({
         {onEdit && (
           <button
             onClick={onEdit}
-            className="rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
+            className="rounded border border-border bg-surface-hover py-2 text-sm font-medium text-white hover:bg-surface-strong active:bg-surface-strong"
           >
             Edit
           </button>
@@ -65,7 +65,7 @@ export function ProgramCard({
         {onDuplicate && (
           <button
             onClick={onDuplicate}
-            className="rounded border border-border bg-zinc-700 py-2 text-sm font-medium text-white hover:bg-zinc-600 active:bg-zinc-500"
+            className="rounded border border-border bg-surface-hover py-2 text-sm font-medium text-white hover:bg-surface-strong active:bg-surface-strong"
           >
             Duplicate
           </button>
@@ -76,7 +76,7 @@ export function ProgramCard({
         {onSetActive && !program.is_active && (
           <button
             onClick={onSetActive}
-            className="col-span-2 rounded bg-success py-2 text-sm font-medium text-white hover:bg-green-600 active:bg-green-700"
+            className="col-span-2 rounded bg-success py-2 text-sm font-medium text-on-accent hover:bg-accent active:bg-accent"
           >
             Set Active
           </button>

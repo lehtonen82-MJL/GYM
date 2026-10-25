@@ -55,7 +55,7 @@ async function TodayContent() {
           </div>
           <Link
             href={`/workout/${unfinishedWorkout.id}`}
-            className="block w-full py-4 rounded-xl bg-accent text-white font-bold text-lg text-center active:bg-accent-hover"
+            className="block w-full py-4 rounded-xl bg-accent text-on-accent font-bold text-lg text-center active:bg-accent-hover"
           >
             Resume Workout
           </Link>
@@ -67,7 +67,7 @@ async function TodayContent() {
       {todayDay ? (
         <div className={`bg-card rounded-2xl border p-5 space-y-4 ${
           finishedDayIds.includes(todayDay.id)
-            ? "border-green-600/50 bg-green-500/5"
+            ? "border-accent/50 bg-accent/5"
             : "border-border"
         }`}>
           <div className="flex items-start justify-between">
@@ -76,7 +76,7 @@ async function TodayContent() {
               <h2 className="text-xl font-bold text-white">{todayDay.name}</h2>
             </div>
             {finishedDayIds.includes(todayDay.id) && (
-              <span className="text-sm text-green-400 font-semibold">✓ Done</span>
+              <span className="text-sm text-accent font-semibold">✓ Done</span>
             )}
           </div>
           <StartWorkoutButton workoutDayId={todayDay.id} programId={programId} />
@@ -94,7 +94,7 @@ async function TodayContent() {
           <p className="text-muted text-sm">No workout slots found yet.</p>
           <Link
             href="/programs"
-            className="inline-block mt-3 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+            className="inline-block mt-3 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent"
           >
             Open Programs
           </Link>

@@ -46,7 +46,7 @@ export async function GET(
               style={{
                 width: size * 0.09,
                 height: size * 0.32,
-                background: "#22c55e",
+                background: "#c6f432",
                 borderRadius: size * 0.02,
               }}
             />
@@ -55,7 +55,7 @@ export async function GET(
               style={{
                 width: size * 0.05,
                 height: size * 0.18,
-                background: "#16a34a",
+                background: "#b4e01f",
                 borderRadius: size * 0.01,
               }}
             />
@@ -64,7 +64,7 @@ export async function GET(
               style={{
                 width: size * 0.32,
                 height: size * 0.06,
-                background: "#4b5563",
+                background: "#5c5c5c",
                 borderRadius: size * 0.01,
               }}
             />
@@ -73,7 +73,7 @@ export async function GET(
               style={{
                 width: size * 0.05,
                 height: size * 0.18,
-                background: "#16a34a",
+                background: "#b4e01f",
                 borderRadius: size * 0.01,
               }}
             />
@@ -82,7 +82,7 @@ export async function GET(
               style={{
                 width: size * 0.09,
                 height: size * 0.32,
-                background: "#22c55e",
+                background: "#c6f432",
                 borderRadius: size * 0.02,
               }}
             />
@@ -90,7 +90,7 @@ export async function GET(
           {/* Text */}
           <div
             style={{
-              color: "#22c55e",
+              color: "#c6f432",
               fontSize: size * 0.14,
               fontWeight: 800,
               letterSpacing: size * 0.01,

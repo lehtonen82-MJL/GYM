@@ -57,7 +57,7 @@ export function ProgramForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g., Strength A/B"
-          className="w-full rounded-lg border border-border bg-zinc-900 px-3 py-2 text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           disabled={isLoading}
         />
       </div>
@@ -72,7 +72,7 @@ export function ProgramForm({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g., Classic strength split"
           rows={2}
-          className="w-full rounded-lg border border-border bg-zinc-900 px-3 py-2 text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-base text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           disabled={isLoading}
         />
       </div>
@@ -110,7 +110,7 @@ export function ProgramForm({
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full rounded-lg bg-accent py-3 text-base font-medium text-white hover:bg-accent-hover disabled:bg-zinc-600"
+        className="w-full rounded-lg bg-accent py-3 text-base font-medium text-on-accent hover:bg-accent-hover disabled:bg-surface-strong"
       >
         {isLoading ? "Creating..." : "Create Program"}
       </button>
